@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="EchoMind">
+  <rect width="512" height="512" fill="#090d16"/>
+  <circle cx="256" cy="256" r="92" fill="none" stroke="#7dd3fc" stroke-width="22"/>
+  <circle cx="256" cy="256" r="28" fill="#e8edf7"/>
+</svg>

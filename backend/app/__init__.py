@@ -1,0 +1,1 @@
+"""EchoMind FastAPI application."""

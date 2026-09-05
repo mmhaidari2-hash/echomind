@@ -1,0 +1,6 @@
+android
+.next-android
+.next-prod
+out
+.env.local
+.env.android.example

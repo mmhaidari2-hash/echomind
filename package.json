@@ -1,0 +1,21 @@
+{
+  "name": "echomind",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "build:prod": "npm --prefix frontend run build:prod",
+    "start": "npm --prefix frontend run start",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test": "python -m pytest backend/tests -q",
+    "test:pwa": "node frontend/scripts/verify-pwa.mjs",
+    "test:android": "node frontend/scripts/verify-android.mjs",
+    "test:cloud": "node frontend/scripts/verify-cloud.mjs",
+    "export:android": "npm --prefix frontend run export:android",
+    "android:sync": "npm --prefix frontend run android:sync",
+    "android:open": "npm --prefix frontend run android:open",
+    "lint": "npm --prefix frontend run lint",
+    "verify": "npm run typecheck && npm run test && npm run test:pwa && npm run test:android && npm run build:prod"
+  }
+}
