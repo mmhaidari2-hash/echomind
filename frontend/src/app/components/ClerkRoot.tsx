@@ -14,7 +14,11 @@ function AuthTokenBridge() {
       return;
     }
     setAuthTokenProvider(() => getToken());
-    return () => setAuthTokenProvider(null);
+    window.dispatchEvent(new Event("echomind-auth-ready"));
+    return () => {
+      setAuthTokenProvider(null);
+      window.dispatchEvent(new Event("echomind-auth-cleared"));
+    };
   }, [getToken, isLoaded, isSignedIn]);
 
   return null;
