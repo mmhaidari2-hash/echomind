@@ -676,6 +676,7 @@ export async function evaluateAlerts(payload: {
 
 export async function saveWatch(payload: WatchPayload): Promise<WatchRecord> {
   return api<WatchRecord>("/notifications/watches", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
