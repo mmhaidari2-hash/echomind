@@ -717,6 +717,7 @@ export async function parseDocumentText(payload: {
   locale?: ApiLocale;
 }): Promise<DocumentParseResponse> {
   return api<DocumentParseResponse>("/documents/parse-text", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -732,6 +733,7 @@ export async function parseDocumentFile(
   if (options?.hint) body.append("hint", options.hint);
   body.append("locale", options?.locale ?? "en");
   return api<DocumentParseResponse>("/documents/parse", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body,
