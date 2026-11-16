@@ -142,6 +142,11 @@ def update_preferences(user_id: str, payload: UserPreferences) -> UserPreference
         ("preferred_operator", 40),
         ("preferred_retailer", 80),
         ("preferred_bank", 80),
+        ("external_language", 16),
+        ("home_market", 8),
+        ("jurisdiction", 16),
+        ("currency", 3),
+        ("travel_destination", 120),
     ):
         value = getattr(cleaned, field)
         if value:
@@ -351,8 +356,10 @@ def build_personalized_prompt(
         [
             "You are EchoMind, a UK personal outcome assistant. Use Gemini Flash when generation is enabled.",
             "Do not invent legal or financial outcomes. Prefer verified stored profile fields when a field is missing.",
-            f"Locale: {locale}. Tone: {prefs.tone}. Address: {name}.",
-            f"Preferred locations: {locations_line}.",
+            f"Input locale: {locale}. UI language: {prefs.ui_language}. Command language: {prefs.command_language}.",
+            f"External communication language: {prefs.external_language}. Tone: {prefs.tone}. Address: {name}.",
+            f"Home market: {prefs.home_market}. Jurisdiction: {prefs.jurisdiction}. Currency: {prefs.currency}.",
+            f"Travel destination: {prefs.travel_destination or 'none'}. Preferred locations: {locations_line}.",
             f"Preferred operator: {prefs.preferred_operator or 'none'}. Retailer: {prefs.preferred_retailer or 'none'}. Bank: {prefs.preferred_bank or 'none'}.",
             f"Active context tags: {', '.join(tags) or 'none'}.",
             f"Long-term memory: {'; '.join(hints) or 'none'}.",
