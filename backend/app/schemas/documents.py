@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
@@ -60,6 +61,17 @@ class DocumentParseRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=20000)
     filename: str | None = Field(default=None, max_length=180)
     locale: str = Field(default="en", pattern="^(en|fa)$")
+
+
+class EvidenceMetadata(BaseModel):
+    id: str
+    sha256: str = Field(..., min_length=64, max_length=64)
+    filename: str | None = Field(default=None, max_length=180)
+    content_type: str = Field(..., max_length=120)
+    size_bytes: int = Field(ge=0, le=8 * 1024 * 1024)
+    kind: DocumentKind
+    summary: str = Field(..., max_length=500)
+    created_at: datetime
 
 
 class DocumentParseResponse(BaseModel):
