@@ -8,6 +8,7 @@ from app.api.endpoints import (
     delay_repay,
     documents,
     health,
+    life,
     memory,
     notifications,
     overdraft_shield,
@@ -17,6 +18,7 @@ from app.api.endpoints import (
 api_router = APIRouter()
 api_router.include_router(authority.router)
 api_router.include_router(health.router)
+api_router.include_router(life.router)
 api_router.include_router(chat.router)
 api_router.include_router(conversations.router)
 api_router.include_router(delay_repay.router)
