@@ -70,3 +70,23 @@ def test_watches_are_isolated_between_users() -> None:
     assert own.status_code == 200
     assert len(own.json()) == 1
     assert own.json()[0]["title"] == "Laptop"
+
+
+def test_evidence_metadata_is_isolated_between_users() -> None:
+    _as("user-a")
+    parsed = client.post(
+        "/api/v1/documents/parse-text",
+        json={"text": "Receipt from Currys £49.99 on 01/11/2026", "filename": "receipt.txt", "locale": "en"},
+    )
+    assert parsed.status_code == 200
+
+    own = client.get("/api/v1/documents/evidence")
+    assert own.status_code == 200
+    assert len(own.json()) == 1
+    assert own.json()[0]["filename"] == "receipt.txt"
+    assert len(own.json()[0]["sha256"]) == 64
+
+    _as("user-b")
+    other = client.get("/api/v1/documents/evidence")
+    assert other.status_code == 200
+    assert other.json() == []
