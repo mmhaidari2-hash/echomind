@@ -44,6 +44,7 @@ import {
   ApiError,
   evaluateAlerts,
   getHealth,
+  getConversation,
   getMemoryProfile,
   parseDocumentFile,
   saveContextTags,
@@ -184,12 +185,38 @@ export default function HomePage() {
     if (storedThread.length) setMessages(storedThread);
     const storedConvo = loadConversationId();
     if (storedConvo) setConversationId(storedConvo);
-    void getMemoryProfile()
-      .then((profile) => {
+
+    let cancelled = false;
+    const loadProtectedState = async () => {
+      try {
+        const profile = await getMemoryProfile();
+        if (cancelled) return;
         setPreferences(profile.preferences);
         setTagText(profile.tags.filter((tag) => tag.active).map((tag) => tag.label).join(", "));
-      })
-      .catch(() => undefined);
+        if (storedConvo) {
+          const remote = await getConversation(storedConvo);
+          if (!cancelled) {
+            setMessages(
+              remote.turns.map((turn) => ({
+                id: crypto.randomUUID(),
+                role: turn.role,
+                text: turn.text,
+                pillar: turn.pillar ?? undefined,
+              })),
+            );
+          }
+        }
+      } catch {
+        // Local cache remains visible until a secure session is available.
+      }
+    };
+
+    void loadProtectedState();
+    window.addEventListener("echomind-auth-ready", loadProtectedState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("echomind-auth-ready", loadProtectedState);
+    };
   }, []);
 
   useEffect(() => {
@@ -739,16 +766,15 @@ export default function HomePage() {
         onRecommendation={(item) => openParsedPillar(item.action_pillar)}
         preferences={preferences}
         tagText={tagText}
-        onSavePreferences={(prefs, tags) => {
-          setPreferences(prefs);
-          setTagText(tags);
-          void savePreferences(prefs).catch(() => undefined);
+        onSavePreferences={async (prefs, tags) => {
           const labels = tags
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean)
             .map((label) => ({ label, active: true }));
-          void saveContextTags(labels).catch(() => undefined);
+          await Promise.all([savePreferences(prefs), saveContextTags(labels)]);
+          setPreferences(prefs);
+          setTagText(tags);
         }}
       />
     </div>
