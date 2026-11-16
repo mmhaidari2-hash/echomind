@@ -38,7 +38,15 @@ class MemoryRecallResponse(BaseModel):
 
 class UserPreferences(BaseModel):
     display_name: str | None = Field(default=None, max_length=80)
+    # locale is retained for backward compatibility with the current UI.
     locale: str = Field(default="en", pattern="^(en|fa)$")
+    ui_language: str = Field(default="en", pattern="^(en|fa)$")
+    command_language: str = Field(default="auto", pattern="^(auto|en|fa)$")
+    external_language: str = Field(default="en-GB", max_length=16)
+    home_market: str = Field(default="GB", min_length=2, max_length=8)
+    jurisdiction: str = Field(default="GB", min_length=2, max_length=16)
+    currency: str = Field(default="GBP", min_length=3, max_length=3)
+    travel_destination: str | None = Field(default=None, max_length=120)
     home_station: str | None = Field(default=None, max_length=80)
     work_station: str | None = Field(default=None, max_length=80)
     preferred_operator: str | None = Field(default=None, max_length=40)
