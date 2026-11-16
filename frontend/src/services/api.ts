@@ -759,6 +759,42 @@ export type ActiveContext = {
   prompt_chars: number;
 };
 
+export type ConversationTurn = {
+  conversation_id: string;
+  role: "user" | "assistant";
+  text: string;
+  pillar: PillarId | null;
+  created_at: string;
+};
+
+export type ConversationSummary = {
+  conversation_id: string;
+  title: string;
+  message_count: number;
+  updated_at: string;
+};
+
+export type ConversationDetail = {
+  conversation_id: string;
+  turns: ConversationTurn[];
+};
+
+export async function listConversations(): Promise<ConversationSummary[]> {
+  return api<ConversationSummary[]>("/conversations", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getConversation(conversationId: string): Promise<ConversationDetail> {
+  return api<ConversationDetail>(`/conversations/${encodeURIComponent(conversationId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
 export async function getMemoryProfile(): Promise<MemoryProfile> {
   return api<MemoryProfile>("/memory/profile", {
     auth: "protected",
