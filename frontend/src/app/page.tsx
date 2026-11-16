@@ -699,6 +699,7 @@ export default function HomePage() {
                       message={message.text}
                       steps={message.steps ?? []}
                       pillar={message.pillar ?? "consumer_rights"}
+                      locale={locale}
                       pending={message.pending}
                       pendingLabel={t.thinking}
                       actionLabel={
