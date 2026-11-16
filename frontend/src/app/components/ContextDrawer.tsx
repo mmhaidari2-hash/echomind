@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import ActiveContextBar, { type ContextWorkflow } from "./ActiveContextBar";
 import Dashboard from "./Dashboard";
 import PreferencesCard from "./PreferencesCard";
+import LifeSummaryCard from "./LifeSummaryCard";
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import type {
@@ -12,6 +13,7 @@ import type {
   DocumentParseResponse,
   PillarId,
   Recommendation,
+  LifeSnapshot,
   UserPreferences,
 } from "@/services/api";
 
@@ -35,6 +37,7 @@ type ContextDrawerProps = {
   preferences: UserPreferences;
   tagText: string;
   onSavePreferences: (prefs: UserPreferences, tags: string) => Promise<void>;
+  lifeSnapshot: LifeSnapshot | null;
 };
 
 export default function ContextDrawer({
@@ -55,6 +58,7 @@ export default function ContextDrawer({
   preferences,
   tagText,
   onSavePreferences,
+  lifeSnapshot,
 }: ContextDrawerProps) {
   const t = copy[locale];
   const [tab, setTab] = useState<ContextTab>("context");
@@ -131,6 +135,7 @@ export default function ContextDrawer({
                 memoryLabel={memoryLabel}
                 onClear={onClear}
               />
+              <LifeSummaryCard locale={locale} snapshot={lifeSnapshot} />
               <PreferencesCard
                 locale={locale}
                 preferences={preferences}
