@@ -50,3 +50,23 @@ def test_conversation_history_is_owner_scoped_and_retrievable() -> None:
     _as("user-b")
     hidden = client.get("/api/v1/conversations/conv-a")
     assert hidden.status_code == 404
+
+
+def test_watches_are_isolated_between_users() -> None:
+    _as("user-a")
+    created = client.post(
+        "/api/v1/notifications/watches",
+        json={"kind": "purchase", "title": "Laptop", "anchor_date": "2026-11-01", "locale": "en"},
+    )
+    assert created.status_code == 200
+
+    _as("user-b")
+    other = client.get("/api/v1/notifications/watches")
+    assert other.status_code == 200
+    assert other.json() == []
+
+    _as("user-a")
+    own = client.get("/api/v1/notifications/watches")
+    assert own.status_code == 200
+    assert len(own.json()) == 1
+    assert own.json()[0]["title"] == "Laptop"
