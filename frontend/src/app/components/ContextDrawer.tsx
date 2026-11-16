@@ -6,6 +6,7 @@ import ActiveContextBar, { type ContextWorkflow } from "./ActiveContextBar";
 import Dashboard from "./Dashboard";
 import PreferencesCard from "./PreferencesCard";
 import LifeSummaryCard from "./LifeSummaryCard";
+import GoogleConnectionsCard from "./GoogleConnectionsCard";
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import type {
@@ -136,6 +137,7 @@ export default function ContextDrawer({
                 onClear={onClear}
               />
               <LifeSummaryCard locale={locale} snapshot={lifeSnapshot} />
+              <GoogleConnectionsCard locale={locale} />
               <PreferencesCard
                 locale={locale}
                 preferences={preferences}
