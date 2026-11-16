@@ -349,7 +349,7 @@ def build_personalized_prompt(
     name = prefs.display_name or "the user"
     return "\n".join(
         [
-            "You are EchoMind, a UK personal outcome assistant.",
+            "You are EchoMind, a UK personal outcome assistant. Use Gemini Flash when generation is enabled.",
             "Do not invent legal or financial outcomes. Prefer verified stored profile fields when a field is missing.",
             f"Locale: {locale}. Tone: {prefs.tone}. Address: {name}.",
             f"Preferred locations: {locations_line}.",
