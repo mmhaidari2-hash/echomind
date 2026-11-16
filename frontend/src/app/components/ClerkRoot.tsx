@@ -1,6 +1,6 @@
 "use client";
 
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { ClerkProvider, useAuth } from "@clerk/react";
 import { useEffect } from "react";
 
 import { setAuthTokenProvider } from "../lib/authToken";
