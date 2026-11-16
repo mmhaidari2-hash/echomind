@@ -4,6 +4,7 @@ import { Inter, Vazirmatn } from "next/font/google";
 import ClerkRoot from "./components/ClerkRoot";
 import InstallPrompt from "./components/InstallPrompt";
 import NativeShell from "./components/NativeShell";
+import OutcomeSync from "./components/OutcomeSync";
 import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 import "./globals.css";
 
@@ -55,6 +56,7 @@ export default function RootLayout({
         <ClerkRoot>
           {children}
           <NativeShell />
+          <OutcomeSync />
           <ServiceWorkerRegister />
           <InstallPrompt />
         </ClerkRoot>
