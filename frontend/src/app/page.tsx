@@ -47,13 +47,16 @@ import {
   getConversation,
   getMemoryProfile,
   parseDocumentFile,
+  proposeAction,
+  confirmAction,
+  cancelAction,
   saveContextTags,
   savePreferences,
-  saveWatch,
   sendChat,
   streamChat,
   quoteTravelIntent,
   confirmTravelIntent,
+  type ActionProposal,
   type AlertBundle,
   type TravelQuote,
   type ConsumerRightsPrefill,
@@ -127,6 +130,10 @@ export default function HomePage() {
   const [rightsPrefill, setRightsPrefill] = useState<ConsumerRightsPrefill | null>(null);
   const [shieldPrefill, setShieldPrefill] = useState<OverdraftPrefill | null>(null);
   const [activeDocument, setActiveDocument] = useState<DocumentParseResponse | null>(null);
+  const [pendingAction, setPendingAction] = useState<ActionProposal | null>(null);
+  const [pendingWatch, setPendingWatch] = useState<WatchPayload | null>(null);
+  const [authorityBusy, setAuthorityBusy] = useState(false);
+  const [authorityError, setAuthorityError] = useState<string | null>(null);
   const [watches, setWatches] = useState<WatchPayload[]>([]);
   const [balance, setBalance] = useState("");
   const [threshold, setThreshold] = useState("50");
@@ -279,11 +286,26 @@ export default function HomePage() {
     };
   }, [watches, balance, threshold, locale]);
 
-  const trackWatch = (watch: WatchPayload) => {
+  const trackWatch = async (watch: WatchPayload) => {
     const next = withLocale(watch, locale);
-    setWatches((prev) => upsertWatch(prev, next));
-    void saveWatch(next).catch(() => undefined);
-    memory.rememberWatch(next);
+    setAuthorityBusy(true);
+    setAuthorityError(null);
+    try {
+      const proposal = await proposeAction({
+        tool: "watch.create",
+        summary:
+          locale === "fa"
+            ? `پیگیری «${next.title}» را فعال کن`
+            : `Track “${next.title}” and its deadline`,
+        parameters: next as unknown as Record<string, unknown>,
+      });
+      setPendingWatch(next);
+      setPendingAction(proposal);
+    } catch (error) {
+      setAuthorityError(error instanceof ApiError ? error.message : "Could not prepare the action.");
+    } finally {
+      setAuthorityBusy(false);
+    }
   };
 
   const trackDocument = (doc: DocumentParseResponse) => {
@@ -662,6 +684,73 @@ export default function HomePage() {
               </p>
               <p className="mt-1 text-sm text-slate-400">{travelText(locale).hint}</p>
             </section>
+          ) : null}
+
+          {pendingAction ? (
+            <section className="rounded-[1.4rem] border border-amber-400/30 bg-amber-400/10 p-4" aria-live="polite">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+                {locale === "fa" ? "تأیید اقدام" : "Confirm action"}
+              </p>
+              <p className="mt-1 text-sm text-slate-100">{pendingAction.summary}</p>
+              <p className="mt-1 text-xs text-slate-400">
+                {locale === "fa"
+                  ? "تا وقتی تأیید نکنی، EchoMind این اقدام را اجرا نمی‌کند."
+                  : "EchoMind will not execute this action until you confirm it."}
+              </p>
+              {authorityError ? <p className="mt-2 text-xs text-rose-300">{authorityError}</p> : null}
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  disabled={authorityBusy}
+                  className="min-h-11 rounded-full bg-amber-300 px-4 text-sm font-semibold text-slate-950 disabled:opacity-50"
+                  onClick={async () => {
+                    setAuthorityBusy(true);
+                    setAuthorityError(null);
+                    try {
+                      const executed = await confirmAction(pendingAction.id);
+                      if (executed.status !== "executed") {
+                        throw new ApiError("The action was not executed.", { code: "authority_not_executed" });
+                      }
+                      if (pendingWatch) {
+                        setWatches((prev) => upsertWatch(prev, pendingWatch));
+                        memory.rememberWatch(pendingWatch);
+                      }
+                      setPendingAction(null);
+                      setPendingWatch(null);
+                    } catch (error) {
+                      setAuthorityError(error instanceof ApiError ? error.message : "Action failed.");
+                    } finally {
+                      setAuthorityBusy(false);
+                    }
+                  }}
+                >
+                  {locale === "fa" ? "تأیید و اجرا" : "Confirm & run"}
+                </button>
+                <button
+                  type="button"
+                  disabled={authorityBusy}
+                  className="min-h-11 rounded-full border border-slate-700 px-4 text-sm font-semibold text-slate-300 disabled:opacity-50"
+                  onClick={async () => {
+                    setAuthorityBusy(true);
+                    try {
+                      await cancelAction(pendingAction.id);
+                    } catch {
+                      // Cancellation is fail-closed; the unconfirmed action cannot execute.
+                    } finally {
+                      setPendingAction(null);
+                      setPendingWatch(null);
+                      setAuthorityBusy(false);
+                    }
+                  }}
+                >
+                  {locale === "fa" ? "لغو" : "Cancel"}
+                </button>
+              </div>
+            </section>
+          ) : authorityError ? (
+            <p role="alert" className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+              {authorityError}
+            </p>
           ) : null}
 
           {messages.length > 0 ? (
