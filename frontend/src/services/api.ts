@@ -1,3 +1,6 @@
+import { authorizationHeaders } from "@/app/lib/authHeaders";
+import { AuthSessionError } from "@/app/lib/authToken";
+
 export type ApiLocale = "en" | "fa";
 
 export type PillarId =
@@ -153,12 +156,29 @@ function isFormData(body: unknown): body is FormData {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
+type ApiRequestInit = RequestInit & {
+  timeoutMs?: number;
+  auth?: "public" | "protected";
+};
+
 async function request<T>(
   base: string,
   path: string,
-  init: RequestInit & { timeoutMs?: number } = {},
+  init: ApiRequestInit = {},
 ): Promise<T> {
-  const { timeoutMs = CHAT_TIMEOUT_MS, headers, ...rest } = init;
+  const { timeoutMs = CHAT_TIMEOUT_MS, auth = "public", headers, ...rest } = init;
+  let secureHeaders: Record<string, string> = {};
+  try {
+    if (auth === "protected") {
+      secureHeaders = await authorizationHeaders();
+    }
+  } catch (error) {
+    if (error instanceof AuthSessionError) {
+      throw new ApiError(error.message, { status: 401, code: "auth_session" });
+    }
+    throw error;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -168,6 +188,7 @@ async function request<T>(
       headers: {
         Accept: "application/json",
         ...(rest.body && !isFormData(rest.body) ? { "Content-Type": "application/json" } : {}),
+        ...secureHeaders,
         ...headers,
       },
     });
@@ -236,7 +257,7 @@ async function withBase<T>(run: (base: string) => Promise<T>): Promise<T> {
 
 async function api<T>(
   path: string,
-  init: RequestInit & { timeoutMs?: number } = {},
+  init: ApiRequestInit = {},
 ): Promise<T> {
   return withBase((base) => request<T>(base, path, init));
 }
@@ -250,6 +271,7 @@ export async function getHealth(): Promise<{ status: string }> {
 
 export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
   return api<ChatResponse>("/chat", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -258,6 +280,7 @@ export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
 
 export async function processChat(payload: ChatRequest): Promise<ChatResponse> {
   return api<ChatResponse>("/process", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -677,6 +700,7 @@ export type MemoryFactCreate = {
 
 export async function saveMemoryFact(payload: MemoryFactCreate): Promise<MemoryFact> {
   return api<MemoryFact>("/memory/facts", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -688,6 +712,7 @@ export async function recallMemory(query: string, limit = 6): Promise<{
   hints: string[];
 }> {
   return api<{ facts: MemoryFact[]; hints: string[] }>("/memory/recall", {
+    auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify({ query, limit }),
@@ -736,6 +761,7 @@ export type ActiveContext = {
 
 export async function getMemoryProfile(): Promise<MemoryProfile> {
   return api<MemoryProfile>("/memory/profile", {
+    auth: "protected",
     method: "GET",
     timeoutMs: CHAT_TIMEOUT_MS,
   });
@@ -743,6 +769,7 @@ export async function getMemoryProfile(): Promise<MemoryProfile> {
 
 export async function savePreferences(payload: UserPreferences): Promise<UserPreferences> {
   return api<UserPreferences>("/memory/preferences", {
+    auth: "protected",
     method: "PUT",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -751,6 +778,7 @@ export async function savePreferences(payload: UserPreferences): Promise<UserPre
 
 export async function saveContextTags(tags: Array<{ label: string; active?: boolean }>): Promise<ContextTag[]> {
   return api<ContextTag[]>("/memory/tags", {
+    auth: "protected",
     method: "PUT",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify({ tags }),
@@ -763,6 +791,7 @@ export async function getActiveContext(query = "", conversationId?: string): Pro
   if (conversationId) params.set("conversation_id", conversationId);
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return api<ActiveContext>(`/memory/context${suffix}`, {
+    auth: "protected",
     method: "GET",
     timeoutMs: CHAT_TIMEOUT_MS,
   });
