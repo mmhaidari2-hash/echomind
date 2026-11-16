@@ -1,4 +1,4 @@
-"""Long-term contextual memory, preferences, and Gemini Flash prompt injection."""
+"""Owner-scoped long-term contextual memory and conversation persistence."""
 
 from __future__ import annotations
 
@@ -29,15 +29,10 @@ _SECRET_KEY = re.compile(r"(api[_-]?key|token|password|secret|authorization)", r
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 _STORE_PATH = Path(__file__).resolve().parents[1] / "data" / "memory_store.json"
 _MAX_FACTS = 80
-_MAX_TURNS = 40
+_MAX_TURNS = 80
 
 _lock = threading.Lock()
-_state: dict[str, object] = {
-    "preferences": UserPreferences().model_dump(),
-    "facts": [],
-    "tags": [],
-    "turns": [],
-}
+_state: dict[str, object] = {"users": {}}
 
 
 def _now() -> datetime:
@@ -45,8 +40,7 @@ def _now() -> datetime:
 
 
 def _clean(value: str, limit: int) -> str:
-    text = _CONTROL.sub("", value).strip()
-    return text[:limit]
+    return _CONTROL.sub("", value).strip()[:limit]
 
 
 def _safe_key(key: str) -> str:
@@ -54,6 +48,40 @@ def _safe_key(key: str) -> str:
     if _SECRET_KEY.search(cleaned):
         raise ValueError("Refusing to store a secret-like memory key")
     return cleaned
+
+
+def _empty_user_state() -> dict[str, object]:
+    return {
+        "preferences": UserPreferences().model_dump(),
+        "facts": [],
+        "tags": [],
+        "turns": [],
+    }
+
+
+def _normalize_user_id(user_id: str) -> str:
+    clean = _clean(user_id, 160)
+    if not clean:
+        raise ValueError("Missing user identity")
+    return clean
+
+
+def _users() -> dict[str, dict[str, object]]:
+    users = _state.setdefault("users", {})
+    if not isinstance(users, dict):
+        users = {}
+        _state["users"] = users
+    return users  # type: ignore[return-value]
+
+
+def _user_state(user_id: str) -> dict[str, object]:
+    key = _normalize_user_id(user_id)
+    users = _users()
+    current = users.get(key)
+    if not isinstance(current, dict):
+        current = _empty_user_state()
+        users[key] = current
+    return current
 
 
 def _load() -> None:
@@ -66,20 +94,24 @@ def _load() -> None:
         return
     if not isinstance(raw, dict):
         return
-    _state["preferences"] = {**UserPreferences().model_dump(), **(raw.get("preferences") or {})}
-    _state["facts"] = list(raw.get("facts") or [])[-_MAX_FACTS:]
-    _state["tags"] = list(raw.get("tags") or [])[:16]
-    _state["turns"] = list(raw.get("turns") or [])[-_MAX_TURNS:]
+    users = raw.get("users")
+    if isinstance(users, dict):
+        _state["users"] = users
+        return
+
+    # Older ownerless stores are intentionally not attached to any authenticated user.
+    legacy = _STORE_PATH.with_name(f"{_STORE_PATH.stem}.legacy-ownerless.json")
+    try:
+        if not legacy.exists():
+            legacy.write_text(json.dumps(raw, ensure_ascii=False, default=str), encoding="utf-8")
+        logger.warning("memory_engine.legacy_ownerless_quarantined")
+    except OSError:
+        logger.warning("memory_engine.legacy_ownerless_quarantine_failed")
 
 
 def _dump() -> None:
     _STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "preferences": _state["preferences"],
-        "facts": _state["facts"][-_MAX_FACTS:],
-        "tags": _state["tags"][:16],
-        "turns": _state["turns"][-_MAX_TURNS:],
-    }
+    payload = {"users": _state.get("users", {})}
     tmp = _STORE_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
     tmp.replace(_STORE_PATH)
@@ -89,47 +121,43 @@ _load()
 
 
 def use_store_path(path: Path) -> None:
-    """Point persistence at an isolated file. Used by the production test suite."""
+    """Point persistence at an isolated file. Used by tests."""
     global _STORE_PATH
     with _lock:
         _STORE_PATH = path
-        _state["preferences"] = UserPreferences().model_dump()
-        _state["facts"] = []
-        _state["tags"] = []
-        _state["turns"] = []
+        _state["users"] = {}
 
 
-def get_preferences() -> UserPreferences:
+def get_preferences(user_id: str) -> UserPreferences:
     with _lock:
-        return UserPreferences.model_validate(_state["preferences"])
+        return UserPreferences.model_validate(_user_state(user_id)["preferences"])
 
 
-def update_preferences(payload: UserPreferences) -> UserPreferences:
+def update_preferences(user_id: str, payload: UserPreferences) -> UserPreferences:
     cleaned = payload.model_copy()
-    if cleaned.display_name:
-        cleaned.display_name = _clean(cleaned.display_name, 80) or None
-    if cleaned.home_station:
-        cleaned.home_station = _clean(cleaned.home_station, 80) or None
-    if cleaned.work_station:
-        cleaned.work_station = _clean(cleaned.work_station, 80) or None
-    if cleaned.preferred_operator:
-        cleaned.preferred_operator = _clean(cleaned.preferred_operator, 40) or None
-    if cleaned.preferred_retailer:
-        cleaned.preferred_retailer = _clean(cleaned.preferred_retailer, 80) or None
-    if cleaned.preferred_bank:
-        cleaned.preferred_bank = _clean(cleaned.preferred_bank, 80) or None
+    for field, limit in (
+        ("display_name", 80),
+        ("home_station", 80),
+        ("work_station", 80),
+        ("preferred_operator", 40),
+        ("preferred_retailer", 80),
+        ("preferred_bank", 80),
+    ):
+        value = getattr(cleaned, field)
+        if value:
+            setattr(cleaned, field, _clean(value, limit) or None)
     with _lock:
-        _state["preferences"] = cleaned.model_dump()
+        _user_state(user_id)["preferences"] = cleaned.model_dump()
         _dump()
     return cleaned
 
 
-def list_tags() -> list[ContextTag]:
+def list_tags(user_id: str) -> list[ContextTag]:
     with _lock:
-        return [ContextTag.model_validate(item) for item in _state["tags"]]
+        return [ContextTag.model_validate(item) for item in _user_state(user_id)["tags"]]
 
 
-def replace_tags(labels: list[tuple[str, bool]]) -> list[ContextTag]:
+def replace_tags(user_id: str, labels: list[tuple[str, bool]]) -> list[ContextTag]:
     tags: list[ContextTag] = []
     seen: set[str] = set()
     for label, active in labels:
@@ -139,52 +167,50 @@ def replace_tags(labels: list[tuple[str, bool]]) -> list[ContextTag]:
         seen.add(clean)
         tags.append(ContextTag(id=uuid.uuid4().hex[:8], label=clean, active=active))
     with _lock:
-        _state["tags"] = [tag.model_dump() for tag in tags[:16]]
+        _user_state(user_id)["tags"] = [tag.model_dump() for tag in tags[:16]]
         _dump()
     return tags
 
 
-def add_tag(label: str, active: bool = True) -> ContextTag:
-    existing = list_tags()
+def add_tag(user_id: str, label: str, active: bool = True) -> ContextTag:
+    existing = list_tags(user_id)
     clean = _clean(label, 40).lower()
     for tag in existing:
         if tag.label == clean:
             return tag
     tag = ContextTag(id=uuid.uuid4().hex[:8], label=clean, active=active)
     with _lock:
-        tags = list(_state["tags"])
+        state = _user_state(user_id)
+        tags = list(state["tags"])
         tags.append(tag.model_dump())
-        _state["tags"] = tags[:16]
+        state["tags"] = tags[:16]
         _dump()
     return tag
 
 
-def remove_tag(tag_id: str) -> bool:
+def remove_tag(user_id: str, tag_id: str) -> bool:
     with _lock:
-        before = list(_state["tags"])
+        state = _user_state(user_id)
+        before = list(state["tags"])
         after = [item for item in before if item.get("id") != tag_id]
         if len(after) == len(before):
             return False
-        _state["tags"] = after
+        state["tags"] = after
         _dump()
         return True
 
 
-def active_tag_labels() -> list[str]:
-    return [tag.label for tag in list_tags() if tag.active]
+def active_tag_labels(user_id: str) -> list[str]:
+    return [tag.label for tag in list_tags(user_id) if tag.active]
 
 
-def locations() -> list[str]:
-    prefs = get_preferences()
+def locations(user_id: str) -> list[str]:
+    prefs = get_preferences(user_id)
     found = [item for item in (prefs.home_station, prefs.work_station) if item]
-    unique: list[str] = []
-    for item in found:
-        if item not in unique:
-            unique.append(item)
-    return unique
+    return list(dict.fromkeys(found))
 
 
-def remember(payload: MemoryFactCreate) -> MemoryFact:
+def remember(user_id: str, payload: MemoryFactCreate) -> MemoryFact:
     fact = MemoryFact(
         id=uuid.uuid4().hex[:12],
         key=_safe_key(payload.key),
@@ -195,26 +221,27 @@ def remember(payload: MemoryFactCreate) -> MemoryFact:
     if not fact.value:
         raise ValueError("Memory value is empty")
     with _lock:
-        facts = list(_state["facts"])
+        state = _user_state(user_id)
+        facts = list(state["facts"])
         for existing in facts:
             if existing.get("key") == fact.key and existing.get("value") == fact.value:
                 return MemoryFact.model_validate(existing)
         facts.append(fact.model_dump())
-        _state["facts"] = facts[-_MAX_FACTS:]
+        state["facts"] = facts[-_MAX_FACTS:]
         _dump()
     return fact
 
 
-def list_facts() -> list[MemoryFact]:
+def list_facts(user_id: str) -> list[MemoryFact]:
     with _lock:
-        rows = [MemoryFact.model_validate(item) for item in _state["facts"]]
+        rows = [MemoryFact.model_validate(item) for item in _user_state(user_id)["facts"]]
     return sorted(rows, key=lambda item: item.created_at, reverse=True)
 
 
-def recall(query: str, limit: int = 6) -> list[MemoryFact]:
+def recall(user_id: str, query: str, limit: int = 6) -> list[MemoryFact]:
     tokens = {token for token in query.lower().replace("/", " ").split() if len(token) > 2}
     scored: list[tuple[int, MemoryFact]] = []
-    for fact in list_facts():
+    for fact in list_facts(user_id):
         blob = f"{fact.key} {fact.value}".lower()
         score = sum(1 for token in tokens if token in blob)
         if tokens and score == 0:
@@ -224,34 +251,40 @@ def recall(query: str, limit: int = 6) -> list[MemoryFact]:
     return [fact for _score, fact in scored][:limit]
 
 
-def hints_for(query: str, limit: int = 6) -> list[str]:
-    return [f"{fact.key}: {fact.value}" for fact in recall(query, limit)]
+def hints_for(user_id: str, query: str, limit: int = 6) -> list[str]:
+    return [f"{fact.key}: {fact.value}" for fact in recall(user_id, query, limit)]
 
 
-def remember_document(doc: DocumentParseResponse) -> list[MemoryFact]:
+def remember_document(user_id: str, doc: DocumentParseResponse) -> list[MemoryFact]:
     created: list[MemoryFact] = []
     entities = doc.entities
     if entities.operator_name:
-        created.append(remember(MemoryFactCreate(key="operator", value=entities.operator_name, source=MemorySource.document)))
+        created.append(remember(user_id, MemoryFactCreate(key="operator", value=entities.operator_name, source=MemorySource.document)))
     if entities.vendors:
-        created.append(remember(MemoryFactCreate(key="vendor", value=entities.vendors[0], source=MemorySource.document)))
+        created.append(remember(user_id, MemoryFactCreate(key="vendor", value=entities.vendors[0], source=MemorySource.document)))
     if entities.amounts:
-        created.append(remember(MemoryFactCreate(key="amount", value=f"£{entities.amounts[0]}", source=MemorySource.document)))
+        created.append(remember(user_id, MemoryFactCreate(key="amount", value=f"£{entities.amounts[0]}", source=MemorySource.document)))
     if entities.dates:
-        created.append(remember(MemoryFactCreate(key="date", value=entities.dates[0], source=MemorySource.document)))
+        created.append(remember(user_id, MemoryFactCreate(key="date", value=entities.dates[0], source=MemorySource.document)))
     if doc.summary:
-        created.append(remember(MemoryFactCreate(key="document", value=doc.summary[:240], source=MemorySource.document)))
+        created.append(remember(user_id, MemoryFactCreate(key="document", value=doc.summary[:240], source=MemorySource.document)))
     return created
 
 
-def remember_watch(watch: WatchCreate) -> MemoryFact:
+def remember_watch(user_id: str, watch: WatchCreate) -> MemoryFact:
     value = watch.title
     if watch.anchor_date:
         value = f"{watch.title} ({watch.anchor_date.isoformat()})"
-    return remember(MemoryFactCreate(key=watch.kind.value, value=value[:240], source=MemorySource.watch))
+    return remember(user_id, MemoryFactCreate(key=watch.kind.value, value=value[:240], source=MemorySource.watch))
 
 
-def record_turn(conversation_id: str, role: str, text: str, pillar: str | None = None) -> ConversationTurn:
+def record_turn(
+    user_id: str,
+    conversation_id: str,
+    role: str,
+    text: str,
+    pillar: str | None = None,
+) -> ConversationTurn:
     turn = ConversationTurn(
         conversation_id=conversation_id,
         role=role,
@@ -260,58 +293,64 @@ def record_turn(conversation_id: str, role: str, text: str, pillar: str | None =
         created_at=_now(),
     )
     with _lock:
-        turns = list(_state["turns"])
+        state = _user_state(user_id)
+        turns = list(state["turns"])
         turns.append(turn.model_dump())
-        _state["turns"] = turns[-_MAX_TURNS:]
+        state["turns"] = turns[-_MAX_TURNS:]
         _dump()
     return turn
 
 
-def recent_turns(conversation_id: str | None = None, limit: int = 6) -> list[ConversationTurn]:
+def recent_turns(
+    user_id: str,
+    conversation_id: str | None = None,
+    limit: int = 6,
+) -> list[ConversationTurn]:
     with _lock:
-        rows = [ConversationTurn.model_validate(item) for item in _state["turns"]]
+        rows = [ConversationTurn.model_validate(item) for item in _user_state(user_id)["turns"]]
     if conversation_id:
         rows = [item for item in rows if item.conversation_id == conversation_id]
     return rows[-limit:]
 
 
-def last_pillar_for(conversation_id: str | None) -> str | None:
-    for turn in reversed(recent_turns(conversation_id, limit=12)):
+def last_pillar_for(user_id: str, conversation_id: str | None) -> str | None:
+    for turn in reversed(recent_turns(user_id, conversation_id, limit=12)):
         if turn.pillar:
             return turn.pillar
     return None
 
 
-def get_profile() -> MemoryProfile:
-    prefs = get_preferences()
+def get_profile(user_id: str) -> MemoryProfile:
+    prefs = get_preferences(user_id)
     return MemoryProfile(
         preferences=prefs,
-        tags=list_tags(),
-        locations=locations(),
-        facts=list_facts()[:12],
-        recent_turns=recent_turns(limit=8),
+        tags=list_tags(user_id),
+        locations=locations(user_id),
+        facts=list_facts(user_id)[:12],
+        recent_turns=recent_turns(user_id, limit=8),
     )
 
 
 def build_personalized_prompt(
+    user_id: str,
     message: str,
     locale: str,
     extra_hints: list[str] | None = None,
     conversation_id: str | None = None,
 ) -> str:
-    prefs = get_preferences()
-    tags = active_tag_labels()
-    recalled = hints_for(message, limit=6)
+    prefs = get_preferences(user_id)
+    tags = active_tag_labels(user_id)
+    recalled = hints_for(user_id, message, limit=6)
     extra = [hint.strip() for hint in (extra_hints or []) if hint.strip()]
     hints = list(dict.fromkeys([*recalled, *extra]))[:8]
-    turns = recent_turns(conversation_id, limit=4)
+    turns = recent_turns(user_id, conversation_id, limit=4)
     history = "\n".join(f"{turn.role}: {turn.text}" for turn in turns if turn.text)
-    locations_line = ", ".join(locations()) or "none"
+    locations_line = ", ".join(locations(user_id)) or "none"
     name = prefs.display_name or "the user"
     return "\n".join(
         [
-            "You are EchoMind, a UK personal assistant for Delay Repay, Consumer Rights Act 2015, and Overdraft Shield.",
-            "Use Gemini Flash. Do not invent legal outcomes. Prefer the stored profile when a field is missing.",
+            "You are EchoMind, a UK personal outcome assistant.",
+            "Do not invent legal or financial outcomes. Prefer verified stored profile fields when a field is missing.",
             f"Locale: {locale}. Tone: {prefs.tone}. Address: {name}.",
             f"Preferred locations: {locations_line}.",
             f"Preferred operator: {prefs.preferred_operator or 'none'}. Retailer: {prefs.preferred_retailer or 'none'}. Bank: {prefs.preferred_bank or 'none'}.",
@@ -323,15 +362,20 @@ def build_personalized_prompt(
     )
 
 
-def active_context(query: str = "", conversation_id: str | None = None) -> ActiveContext:
-    prefs = get_preferences()
-    hints = hints_for(query or " ".join(active_tag_labels() + locations()), limit=6)
-    prompt = build_personalized_prompt(query or "continue", prefs.locale, hints, conversation_id)
+def active_context(
+    user_id: str,
+    query: str = "",
+    conversation_id: str | None = None,
+) -> ActiveContext:
+    prefs = get_preferences(user_id)
+    query_seed = query or " ".join(active_tag_labels(user_id) + locations(user_id))
+    hints = hints_for(user_id, query_seed, limit=6)
+    prompt = build_personalized_prompt(user_id, query or "continue", prefs.locale, hints, conversation_id)
     return ActiveContext(
         preferences=prefs,
-        tags=active_tag_labels(),
-        locations=locations(),
+        tags=active_tag_labels(user_id),
+        locations=locations(user_id),
         hints=hints,
-        last_pillar=last_pillar_for(conversation_id),
+        last_pillar=last_pillar_for(user_id, conversation_id),
         prompt_chars=len(prompt),
     )
