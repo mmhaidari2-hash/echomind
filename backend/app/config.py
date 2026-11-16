@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = ""
     CONNECTOR_TOKEN_KEY: str = ""
+    RATE_LIMIT_REQUESTS: int = 120
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
     TRAVEL_SIGNING_SECRET: str = "echomind-travel-dev"
     PORT: int = 8000
 
