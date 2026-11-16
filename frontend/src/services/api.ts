@@ -1092,6 +1092,62 @@ export async function getLifeSnapshot(): Promise<LifeSnapshot> {
 }
 
 
+export async function createLifeObligation(payload: {
+  title: string;
+  due_date?: string | null;
+  source?: string;
+  notes?: string | null;
+}): Promise<LifeObligation> {
+  return api<LifeObligation>("/life/obligations", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateLifeObligationStatus(
+  obligationId: string,
+  status: LifeObligation["status"],
+): Promise<LifeObligation> {
+  return api<LifeObligation>(
+    `/life/obligations/${encodeURIComponent(obligationId)}/status?status=${encodeURIComponent(status)}`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+export async function createLifePromise(payload: {
+  counterparty: string;
+  promise: string;
+  due_date?: string | null;
+}): Promise<LifePromise> {
+  return api<LifePromise>("/life/promises", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateLifePromiseStatus(
+  promiseId: string,
+  status: LifePromise["status"],
+): Promise<LifePromise> {
+  return api<LifePromise>(
+    `/life/promises/${encodeURIComponent(promiseId)}/status?status=${encodeURIComponent(status)}`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+
 export type GoogleConnectorStatus = {
   configured: boolean;
   connected: boolean;
