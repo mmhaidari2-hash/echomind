@@ -199,7 +199,7 @@ def test_memory_engine_prompt_injection_and_secrets() -> None:
 
     from app.services.memory_engine import build_personalized_prompt
 
-    prompt = build_personalized_prompt("Can I claim Delay Repay?", "en")
+    prompt = build_personalized_prompt("test-user", "Can I claim Delay Repay?", "en")
     assert "Manchester Piccadilly" in prompt
     assert "avanti" in prompt
     assert "Gemini Flash" in prompt
