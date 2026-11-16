@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import ActionRail from "./components/ActionRail";
 import type { ContextWorkflow } from "./components/ActiveContextBar";
 import AssistantReply from "./components/AssistantReply";
+import AuthStatus from "./components/AuthStatus";
 import ChatInput from "./components/ChatInput";
 import ContextDrawer from "./components/ContextDrawer";
 import ContextualSuggestions, {
@@ -471,6 +472,7 @@ export default function HomePage() {
                 <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-sky-300" />
               ) : null}
             </button>
+            <AuthStatus />
             <span
               role="status"
               aria-live="polite"
