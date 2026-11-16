@@ -8,6 +8,7 @@ from jwt import PyJWKClient
 from jwt.exceptions import InvalidTokenError
 
 from app.config import settings
+from app.rate_limit import check_rate_limit
 
 
 class AuthenticationNotConfiguredError(RuntimeError):
@@ -70,6 +71,12 @@ def require_user(authorization: str | None = Header(default=None)) -> str:
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     try:
-        return verify_clerk_token(token)
+        user_id = verify_clerk_token(token)
+        check_rate_limit(
+            user_id,
+            limit=settings.RATE_LIMIT_REQUESTS,
+            window_seconds=settings.RATE_LIMIT_WINDOW_SECONDS,
+        )
+        return user_id
     except AuthenticationNotConfiguredError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
