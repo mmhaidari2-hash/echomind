@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 
 from app.auth import require_user
 from app.schemas.connectors import (
@@ -53,14 +54,25 @@ def start(
         raise
 
 
-@router.get("/callback")
-def callback(state: str, code: str) -> dict[str, bool]:
+@router.get("/callback", response_class=HTMLResponse)
+def callback(state: str, code: str) -> HTMLResponse:
     try:
         complete(state, code)
-        return {"connected": True}
     except Exception as exc:
         _raise_connector(exc)
         raise
+    html = """<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EchoMind connected</title></head>
+<body style="font-family:system-ui;background:#090d16;color:#e2e8f0;padding:32px">
+  <main style="max-width:520px;margin:auto">
+    <h1>Google connected</h1>
+    <p>You can return to EchoMind now.</p>
+    <a href="echomind://oauth/google?connected=1" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#7dd3fc;color:#07111f;text-decoration:none;font-weight:700">Return to EchoMind</a>
+  </main>
+</body>
+</html>"""
+    return HTMLResponse(content=html, status_code=200)
 
 
 @router.get("/gmail/recent", response_model=list[GmailMessageSummary])
