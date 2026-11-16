@@ -1149,3 +1149,23 @@ export async function getUpcomingCalendar(limit = 5): Promise<CalendarEventSumma
     timeoutMs: CHAT_TIMEOUT_MS,
   });
 }
+
+
+export type OutcomeItem = {
+  id: string;
+  kind: "obligation" | "promise_verification";
+  priority: "urgent" | "soon" | "watch";
+  title: string;
+  reason: string;
+  due_date?: string | null;
+  source_id: string;
+  requires_verification: boolean;
+};
+
+export async function getPendingOutcomes(): Promise<OutcomeItem[]> {
+  return api<OutcomeItem[]>("/outcomes", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
