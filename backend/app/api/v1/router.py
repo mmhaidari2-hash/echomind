@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.endpoints import (
+    authority,
     chat,
     conversations,
     consumer_rights,
@@ -14,6 +15,7 @@ from app.api.endpoints import (
 )
 
 api_router = APIRouter()
+api_router.include_router(authority.router)
 api_router.include_router(health.router)
 api_router.include_router(chat.router)
 api_router.include_router(conversations.router)
