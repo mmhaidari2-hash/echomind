@@ -1007,3 +1007,53 @@ export async function confirmTravelIntent(payload: {
     body: JSON.stringify({ action: "confirm", ...payload }),
   });
 }
+
+
+export type ActionStatus = "proposed" | "executed" | "failed" | "cancelled";
+
+export type ActionProposal = {
+  id: string;
+  tool: string;
+  summary: string;
+  parameters: Record<string, unknown>;
+  evidence_ids: string[];
+  idempotency_key: string;
+  status: ActionStatus;
+  created_at: string;
+  expires_at: string;
+  confirmed_at?: string | null;
+  executed_at?: string | null;
+  result?: Record<string, unknown> | null;
+};
+
+export async function proposeAction(payload: {
+  tool: string;
+  summary: string;
+  parameters: Record<string, unknown>;
+  evidence_ids?: string[];
+  idempotency_key?: string;
+}): Promise<ActionProposal> {
+  return api<ActionProposal>("/authority/actions", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function confirmAction(actionId: string): Promise<ActionProposal> {
+  return api<ActionProposal>(`/authority/actions/${encodeURIComponent(actionId)}/confirm`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify({ confirm: true }),
+  });
+}
+
+export async function cancelAction(actionId: string): Promise<ActionProposal> {
+  return api<ActionProposal>(`/authority/actions/${encodeURIComponent(actionId)}/cancel`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
