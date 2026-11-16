@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, UserButton } from "@clerk/react";
 
 export default function AuthStatus() {
   if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
@@ -13,7 +13,7 @@ export default function AuthStatus() {
 
   return (
     <>
-      <SignedOut>
+      <Show when="signed-out">
         <SignInButton mode="modal">
           <button
             type="button"
@@ -22,10 +22,10 @@ export default function AuthStatus() {
             Sign in
           </button>
         </SignInButton>
-      </SignedOut>
-      <SignedIn>
-        <UserButton afterSignOutUrl="/" />
-      </SignedIn>
+      </Show>
+      <Show when="signed-in">
+        <UserButton />
+      </Show>
     </>
   );
 }
