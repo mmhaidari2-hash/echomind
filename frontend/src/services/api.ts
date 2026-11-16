@@ -722,6 +722,13 @@ export async function recallMemory(query: string, limit = 6): Promise<{
 export type UserPreferences = {
   display_name?: string | null;
   locale?: ApiLocale;
+  ui_language?: ApiLocale;
+  command_language?: "auto" | "en" | "fa";
+  external_language?: string;
+  home_market?: string;
+  jurisdiction?: string;
+  currency?: string;
+  travel_destination?: string | null;
   home_station?: string | null;
   work_station?: string | null;
   preferred_operator?: string | null;
