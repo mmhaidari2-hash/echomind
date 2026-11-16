@@ -30,6 +30,13 @@ export default function PreferencesCard({
   const [retailer, setRetailer] = useState(preferences.preferred_retailer ?? "");
   const [bank, setBank] = useState(preferences.preferred_bank ?? "");
   const [tagText, setTagText] = useState(tags);
+  const [uiLanguage, setUiLanguage] = useState(preferences.ui_language ?? "en");
+  const [commandLanguage, setCommandLanguage] = useState(preferences.command_language ?? "auto");
+  const [externalLanguage, setExternalLanguage] = useState(preferences.external_language ?? "en-GB");
+  const [homeMarket, setHomeMarket] = useState(preferences.home_market ?? "GB");
+  const [jurisdiction, setJurisdiction] = useState(preferences.jurisdiction ?? "GB");
+  const [currency, setCurrency] = useState(preferences.currency ?? "GBP");
+  const [travelDestination, setTravelDestination] = useState(preferences.travel_destination ?? "");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
@@ -40,6 +47,13 @@ export default function PreferencesCard({
     setRetailer(preferences.preferred_retailer ?? "");
     setBank(preferences.preferred_bank ?? "");
     setTagText(tags);
+    setUiLanguage(preferences.ui_language ?? "en");
+    setCommandLanguage(preferences.command_language ?? "auto");
+    setExternalLanguage(preferences.external_language ?? "en-GB");
+    setHomeMarket(preferences.home_market ?? "GB");
+    setJurisdiction(preferences.jurisdiction ?? "GB");
+    setCurrency(preferences.currency ?? "GBP");
+    setTravelDestination(preferences.travel_destination ?? "");
   }, [preferences, tags]);
 
   return (
@@ -75,6 +89,47 @@ export default function PreferencesCard({
           {t.preferredRetailer}
           <input className={fieldClass} value={retailer} onChange={(e) => setRetailer(e.target.value)} />
         </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="grid gap-1.5 text-xs text-slate-400">
+            {locale === "fa" ? "زبان رابط" : "UI language"}
+            <select className={fieldClass} value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value as "en" | "fa")}>
+              <option value="en">English</option>
+              <option value="fa">فارسی</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-xs text-slate-400">
+            {locale === "fa" ? "زبان فرمان" : "Command language"}
+            <select className={fieldClass} value={commandLanguage} onChange={(e) => setCommandLanguage(e.target.value as "auto" | "en" | "fa")}>
+              <option value="auto">Auto</option>
+              <option value="en">English</option>
+              <option value="fa">فارسی</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="grid gap-1.5 text-xs text-slate-400">
+            {locale === "fa" ? "بازار اصلی" : "Home market"}
+            <input className={fieldClass} value={homeMarket} onChange={(e) => setHomeMarket(e.target.value.toUpperCase())} />
+          </label>
+          <label className="grid gap-1.5 text-xs text-slate-400">
+            {locale === "fa" ? "حوزه قانونی" : "Jurisdiction"}
+            <input className={fieldClass} value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value.toUpperCase())} />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="grid gap-1.5 text-xs text-slate-400">
+            {locale === "fa" ? "ارز" : "Currency"}
+            <input className={fieldClass} maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
+          </label>
+          <label className="grid gap-1.5 text-xs text-slate-400">
+            {locale === "fa" ? "زبان ارتباط بیرونی" : "External language"}
+            <input className={fieldClass} value={externalLanguage} onChange={(e) => setExternalLanguage(e.target.value)} />
+          </label>
+        </div>
+        <label className="grid gap-1.5 text-xs text-slate-400">
+          {locale === "fa" ? "مقصد سفر فعلی" : "Current travel destination"}
+          <input className={fieldClass} value={travelDestination} onChange={(e) => setTravelDestination(e.target.value)} />
+        </label>
         <label className="grid gap-1.5 text-xs text-slate-400">
           {t.contextTags}
           <input
@@ -95,6 +150,13 @@ export default function PreferencesCard({
                 {
                   display_name: name || null,
                   locale,
+                  ui_language: uiLanguage,
+                  command_language: commandLanguage,
+                  external_language: externalLanguage || "en-GB",
+                  home_market: homeMarket || "GB",
+                  jurisdiction: jurisdiction || "GB",
+                  currency: currency || "GBP",
+                  travel_destination: travelDestination || null,
                   home_station: home || null,
                   work_station: work || null,
                   preferred_operator: operator || null,
