@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.schemas.documents import DocumentParseResponse
+from app.schemas.documents import DocumentParseResponse, EvidenceMetadata
 from app.schemas.memory import (
     ActiveContext,
     ContextTag,
