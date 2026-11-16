@@ -24,7 +24,7 @@ DELAY_REPAY_DAYS = 28
 FOS_WAIT_DAYS = 56
 FOS_REFER_DAYS = 180
 
-_store: dict[str, WatchRecord] = {}
+_store: dict[str, dict[str, WatchRecord]] = {}
 _lock = threading.Lock()
 
 
@@ -42,21 +42,21 @@ def _copy(locale: str, en: str, fa: str) -> str:
     return fa if locale == "fa" else en
 
 
-def add_watch(payload: WatchCreate) -> WatchRecord:
+def add_watch(user_id: str, payload: WatchCreate) -> WatchRecord:
     record = WatchRecord(id=uuid.uuid4().hex[:12], **payload.model_dump())
     with _lock:
-        _store[record.id] = record
+        _store.setdefault(user_id, {})[record.id] = record
     return record
 
 
-def list_watches() -> list[WatchRecord]:
+def list_watches(user_id: str) -> list[WatchRecord]:
     with _lock:
-        return list(_store.values())
+        return list(_store.get(user_id, {}).values())
 
 
-def delete_watch(watch_id: str) -> bool:
+def delete_watch(user_id: str, watch_id: str) -> bool:
     with _lock:
-        return _store.pop(watch_id, None) is not None
+        return _store.get(user_id, {}).pop(watch_id, None) is not None
 
 
 def reset_store() -> None:
@@ -321,5 +321,5 @@ def evaluate_request(payload: EvaluateRequest, today: date | None = None) -> Ale
     )
 
 
-def stored_bundle(locale: str = "en") -> AlertBundle:
-    return evaluate_bundle(list_watches(), locale=locale)
+def stored_bundle(user_id: str, locale: str = "en") -> AlertBundle:
+    return evaluate_bundle(list_watches(user_id), locale=locale)
