@@ -46,6 +46,7 @@ import {
   getHealth,
   getConversation,
   getMemoryProfile,
+  getLifeSnapshot,
   parseDocumentFile,
   proposeAction,
   confirmAction,
@@ -65,6 +66,7 @@ import {
   type OverdraftPrefill,
   type PillarId,
   type UserPreferences,
+  type LifeSnapshot,
   type WatchPayload,
 } from "@/services/api";
 
@@ -139,6 +141,7 @@ export default function HomePage() {
   const [threshold, setThreshold] = useState("50");
   const [bundle, setBundle] = useState<AlertBundle | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences>({ locale: "en", tone: "concise" });
+  const [lifeSnapshot, setLifeSnapshot] = useState<LifeSnapshot | null>(null);
   const [tagText, setTagText] = useState("");
   const [contextOpen, setContextOpen] = useState(false);
   const memory = useAssistantMemory();
@@ -197,9 +200,10 @@ export default function HomePage() {
     let cancelled = false;
     const loadProtectedState = async () => {
       try {
-        const profile = await getMemoryProfile();
+        const [profile, life] = await Promise.all([getMemoryProfile(), getLifeSnapshot()]);
         if (cancelled) return;
         setPreferences(profile.preferences);
+        setLifeSnapshot(life);
         setTagText(profile.tags.filter((tag) => tag.active).map((tag) => tag.label).join(", "));
         if (storedConvo) {
           const remote = await getConversation(storedConvo);
@@ -889,6 +893,7 @@ export default function HomePage() {
         onRecommendation={(item) => openParsedPillar(item.action_pillar)}
         preferences={preferences}
         tagText={tagText}
+        lifeSnapshot={lifeSnapshot}
         onSavePreferences={async (prefs, tags) => {
           const labels = tags
             .split(",")
