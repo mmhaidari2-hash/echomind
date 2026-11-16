@@ -34,7 +34,7 @@ type ContextDrawerProps = {
   onRecommendation: (item: Recommendation) => void;
   preferences: UserPreferences;
   tagText: string;
-  onSavePreferences: (prefs: UserPreferences, tags: string) => void;
+  onSavePreferences: (prefs: UserPreferences, tags: string) => Promise<void>;
 };
 
 export default function ContextDrawer({
