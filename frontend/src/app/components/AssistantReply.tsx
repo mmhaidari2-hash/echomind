@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import type { PillarId } from "@/services/api";
 
 const PILLAR_TONE: Record<PillarId, string> = {
@@ -11,6 +15,7 @@ type AssistantReplyProps = {
   message: string;
   steps: string[];
   pillar: PillarId;
+  locale?: "en" | "fa";
   pending?: boolean;
   pendingLabel?: string;
   actionLabel?: string;
@@ -22,11 +27,42 @@ export default function AssistantReply({
   message,
   steps,
   pillar,
+  locale = "en",
   pending = false,
   pendingLabel = "EchoMind is thinking…",
   actionLabel,
   onAction,
 }: AssistantReplyProps) {
+  const [speaking, setSpeaking] = useState(false);
+  const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const toggleSpeech = () => {
+    if (!canSpeak) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(
+      [message, ...steps].filter(Boolean).join(". "),
+    );
+    utterance.lang = locale === "fa" ? "fa-IR" : "en-GB";
+    utterance.rate = 1;
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
   if (pending) {
     return (
       <article className="max-w-[85%] self-start rounded-3xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-300">
@@ -44,11 +80,23 @@ export default function AssistantReply({
 
   return (
     <article className="max-w-[90%] self-start rounded-3xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm leading-6 text-slate-200">
-      <span
-        className={`mb-2 inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${PILLAR_TONE[pillar]}`}
-      >
-        {title}
-      </span>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${PILLAR_TONE[pillar]}`}
+        >
+          {title}
+        </span>
+        {canSpeak ? (
+          <button
+            type="button"
+            className="rounded-full border border-slate-700 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300"
+            onClick={toggleSpeech}
+            aria-pressed={speaking}
+          >
+            {speaking ? (locale === "fa" ? "توقف صدا" : "Stop voice") : locale === "fa" ? "پخش صدا" : "Speak"}
+          </button>
+        ) : null}
+      </div>
       <p className="text-slate-200">{message}</p>
       {steps.length > 0 ? (
         <ol className="mt-3 space-y-1.5 ps-4 text-slate-300">
