@@ -8,11 +8,12 @@ from app.main import app
 
 @pytest.fixture(autouse=True)
 def isolated_stores(tmp_path: Path):
-    from app.services import authority, life, memory_engine, notifications
+    from app.services import authority, google_connector, life, memory_engine, notifications
 
     memory_engine.use_store_path(tmp_path / "memory.json")
     authority.use_store_path(tmp_path / "authority.json")
     life.use_store_path(tmp_path / "life.json")
+    google_connector.use_store_path(tmp_path / "connectors.json")
     notifications.reset_store()
     app.dependency_overrides[require_user] = lambda: "test-user"
     yield
