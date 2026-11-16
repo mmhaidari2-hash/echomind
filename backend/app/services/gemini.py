@@ -44,9 +44,9 @@ def readiness() -> dict[str, str | bool]:
     }
 
 
-def _endpoint() -> str:
+def _endpoint(operation: str = "generateContent") -> str:
     model = quote(model_name(), safe="-_.")
-    return f"{_API_ROOT}/{model}:generateContent"
+    return f"{_API_ROOT}/{model}:{operation}"
 
 
 def _extract_text(payload: object) -> str:
@@ -96,7 +96,7 @@ def generate_text(prompt: str) -> str:
         }
     ).encode("utf-8")
     request = Request(
-        _endpoint(),
+        _endpoint("generateContent"),
         data=body,
         method="POST",
         headers={
@@ -145,3 +145,53 @@ def generate_with_memory(prompt: str) -> dict[str, object]:
         "prompt_chars": len(prompt),
         "text": text,
     }
+
+
+def stream_text(prompt: str):
+    """Yield text chunks from Gemini's native SSE endpoint."""
+    if not is_configured():
+        raise GeminiNotConfiguredError("GEMINI_API_KEY is not configured")
+
+    body = json.dumps(
+        {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200},
+        }
+    ).encode("utf-8")
+    request = Request(
+        f"{_endpoint('streamGenerateContent')}?alt=sse",
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "x-goog-api-key": settings.GEMINI_API_KEY.strip(),
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
+            for raw_line in response:
+                line = raw_line.decode("utf-8", errors="strict").strip()
+                if not line.startswith("data:"):
+                    continue
+                raw_json = line[5:].strip()
+                if not raw_json:
+                    continue
+                try:
+                    payload = json.loads(raw_json)
+                except json.JSONDecodeError:
+                    logger.warning("gemini.stream_invalid_json model=%s", model_name())
+                    continue
+                try:
+                    text = _extract_text(payload)
+                except GeminiUnavailableError:
+                    continue
+                if text:
+                    yield text
+    except HTTPError as exc:
+        logger.warning("gemini.stream_http_error status=%s model=%s", exc.code, model_name())
+        raise GeminiUnavailableError(f"Gemini stream failed ({exc.code})") from exc
+    except (URLError, TimeoutError, OSError, UnicodeDecodeError) as exc:
+        logger.warning("gemini.stream_transport_error model=%s type=%s", model_name(), type(exc).__name__)
+        raise GeminiUnavailableError("Gemini stream is temporarily unavailable") from exc
