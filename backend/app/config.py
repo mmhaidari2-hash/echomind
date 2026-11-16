@@ -1,20 +1,23 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_BACKEND_ENV = Path(__file__).resolve().parent.parent / ".env"
+
 
 class Settings(BaseSettings):
-    """Runtime configuration loaded from environment variables and optional .env."""
+    """Runtime configuration loaded from environment variables and backend/.env."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_BACKEND_ENV,
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
     )
 
     PROJECT_NAME: str = "EchoMind"
-    VERSION: str = "0.1.0"
+    VERSION: str = "0.2.0"
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = (
@@ -29,6 +32,9 @@ class Settings(BaseSettings):
     )
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.0-flash"
+    CLERK_ISSUER: str = ""
+    CLERK_JWKS_URL: str = ""
+    CLERK_AUTHORIZED_PARTIES: str = ""
     TRAVEL_SIGNING_SECRET: str = "echomind-travel-dev"
     PORT: int = 8000
 
@@ -37,6 +43,9 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT.lower() == "production" and "*" in origins:
             raise ValueError("Wildcard CORS is not allowed in production")
         return origins
+
+    def clerk_authorized_party_list(self) -> list[str]:
+        return [item.strip() for item in self.CLERK_AUTHORIZED_PARTIES.split(",") if item.strip()]
 
 
 @lru_cache
