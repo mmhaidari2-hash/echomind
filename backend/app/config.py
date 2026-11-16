@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     CLERK_ISSUER: str = ""
     CLERK_JWKS_URL: str = ""
     CLERK_AUTHORIZED_PARTIES: str = ""
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""
+    CONNECTOR_TOKEN_KEY: str = ""
     TRAVEL_SIGNING_SECRET: str = "echomind-travel-dev"
     PORT: int = 8000
 
