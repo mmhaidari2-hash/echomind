@@ -287,6 +287,125 @@ export async function processChat(payload: ChatRequest): Promise<ChatResponse> {
   });
 }
 
+
+export type ChatStreamResult = {
+  conversation_id: string;
+  pillar: PillarId;
+  message: string;
+};
+
+export async function streamChat(
+  payload: ChatRequest,
+  onDelta: (text: string) => void,
+): Promise<ChatStreamResult> {
+  const base = await resolveApiBase();
+  let secureHeaders: Record<string, string>;
+  try {
+    secureHeaders = await authorizationHeaders();
+  } catch (error) {
+    if (error instanceof AuthSessionError) {
+      throw new ApiError(error.message, { status: 401, code: "auth_session" });
+    }
+    throw error;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60_000);
+  try {
+    const response = await fetch(`${base}/chat/stream`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+        ...secureHeaders,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await parseJson(response);
+      const detail =
+        typeof (body as { detail?: unknown } | null)?.detail === "string"
+          ? (body as { detail: string }).detail
+          : `Request failed (${response.status})`;
+      throw new ApiError(detail, { status: response.status, code: "http_error" });
+    }
+    if (!response.body) {
+      throw new ApiError("Streaming response was empty", { code: "stream_error" });
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let conversationId = "";
+    let pillar: PillarId = "consumer_rights";
+    let message = "";
+
+    const consumeBlock = (block: string) => {
+      const lines = block.split("\n");
+      const event = lines.find((line) => line.startsWith("event:"))?.slice(6).trim() ?? "message";
+      const dataText = lines
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n");
+      if (!dataText) return;
+      const data = JSON.parse(dataText) as Record<string, unknown>;
+
+      if (event === "meta") {
+        if (typeof data.conversation_id === "string") conversationId = data.conversation_id;
+        if (
+          data.pillar === "delay_repay" ||
+          data.pillar === "consumer_rights" ||
+          data.pillar === "overdraft_shield"
+        ) {
+          pillar = data.pillar;
+        }
+        return;
+      }
+      if (event === "delta" && typeof data.text === "string") {
+        message += data.text;
+        onDelta(data.text);
+        return;
+      }
+      if (event === "error") {
+        throw new ApiError(
+          typeof data.message === "string" ? data.message : "Streaming failed",
+          { code: typeof data.code === "string" ? data.code : "stream_error" },
+        );
+      }
+      if (event === "done" && typeof data.conversation_id === "string") {
+        conversationId = data.conversation_id;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() ?? "";
+      for (const block of blocks) {
+        if (block.trim()) consumeBlock(block);
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) consumeBlock(buffer);
+
+    if (!conversationId || !message.trim()) {
+      throw new ApiError("Streaming response was incomplete", { code: "stream_error" });
+    }
+    return { conversation_id: conversationId, pillar, message };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("The response timed out", { code: "timeout" });
+    }
+    throw new ApiError("Could not stream EchoMind", { code: "network_error" });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type TicketType =
   | "single"
   | "return"
