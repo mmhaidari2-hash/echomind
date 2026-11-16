@@ -379,3 +379,15 @@ def active_context(
         last_pillar=last_pillar_for(user_id, conversation_id),
         prompt_chars=len(prompt),
     )
+
+
+def delete_conversation(user_id: str, conversation_id: str) -> bool:
+    with _lock:
+        state = _user_state(user_id)
+        before = list(state["turns"])
+        after = [item for item in before if item.get("conversation_id") != conversation_id]
+        if len(after) == len(before):
+            return False
+        state["turns"] = after
+        _dump()
+        return True
