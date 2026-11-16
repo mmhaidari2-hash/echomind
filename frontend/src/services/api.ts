@@ -1090,3 +1090,62 @@ export async function getLifeSnapshot(): Promise<LifeSnapshot> {
     timeoutMs: CHAT_TIMEOUT_MS,
   });
 }
+
+
+export type GoogleConnectorStatus = {
+  configured: boolean;
+  connected: boolean;
+  scopes: string[];
+  expires_at?: string | null;
+};
+
+export type GmailMessageSummary = {
+  id: string;
+  thread_id?: string | null;
+  subject: string;
+  sender: string;
+  date: string;
+  snippet: string;
+};
+
+export type CalendarEventSummary = {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+  html_link?: string | null;
+};
+
+export async function getGoogleConnectorStatus(): Promise<GoogleConnectorStatus> {
+  return api<GoogleConnectorStatus>("/connectors/google/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startGoogleConnection(
+  access: "read" | "write" = "read",
+): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>(`/connectors/google/start?access=${access}`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getRecentGmail(limit = 5): Promise<GmailMessageSummary[]> {
+  return api<GmailMessageSummary[]>(`/connectors/google/gmail/recent?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getUpcomingCalendar(limit = 5): Promise<CalendarEventSummary[]> {
+  return api<CalendarEventSummary[]>(`/connectors/google/calendar/upcoming?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
