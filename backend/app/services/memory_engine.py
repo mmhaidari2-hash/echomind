@@ -56,6 +56,7 @@ def _empty_user_state() -> dict[str, object]:
         "facts": [],
         "tags": [],
         "turns": [],
+        "evidence": [],
     }
 
 
@@ -398,3 +399,39 @@ def delete_conversation(user_id: str, conversation_id: str) -> bool:
         state["turns"] = after
         _dump()
         return True
+
+
+def store_evidence(
+    user_id: str,
+    doc: DocumentParseResponse,
+    *,
+    sha256: str,
+    content_type: str,
+    size_bytes: int,
+) -> EvidenceMetadata:
+    evidence = EvidenceMetadata(
+        id=uuid.uuid4().hex[:12],
+        sha256=sha256,
+        filename=doc.filename,
+        content_type=_clean(content_type, 120),
+        size_bytes=size_bytes,
+        kind=doc.kind,
+        summary=_clean(doc.summary, 500),
+        created_at=_now(),
+    )
+    with _lock:
+        state = _user_state(user_id)
+        rows = list(state.setdefault("evidence", []))
+        duplicate = next((item for item in rows if item.get("sha256") == sha256), None)
+        if duplicate:
+            return EvidenceMetadata.model_validate(duplicate)
+        rows.append(evidence.model_dump())
+        state["evidence"] = rows[-80:]
+        _dump()
+    return evidence
+
+
+def list_evidence(user_id: str) -> list[EvidenceMetadata]:
+    with _lock:
+        rows = [EvidenceMetadata.model_validate(item) for item in _user_state(user_id).setdefault("evidence", [])]
+    return sorted(rows, key=lambda item: item.created_at, reverse=True)
