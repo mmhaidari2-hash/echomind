@@ -10,7 +10,7 @@ type PreferencesCardProps = {
   locale: Locale;
   preferences: UserPreferences;
   tags: string;
-  onSave: (prefs: UserPreferences, tags: string) => void;
+  onSave: (prefs: UserPreferences, tags: string) => Promise<void>;
 };
 
 const fieldClass =
@@ -30,7 +30,7 @@ export default function PreferencesCard({
   const [retailer, setRetailer] = useState(preferences.preferred_retailer ?? "");
   const [bank, setBank] = useState(preferences.preferred_bank ?? "");
   const [tagText, setTagText] = useState(tags);
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     setName(preferences.display_name ?? "");
@@ -87,26 +87,43 @@ export default function PreferencesCard({
         <button
           type="button"
           className="rounded-2xl border border-sky-500/30 bg-sky-400/10 px-4 py-2.5 text-sm font-semibold text-sky-100"
-          onClick={() => {
-            onSave(
-              {
-                display_name: name || null,
-                locale,
-                home_station: home || null,
-                work_station: work || null,
-                preferred_operator: operator || null,
-                preferred_retailer: retailer || null,
-                preferred_bank: bank || null,
-                tone: preferences.tone ?? "concise",
-              },
-              tagText,
-            );
-            setSaved(true);
-            window.setTimeout(() => setSaved(false), 1400);
+          disabled={saveState === "saving"}
+          onClick={async () => {
+            setSaveState("saving");
+            try {
+              await onSave(
+                {
+                  display_name: name || null,
+                  locale,
+                  home_station: home || null,
+                  work_station: work || null,
+                  preferred_operator: operator || null,
+                  preferred_retailer: retailer || null,
+                  preferred_bank: bank || null,
+                  tone: preferences.tone ?? "concise",
+                },
+                tagText,
+              );
+              setSaveState("saved");
+              window.setTimeout(() => setSaveState("idle"), 1400);
+            } catch {
+              setSaveState("error");
+            }
           }}
         >
-          {saved ? t.profileSaved : t.saveProfile}
+          {saveState === "saving"
+            ? locale === "fa" ? "در حال ذخیره…" : "Saving…"
+            : saveState === "saved"
+              ? t.profileSaved
+              : t.saveProfile}
         </button>
+        {saveState === "error" ? (
+          <p role="alert" className="text-xs text-rose-300">
+            {locale === "fa"
+              ? "ذخیره نشد. ورود و اتصال امن را بررسی کن."
+              : "Could not save. Check your secure sign-in and connection."}
+          </p>
+        ) : null}
       </div>
     </section>
   );
