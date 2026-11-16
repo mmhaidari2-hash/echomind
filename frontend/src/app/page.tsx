@@ -51,6 +51,7 @@ import {
   savePreferences,
   saveWatch,
   sendChat,
+  streamChat,
   quoteTravelIntent,
   confirmTravelIntent,
   type AlertBundle,
@@ -416,33 +417,65 @@ export default function HomePage() {
     ]);
     setSending(true);
 
+    const chatPayload = {
+      message: body,
+      conversation_id: conversationId,
+      locale,
+      metadata: {
+        intent: activeIntent,
+        source: "pwa",
+        attachment_names: names,
+        memory_hints: memory.recall(body),
+      },
+    };
+
     try {
-      const reply = await sendChat({
-        message: body,
-        conversation_id: conversationId,
-        locale,
-        metadata: {
-          intent: activeIntent,
-          source: "pwa",
-          attachment_names: names,
-          memory_hints: memory.recall(body),
-        },
-      });
-      setConversationId(reply.conversation_id);
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === pendingId
-            ? {
-                id: pendingId,
-                role: "assistant",
-                text: reply.message,
-                title: reply.title,
-                steps: reply.steps,
-                pillar: reply.pillar,
-              }
-            : item,
-        ),
-      );
+      try {
+        let streamedText = "";
+        const streamed = await streamChat(chatPayload, (delta) => {
+          streamedText += delta;
+          setMessages((prev) =>
+            prev.map((item) =>
+              item.id === pendingId
+                ? { ...item, pending: false, text: streamedText }
+                : item,
+            ),
+          );
+        });
+        setConversationId(streamed.conversation_id);
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === pendingId
+              ? {
+                  id: pendingId,
+                  role: "assistant",
+                  text: streamed.message,
+                  pillar: streamed.pillar,
+                }
+              : item,
+          ),
+        );
+      } catch (streamError) {
+        if (!(streamError instanceof ApiError) || streamError.status !== 503) {
+          throw streamError;
+        }
+        const reply = await sendChat(chatPayload);
+        setConversationId(reply.conversation_id);
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === pendingId
+              ? {
+                  id: pendingId,
+                  role: "assistant",
+                  text: reply.message,
+                  title: reply.title,
+                  steps: reply.steps,
+                  pillar: reply.pillar,
+                }
+              : item,
+          ),
+        );
+      }
     } catch (error) {
       const detail =
         error instanceof ApiError ? error.message : t.sendFailed;
