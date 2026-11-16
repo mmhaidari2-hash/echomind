@@ -1057,3 +1057,36 @@ export async function cancelAction(actionId: string): Promise<ActionProposal> {
     timeoutMs: CHAT_TIMEOUT_MS,
   });
 }
+
+
+export type LifeObligation = {
+  id: string;
+  title: string;
+  due_date?: string | null;
+  status: "open" | "due_soon" | "overdue" | "completed" | "cancelled";
+  source: string;
+  notes?: string | null;
+};
+
+export type LifePromise = {
+  id: string;
+  counterparty: string;
+  promise: string;
+  due_date?: string | null;
+  status: "open" | "kept" | "broken" | "cancelled";
+};
+
+export type LifeSnapshot = {
+  nodes: Array<{ id: string; kind: string; label: string }>;
+  edges: Array<{ id: string; source_id: string; target_id: string; relation: string }>;
+  obligations: LifeObligation[];
+  promises: LifePromise[];
+};
+
+export async function getLifeSnapshot(): Promise<LifeSnapshot> {
+  return api<LifeSnapshot>("/life/snapshot", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
