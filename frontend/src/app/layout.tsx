@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Vazirmatn } from "next/font/google";
 
+import ClerkRoot from "./components/ClerkRoot";
 import InstallPrompt from "./components/InstallPrompt";
 import NativeShell from "./components/NativeShell";
 import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
@@ -51,10 +52,12 @@ export default function RootLayout({
       className={`${inter.variable} ${vazirmatn.variable}`}
     >
       <body className="bg-canvas font-sans antialiased">
-        {children}
-        <NativeShell />
-        <ServiceWorkerRegister />
-        <InstallPrompt />
+        <ClerkRoot>
+          {children}
+          <NativeShell />
+          <ServiceWorkerRegister />
+          <InstallPrompt />
+        </ClerkRoot>
       </body>
     </html>
   );
