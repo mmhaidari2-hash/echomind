@@ -894,6 +894,10 @@ export default function HomePage() {
         preferences={preferences}
         tagText={tagText}
         lifeSnapshot={lifeSnapshot}
+        onLifeChanged={async () => {
+          const next = await getLifeSnapshot();
+          setLifeSnapshot(next);
+        }}
         onSavePreferences={async (prefs, tags) => {
           const labels = tags
             .split(",")
