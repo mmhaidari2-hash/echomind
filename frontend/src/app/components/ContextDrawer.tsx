@@ -39,6 +39,7 @@ type ContextDrawerProps = {
   tagText: string;
   onSavePreferences: (prefs: UserPreferences, tags: string) => Promise<void>;
   lifeSnapshot: LifeSnapshot | null;
+  onLifeChanged: () => Promise<void>;
 };
 
 export default function ContextDrawer({
@@ -60,6 +61,7 @@ export default function ContextDrawer({
   tagText,
   onSavePreferences,
   lifeSnapshot,
+  onLifeChanged,
 }: ContextDrawerProps) {
   const t = copy[locale];
   const [tab, setTab] = useState<ContextTab>("context");
@@ -136,7 +138,7 @@ export default function ContextDrawer({
                 memoryLabel={memoryLabel}
                 onClear={onClear}
               />
-              <LifeSummaryCard locale={locale} snapshot={lifeSnapshot} />
+              <LifeSummaryCard locale={locale} snapshot={lifeSnapshot} onChanged={onLifeChanged} />
               <GoogleConnectionsCard locale={locale} />
               <PreferencesCard
                 locale={locale}
