@@ -49,3 +49,42 @@ def test_google_write_action_cannot_bypass_missing_connection() -> None:
 
     actions = client.get("/api/v1/authority/actions").json()
     assert actions[0]["status"] == "failed"
+
+
+def test_gmail_cleanup_query_excludes_important_mail() -> None:
+    from app.services.google_connector import gmail_cleanup_query
+
+    query = gmail_cleanup_query(30)
+    assert "older_than:30d" in query
+    assert "category:promotions" in query
+    assert "category:social" in query
+    assert "category:forums" in query
+    assert "-is:starred" in query
+    assert "-label:important" in query
+    assert "-in:trash" in query
+
+
+def test_gmail_trash_action_requires_connection_and_confirmation() -> None:
+    _as("user-a")
+    proposed = client.post(
+        "/api/v1/authority/actions",
+        json={
+            "tool": "gmail.trash",
+            "summary": "Move low-priority messages to Trash",
+            "parameters": {"message_ids": ["gmail-message-1"]},
+        },
+    )
+    assert proposed.status_code == 200
+    assert proposed.json()["status"] == "proposed"
+
+    actions = client.get("/api/v1/authority/actions").json()
+    assert actions[0]["status"] == "proposed"
+
+    executed = client.post(
+        f"/api/v1/authority/actions/{proposed.json()['id']}/confirm",
+        json={"confirm": True},
+    )
+    assert executed.status_code == 409
+
+    actions = client.get("/api/v1/authority/actions").json()
+    assert actions[0]["status"] == "failed"
