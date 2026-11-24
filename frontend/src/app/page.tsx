@@ -45,6 +45,7 @@ import {
   evaluateAlerts,
   getHealth,
   getConversation,
+  getGmailCleanupPreview,
   getMemoryProfile,
   getLifeSnapshot,
   parseDocumentFile,
@@ -99,6 +100,17 @@ function EchoMark({ className }: { className?: string }) {
       <circle cx="16" cy="16" r="3.6" fill="#e8edf7" />
     </svg>
   );
+}
+
+
+function isGmailCleanupCommand(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  const mentionsMail = /\b(gmail|email|emails|mail)\b/i.test(normalized) || /ایمیل/.test(normalized);
+  const asksCleanup =
+    /\b(delete|remove|trash|clean|cleanup|clear)\b/i.test(normalized) ||
+    /(پاک|حذف|تمیز|خالی)/.test(normalized);
+  return mentionsMail && asksCleanup;
 }
 
 function workflowFromSurface(surface: Surface): ContextWorkflow {
@@ -393,6 +405,76 @@ export default function HomePage() {
       }
     }
     if (!body || sending) return;
+
+    if (isGmailCleanupCommand(text)) {
+      const userId = crypto.randomUUID();
+      const assistantId = crypto.randomUUID();
+      setMessages((prev) => [
+        ...prev,
+        { id: userId, role: "user", text: body },
+        { id: assistantId, role: "assistant", text: "", pending: true },
+      ]);
+      setSending(true);
+      setAuthorityError(null);
+      try {
+        const cleanup = await getGmailCleanupPreview(30, 20);
+        if (!cleanup.candidates.length) {
+          setMessages((prev) =>
+            prev.map((item) =>
+              item.id === assistantId
+                ? {
+                    id: assistantId,
+                    role: "assistant",
+                    text:
+                      locale === "fa"
+                        ? "ایمیل کم‌اهمیت امنی برای پاک‌سازی پیدا نکردم. هیچ چیزی حذف نشد."
+                        : "I did not find any low-priority mail that matched the safe cleanup rules. Nothing was removed.",
+                  }
+                : item,
+            ),
+          );
+          return;
+        }
+
+        const proposal = await proposeAction({
+          tool: "gmail.trash",
+          summary:
+            locale === "fa"
+              ? `${cleanup.candidates.length} ایمیل کم‌اهمیت را به Trash منتقل کن`
+              : `Move ${cleanup.candidates.length} low-priority emails to Trash`,
+          parameters: { message_ids: cleanup.candidates.map((item) => item.id) },
+        });
+        setPendingAction(proposal);
+        const previewLines = cleanup.candidates
+          .slice(0, 5)
+          .map((item) => `• ${item.subject || item.sender || (locale === "fa" ? "بدون عنوان" : "No subject")}`)
+          .join("\n");
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? {
+                  id: assistantId,
+                  role: "assistant",
+                  text:
+                    locale === "fa"
+                      ? `برای بررسی ${cleanup.candidates.length} ایمیل پیدا کردم. فقط Promotions / Social / Forums قدیمی‌اند و Starred یا Important نیستند.\n\n${previewLines}\n\nبرای انتقال به Trash، اقدام را تأیید کن.`
+                      : `I found ${cleanup.candidates.length} messages for review. They are older Promotions / Social / Forums and exclude Starred or Important mail.\n\n${previewLines}\n\nConfirm the action to move them to Trash.`,
+                }
+              : item,
+          ),
+        );
+      } catch (error) {
+        const detail = error instanceof ApiError ? error.message : t.sendFailed;
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId ? { id: assistantId, role: "error", text: detail } : item,
+          ),
+        );
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     const travelIntent = parseTravelIntent(text, locale);
     if (isBookableTravelIntent(travelIntent)) {
