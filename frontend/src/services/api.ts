@@ -1198,6 +1198,23 @@ export async function getRecentGmail(limit = 5): Promise<GmailMessageSummary[]> 
   });
 }
 
+
+export type GmailCleanupPreview = {
+  query: string;
+  candidates: GmailMessageSummary[];
+};
+
+export async function getGmailCleanupPreview(days = 30, limit = 20): Promise<GmailCleanupPreview> {
+  return api<GmailCleanupPreview>(
+    `/connectors/google/gmail/cleanup-preview?days=${days}&limit=${limit}`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
 export async function getUpcomingCalendar(limit = 5): Promise<CalendarEventSummary[]> {
   return api<CalendarEventSummary[]>(`/connectors/google/calendar/upcoming?limit=${limit}`, {
     auth: "protected",
