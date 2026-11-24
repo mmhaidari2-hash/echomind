@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from app.schemas.memory import MemoryFactCreate, MemorySource
 from app.schemas.notifications import WatchCreate
-from app.schemas.connectors import CalendarEventCreate, GmailSendRequest
+from app.schemas.connectors import CalendarEventCreate, GmailSendRequest, GmailTrashRequest
 from app.services.memory_engine import remember
 from app.services.notifications import add_watch
-from app.services.google_connector import create_calendar_event, send_gmail
+from app.services.google_connector import create_calendar_event, send_gmail, trash_gmail_messages
 
-ALLOWED_TOOLS = {"memory.remember", "watch.create", "gmail.send", "calendar.event.create"}
+ALLOWED_TOOLS = {"memory.remember", "watch.create", "gmail.send", "gmail.trash", "calendar.event.create"}
 
 
 def execute_tool(user_id: str, tool: str, parameters: dict[str, object]) -> dict[str, object]:
@@ -31,6 +31,13 @@ def execute_tool(user_id: str, tool: str, parameters: dict[str, object]) -> dict
     if tool == "gmail.send":
         result = send_gmail(user_id, GmailSendRequest.model_validate(parameters))
         return {"message_id": str(result.get("id", "")), "thread_id": str(result.get("threadId", ""))}
+
+    if tool == "gmail.trash":
+        result = trash_gmail_messages(user_id, GmailTrashRequest.model_validate(parameters))
+        return {
+            "trashed": int(result.get("trashed", 0)),
+            "message_ids": list(result.get("message_ids", [])),
+        }
 
     if tool == "calendar.event.create":
         result = create_calendar_event(user_id, CalendarEventCreate.model_validate(parameters))
