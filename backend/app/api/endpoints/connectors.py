@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from app.auth import require_user
 from app.schemas.connectors import (
     CalendarEventSummary,
+    GmailCleanupPreview,
     GmailMessageSummary,
     GoogleAccessLevel,
     GoogleConnectorStatus,
@@ -17,6 +18,7 @@ from app.services.google_connector import (
     begin,
     complete,
     disconnect,
+    preview_gmail_cleanup,
     recent_gmail,
     status,
     upcoming_calendar,
@@ -82,6 +84,19 @@ def gmail_recent(
 ) -> list[GmailMessageSummary]:
     try:
         return recent_gmail(user_id, limit)
+    except Exception as exc:
+        _raise_connector(exc)
+        raise
+
+
+@router.get("/gmail/cleanup-preview", response_model=GmailCleanupPreview)
+def gmail_cleanup_preview(
+    days: int = Query(default=30, ge=7, le=3650),
+    limit: int = Query(default=20, ge=1, le=50),
+    user_id: str = Depends(require_user),
+) -> GmailCleanupPreview:
+    try:
+        return preview_gmail_cleanup(user_id, days=days, limit=limit)
     except Exception as exc:
         _raise_connector(exc)
         raise
