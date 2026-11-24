@@ -21,8 +21,10 @@ from app.config import settings
 from app.schemas.connectors import (
     CalendarEventCreate,
     CalendarEventSummary,
+    GmailCleanupPreview,
     GmailMessageSummary,
     GmailSendRequest,
+    GmailTrashRequest,
     GoogleAccessLevel,
     GoogleConnectorStatus,
 )
@@ -41,10 +43,11 @@ CALENDAR_ROOT = "https://www.googleapis.com/calendar/v3"
 
 GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_SEND = "https://www.googleapis.com/auth/gmail.send"
+GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify"
 CALENDAR_READ = "https://www.googleapis.com/auth/calendar.readonly"
 CALENDAR_WRITE = "https://www.googleapis.com/auth/calendar.events"
 READ_SCOPES = (GMAIL_READ, CALENDAR_READ)
-WRITE_SCOPES = (GMAIL_READ, GMAIL_SEND, CALENDAR_READ, CALENDAR_WRITE)
+WRITE_SCOPES = (GMAIL_READ, GMAIL_SEND, GMAIL_MODIFY, CALENDAR_READ, CALENDAR_WRITE)
 
 _STATE_TTL = timedelta(minutes=10)
 _HTTP_TIMEOUT = 20
@@ -389,6 +392,85 @@ def _api_json(
     return payload if isinstance(payload, dict) else {}
 
 
+
+def _gmail_summary(user_id: str, message_id: str, *, required_scope: str = GMAIL_READ) -> GmailMessageSummary:
+    detail_query = urlencode(
+        [
+            ("format", "metadata"),
+            ("metadataHeaders", "Subject"),
+            ("metadataHeaders", "From"),
+            ("metadataHeaders", "Date"),
+        ]
+    )
+    detail = _api_json(
+        user_id,
+        "GET",
+        f"{GMAIL_ROOT}/users/me/messages/{message_id}?{detail_query}",
+        required_scope=required_scope,
+    )
+    headers: dict[str, str] = {}
+    payload = detail.get("payload")
+    if isinstance(payload, dict) and isinstance(payload.get("headers"), list):
+        for header in payload["headers"]:
+            if isinstance(header, dict) and isinstance(header.get("name"), str):
+                headers[header["name"].lower()] = str(header.get("value", ""))
+    return GmailMessageSummary(
+        id=message_id,
+        thread_id=str(detail.get("threadId", "")) or None,
+        subject=headers.get("subject", ""),
+        sender=headers.get("from", ""),
+        date=headers.get("date", ""),
+        snippet=str(detail.get("snippet", ""))[:500],
+    )
+
+
+def gmail_cleanup_query(days: int = 30) -> str:
+    safe_days = min(max(days, 7), 3650)
+    return (
+        f"older_than:{safe_days}d "
+        "{category:promotions category:social category:forums} "
+        "-is:starred -label:important -in:trash"
+    )
+
+
+def preview_gmail_cleanup(user_id: str, *, days: int = 30, limit: int = 20) -> GmailCleanupPreview:
+    query_text = gmail_cleanup_query(days)
+    query = urlencode(
+        {
+            "maxResults": min(max(limit, 1), 50),
+            "q": query_text,
+        }
+    )
+    listing = _api_json(
+        user_id,
+        "GET",
+        f"{GMAIL_ROOT}/users/me/messages?{query}",
+        required_scope=GMAIL_READ,
+    )
+    candidates: list[GmailMessageSummary] = []
+    for ref in listing.get("messages", []) if isinstance(listing.get("messages"), list) else []:
+        if not isinstance(ref, dict) or not isinstance(ref.get("id"), str):
+            continue
+        candidates.append(_gmail_summary(user_id, ref["id"], required_scope=GMAIL_READ))
+    return GmailCleanupPreview(query=query_text, candidates=candidates)
+
+
+def trash_gmail_messages(user_id: str, payload: GmailTrashRequest) -> dict[str, object]:
+    unique_ids = list(dict.fromkeys(message_id.strip() for message_id in payload.message_ids if message_id.strip()))
+    if not unique_ids:
+        raise ValueError("No Gmail messages were selected")
+    trashed: list[str] = []
+    for message_id in unique_ids[:50]:
+        _api_json(
+            user_id,
+            "POST",
+            f"{GMAIL_ROOT}/users/me/messages/{message_id}/trash",
+            required_scope=GMAIL_MODIFY,
+        )
+        trashed.append(message_id)
+    return {"trashed": len(trashed), "message_ids": trashed}
+
+
 def recent_gmail(user_id: str, limit: int = 10) -> list[GmailMessageSummary]:
     query = urlencode({"maxResults": min(max(limit, 1), 20), "q": "newer_than:30d"})
     listing = _api_json(
@@ -401,37 +483,7 @@ def recent_gmail(user_id: str, limit: int = 10) -> list[GmailMessageSummary]:
     for ref in listing.get("messages", []) if isinstance(listing.get("messages"), list) else []:
         if not isinstance(ref, dict) or not isinstance(ref.get("id"), str):
             continue
-        message_id = ref["id"]
-        detail_query = urlencode(
-            [
-                ("format", "metadata"),
-                ("metadataHeaders", "Subject"),
-                ("metadataHeaders", "From"),
-                ("metadataHeaders", "Date"),
-            ]
-        )
-        detail = _api_json(
-            user_id,
-            "GET",
-            f"{GMAIL_ROOT}/users/me/messages/{message_id}?{detail_query}",
-            required_scope=GMAIL_READ,
-        )
-        headers: dict[str, str] = {}
-        payload = detail.get("payload")
-        if isinstance(payload, dict) and isinstance(payload.get("headers"), list):
-            for header in payload["headers"]:
-                if isinstance(header, dict) and isinstance(header.get("name"), str):
-                    headers[header["name"].lower()] = str(header.get("value", ""))
-        rows.append(
-            GmailMessageSummary(
-                id=message_id,
-                thread_id=str(detail.get("threadId", "")) or None,
-                subject=headers.get("subject", ""),
-                sender=headers.get("from", ""),
-                date=headers.get("date", ""),
-                snippet=str(detail.get("snippet", ""))[:500],
-            )
-        )
+        rows.append(_gmail_summary(user_id, ref["id"], required_scope=GMAIL_READ))
     return rows
 
 
