@@ -49,3 +49,12 @@ class CalendarEventCreate(BaseModel):
     end: str = Field(..., min_length=10, max_length=64)
     description: str | None = Field(default=None, max_length=4000)
     timezone: str = Field(default="Europe/London", max_length=80)
+
+
+class GmailCleanupPreview(BaseModel):
+    query: str
+    candidates: list[GmailMessageSummary] = Field(default_factory=list)
+
+
+class GmailTrashRequest(BaseModel):
+    message_ids: list[str] = Field(..., min_length=1, max_length=50)
