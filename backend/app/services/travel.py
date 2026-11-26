@@ -68,16 +68,38 @@ def _secret() -> bytes:
     return settings.TRAVEL_SIGNING_SECRET.encode()
 
 
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode()
+
+
+def _unb64(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text.encode())
+
+
 def _sign(payload: dict[str, object]) -> str:
+    # Blob and digest are base64-encoded SEPARATELY and joined with "." at the
+    # string level. The old format base64-encoded blob + b"." + raw digest and
+    # split with rsplit(b".", 1): the raw 32-byte HMAC digest contains a 0x2E
+    # byte ~12% of the time, so the split landed inside the digest and a
+    # genuine token failed verification (flaky 403 on confirm).
     blob = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
     digest = hmac.new(_secret(), blob, hashlib.sha256).digest()
-    return base64.urlsafe_b64encode(blob + b"." + digest).decode()
+    return _b64(blob) + "." + _b64(digest)
+
+
+def _split_token(token: str) -> tuple[bytes, bytes]:
+    parts = token.split(".")
+    if len(parts) != 2:
+        raise ValueError("Confirmation token is invalid or expired")
+    try:
+        return _unb64(parts[0]), _unb64(parts[1])
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Confirmation token is invalid or expired") from exc
 
 
 def verify_confirm_token(token: str, intent_id: str) -> bool:
     try:
-        raw = base64.urlsafe_b64decode(token.encode())
-        blob, digest = raw.rsplit(b".", 1)
+        blob, digest = _split_token(token)
         expected = hmac.new(_secret(), blob, hashlib.sha256).digest()
         if not hmac.compare_digest(digest, expected):
             return False
@@ -165,8 +187,7 @@ def quote_travel(query: str, locale: str = "en") -> TravelQuote:
 
 
 def _read_token(token: str) -> dict[str, object]:
-    raw = base64.urlsafe_b64decode(token.encode())
-    blob, digest = raw.rsplit(b".", 1)
+    blob, digest = _split_token(token)
     expected = hmac.new(_secret(), blob, hashlib.sha256).digest()
     if not hmac.compare_digest(digest, expected):
         raise ValueError("Confirmation token is invalid or expired")
