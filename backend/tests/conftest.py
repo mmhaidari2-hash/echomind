@@ -16,6 +16,7 @@ def isolated_stores(tmp_path: Path):
         instagram_connector,
         life,
         memory_engine,
+        mentor,
         notifications,
         projects,
         providers,
@@ -31,6 +32,7 @@ def isolated_stores(tmp_path: Path):
     projects.use_store_path(tmp_path / "projects.json")
     delegation.use_store_path(tmp_path / "delegation.json")
     providers.use_store_path(tmp_path / "providers.json")
+    mentor.use_store_path(tmp_path / "mentor.json")
     notifications.reset_store()
     reset_rate_limits()
     app.dependency_overrides[require_user] = lambda: "test-user"

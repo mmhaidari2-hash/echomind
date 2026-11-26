@@ -1,16 +1,17 @@
 import type { Config } from "tailwindcss";
 
 /**
- * EchoMind palette — warm base (SparkFlow language Mahdi chose:
- * warm cream canvas, dark brown ink, amber/honey accents, elegant
- * serif display type Fraunces), blended with Linear's precision,
- * Raycast's speed and Vercel/Arc-style bold typography so the result
- * is EchoMind's own, not a copy of any one source. The old dark-navy
- * tokens are re-pointed at warm equivalents so existing class names
- * keep working: canvas is now cream, navy is a warm sand card, metal
- * is warm clay, carbon is deep brown. `font-mono` is JetBrains Mono
- * (Vercel's mono) for technical labels, counts and refs — tabular,
- * precise, never decorative.
+ * EchoMind palette — Dark Obsidian executive theme.
+ *
+ * Canvas #090A0F, translucent glass surfaces (white 4%, blur 20px,
+ * 1px white/9% hairline), warm Amber-Gold #E5A93C accents. Type is
+ * clean geometric sans: Plus Jakarta Sans first, Inter as fallback,
+ * Vazirmatn for Persian. JetBrains Mono stays for technical labels,
+ * counts and refs — tabular, precise, never decorative.
+ *
+ * The old warm tokens (canvas cream, bark, clay, honey, navy, carbon,
+ * metal) are gone on purpose: any class still using them fails loudly
+ * in the build instead of silently rendering the old theme.
  */
 const config: Config = {
   content: [
@@ -21,40 +22,31 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#F3EAD9",
-        cream: {
-          DEFAULT: "#FBF6EB",
-          card: "#FFFDF7",
-          deep: "#F0E4CB",
+        obsidian: "#090A0F",
+        panel: "#10121A",
+        ink: {
+          DEFAULT: "#F4F5F7",
+          soft: "#C9CEDA",
         },
-        sand: "#EFE3CC",
-        bark: {
-          DEFAULT: "#2B1E12",
-          soft: "#3D2C1C",
-          faint: "#6B5638",
-        },
-        honey: {
-          DEFAULT: "#B7791F",
-          light: "#D9A45B",
-          deep: "#8A5A1B",
-          pale: "#F0DDBB",
-        },
-        clay: "#6E5B47",
-        carbon: "#2B1E12",
-        navy: "#F7EFDF",
-        metal: {
-          DEFAULT: "#6E5B47",
-          dim: "#A08B74",
-          line: "rgba(122, 90, 48, 0.22)",
+        muted: "#9AA1B0",
+        gold: {
+          DEFAULT: "#E5A93C",
+          light: "#F2C268",
+          deep: "#C98F22",
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: [
+          "var(--font-jakarta)",
+          "var(--font-inter)",
+          "system-ui",
+          "sans-serif",
+        ],
         serif: [
-          "var(--font-fraunces)",
-          "var(--font-vazirmatn)",
-          "Georgia",
-          "serif",
+          "var(--font-jakarta)",
+          "var(--font-inter)",
+          "system-ui",
+          "sans-serif",
         ],
         fa: ["var(--font-vazirmatn)", "Tahoma", "sans-serif"],
         mono: [
@@ -66,8 +58,8 @@ const config: Config = {
         ],
       },
       boxShadow: {
-        lift: "0 18px 40px -20px rgba(43, 29, 18, 0.35)",
-        cta: "0 10px 24px -8px rgba(43, 29, 18, 0.45)",
+        lift: "0 18px 40px -20px rgba(0, 0, 0, 0.6)",
+        cta: "0 10px 24px -8px rgba(229, 169, 60, 0.45)",
       },
     },
   },

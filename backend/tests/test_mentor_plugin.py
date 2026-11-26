@@ -1,14 +1,17 @@
 """MENTOR as an EchoMind plugin: the "mentor-hub" project kind.
 
-MENTOR is Mahdi's own app (purple M icon on his phone) that is
-itself connected to all his projects. EchoMind registers it as one
-hub entry in the delegation registry: anything EchoMind cannot do
-itself is handed to MENTOR as one gated step, propose → confirm →
-run, under the same Bounded Authority gates. Verified 2026-11-26:
-no repo named mentor exists under mmhaidari2-hash (public search:
-0 results), so the endpoint is a required but EMPTY field until
-Mahdi supplies it — the step fails closed as needs_owner with the
-exact missing piece, never a guessed URL.
+MENTOR is Mahdi's command centre for all his projects —
+connected via API + GitHub to all his agents, working on his
+command. EchoMind registers it as one hub entry in the
+delegation registry: anything EchoMind cannot do itself is
+handed to MENTOR as one gated step, propose → confirm → run,
+under the same Bounded Authority gates. Verified 2026-11-26:
+MENTOR is the private repo mmhaidari2-hash/MENTOR, production
+app https://mentor-web-production-096b.up.railway.app, and the
+delegation route is its owner-only dashboard form
+POST /app/agents (repo, instruction, engine). The step fails
+closed as needs_owner until a MENTOR session is stored — never
+a guessed call.
 """
 
 from fastapi.testclient import TestClient
@@ -27,8 +30,8 @@ def _as(user_id: str) -> None:
     app.dependency_overrides[require_user] = lambda: user_id
 
 
-def _mentor(user_id: str, endpoint_url: str | None = None, allowed_tools=None):
-    kwargs = {"name": "MENTOR", "kind": "mentor-hub", "endpoint_url": endpoint_url}
+def _mentor(user_id: str, endpoint_url: str | None = None, allowed_tools=None, repo: str | None = None):
+    kwargs = {"name": "MENTOR", "kind": "mentor-hub", "endpoint_url": endpoint_url, "repo": repo}
     if allowed_tools is not None:
         kwargs["allowed_tools"] = allowed_tools
     return create_project(user_id, ProjectCreate(**kwargs))
@@ -77,27 +80,33 @@ def test_non_mentor_project_gets_owner_step_for_unknown_instruction() -> None:
     assert [step.tool for step in task.plan] == ["owner"]
 
 
-def test_confirm_without_endpoint_needs_owner_with_missing_endpoint() -> None:
-    project = _mentor("user-a")
+def test_confirm_without_hub_needs_owner_with_no_hub() -> None:
+    # No endpoint anywhere and no session: the first missing
+    # piece is the hub itself — the slot is empty until a hub is
+    # plugged in. Nothing is sent. (The repo is linked so the
+    # check reaches the hub, not the repo.)
+    project = _mentor("user-a", repo="mmhaidari2-hash/atnex-app")
     task = delegation_service.create_task(
         "user-a", project.id, TaskCreate(instruction="do this in the launcher project", language="en")
     )
     done = delegation_service.confirm_task("user-a", task.id)
     assert done.status == "needs_owner"
     assert done.plan[0].status == "needs_owner"
-    assert "endpoint is missing" in (done.plan[0].evidence or "")
+    assert "No command hub is connected" in (done.plan[0].evidence or "")
 
 
-def test_confirm_with_endpoint_needs_owner_until_call_shape_known() -> None:
-    project = _mentor("user-a", endpoint_url="https://mentor.example.test/api")
+def test_confirm_without_session_needs_owner_with_sign_in() -> None:
+    project = _mentor(
+        "user-a", endpoint_url="https://mentor.example.test/api", repo="mmhaidari2-hash/atnex-app"
+    )
     task = delegation_service.create_task(
         "user-a", project.id, TaskCreate(instruction="do this in the launcher project", language="en")
     )
     done = delegation_service.confirm_task("user-a", task.id)
     assert done.status == "needs_owner"
     assert done.plan[0].status == "needs_owner"
-    assert "does not yet know how to call it" in (done.plan[0].evidence or "")
-    assert "mentor.example.test" in (done.plan[0].evidence or "")
+    assert "sign-in" in (done.plan[0].evidence or "")
+    assert "Nothing was sent" in (done.plan[0].evidence or "")
 
 
 def test_mentor_tool_outside_allowlist_is_refused() -> None:

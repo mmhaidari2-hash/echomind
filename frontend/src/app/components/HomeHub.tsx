@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * HomeHub — the home screen IS the hub.
+ * HomeHub — the home screen IS the hub (mockup 3).
  *
- * EchoMind's orb at the centre, the owner's apps orbiting it in a circle
- * connected by spokes, a "N apps connected" pill at the top, green
- * checkmarks on the connected apps. Tapping an app answers "so what?" —
- * what that connection powers inside EchoMind.
+ * The brand title sits ABOVE the golden living orb; the owner's apps
+ * orbit it in a circle connected by spokes. No text is stamped across
+ * the orb, and no truncated labels hang under the nodes — each node
+ * is a crisp official brand SVG inside a glass circle. Tapping an app
+ * answers "so what?" in the glass card below: its full name, live
+ * sync status and a 1-tap OAuth Connect action.
  *
  * The app list and the status loading live in ./hubApps (shared with
  * the drawer hub), so both hubs always show the same 8 apps with the
@@ -18,7 +20,12 @@
  * strip, not in the orbit. Instagram here is EchoMind's own connector,
  * not Muse's.
  *
- * Warm editorial design (cream, dark brown, honey, Fraunces serif),
+ * Status revalidates itself (focus, visibility, interval, auth-ready)
+ * — there is no manual Refresh button. The orb is alive: it breathes
+ * when idle, ripples while the mic listens, spins its golden core
+ * while EchoMind thinks, and pulses crisply while an action runs.
+ *
+ * Dark Obsidian design (obsidian, dark glass, Amber-Gold),
  * framer-motion entrance, shadcn Button for the connect action.
  * Bilingual EN/FA; the orbit is symmetric so RTL needs no mirror.
  */
@@ -26,8 +33,10 @@
 import { useCallback, useEffect, useState, type PointerEvent } from "react";
 import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
 
-import { AnimatedCount, GlassCard, Kbd, MotionReveal, Orb3D, Reveal, SpotlightCard, StatusDot } from "./Glass";
+import { AnimatedCount, GlassCard, Kbd, LivingOrb, MotionReveal, Reveal, SpotlightCard, StatusDot, type OrbState } from "./Glass";
+import { BrandIcon } from "./BrandIcons";
 import { Button } from "./ui/button";
+import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   HUB_APPS,
   HUB_COMING_SOON,
@@ -43,12 +52,7 @@ import {
 type Lang = "en" | "fa";
 
 const STRINGS = {
-  title: { en: "Your command centre", fa: "مرکز فرمان شما" },
-  subtitle: {
-    en: "Your apps orbit EchoMind. Tap one to see what it powers — nothing runs without your say-so.",
-    fa: "برنامه‌های شما دور اکومایند می‌چرخند. روی یکی بزنید تا ببینید چه کاری برایتان می‌کند — هیچ کاری بدون اجازهٔ شما انجام نمی‌شود.",
-  },
-  refresh: { en: "Refresh", fa: "به‌روزرسانی" },
+  hubLabel: { en: "EchoMind hub", fa: "هاب اکومایند" },
   connected: { en: "Connected", fa: "متصل" },
   notConnected: { en: "Not connected", fa: "متصل نیست" },
   needsSetup: { en: "Needs setup", fa: "نیاز به راه‌اندازی" },
@@ -68,9 +72,10 @@ const STRINGS = {
   },
 } as const;
 
-/** Orbit geometry: 8 nodes, clockwise from the top. */
+/** Orbit geometry: 8 nodes, clockwise from the top. Radius 40 keeps
+    the 56px nodes inside the container on a 360px viewport. */
 const ANGLES = [-90, -45, 0, 45, 90, 135, 180, 225];
-const ORBIT_RADIUS = 42; // percent of the container
+const ORBIT_RADIUS = 40; // percent of the container
 
 function nodePosition(index: number): { x: number; y: number } {
   const radians = (ANGLES[index] * Math.PI) / 180;
@@ -98,25 +103,36 @@ function stateLabel(state: HubState, lang: Lang): string {
 function stateTone(state: HubState): string {
   switch (state) {
     case "connected":
-      return "bg-emerald-600/15 text-emerald-700 border-emerald-600/30";
+      return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
     case "needs_setup":
-      return "bg-honey/15 text-honey-deep border-honey/30";
+      return "bg-gold/15 text-gold border-gold/30";
     case "coming_soon":
-      return "bg-bark/5 text-clay border-bark/10";
+      return "bg-white/[0.06] text-muted border-white/[0.09]";
     case "unknown":
-      return "bg-bark/5 text-clay border-bark/10";
+      return "bg-white/[0.06] text-muted border-white/[0.09]";
     default:
-      return "bg-honey/10 text-honey-deep border-honey/30";
+      return "bg-gold/10 text-gold border-gold/30";
   }
 }
 
-export default function HomeHub({ lang }: { lang: Lang }) {
+export default function HomeHub({
+  lang,
+  thinking = false,
+  executing = false,
+}: {
+  lang: Lang;
+  /** EchoMind is composing a reply. */
+  thinking?: boolean;
+  /** A confirmed action is running. */
+  executing?: boolean;
+}) {
   const [states, setStates] = useState<Record<HubAppId, HubState>>(emptyHubStates);
   const [googleConfigured, setGoogleConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<HubAppId>("gmail");
   const [connectingId, setConnectingId] = useState<HubAppId | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
 
   /* react-three-fiber pattern as CSS 3D — pointer parallax on the
      orbit: the whole scene leans a few degrees toward the pointer
@@ -141,20 +157,33 @@ export default function HomeHub({ lang }: { lang: Lang }) {
   };
 
   const load = useCallback(async () => {
-    setLoading(true);
     const { states: next, googleConfigured: configured } = await loadHubStatuses();
     setStates(next);
     setGoogleConfigured(configured);
     setLoading(false);
   }, []);
 
+  /* No manual Refresh: status revalidates on mount, interval, focus,
+     visibility and auth-ready. */
+  useLiveRefresh(load, { intervalMs: 30_000 });
+
+  /* The mic lives in the chat dock; it announces its state so the
+     orb can ripple while listening. */
   useEffect(() => {
-    void load();
-    window.addEventListener("echomind-auth-ready", load);
-    return () => {
-      window.removeEventListener("echomind-auth-ready", load);
+    const onListening = (event: Event) => {
+      setListening(Boolean((event as CustomEvent<boolean>).detail));
     };
-  }, [load]);
+    window.addEventListener("echomind-listening", onListening);
+    return () => window.removeEventListener("echomind-listening", onListening);
+  }, []);
+
+  const orbState: OrbState = listening
+    ? "listening"
+    : executing
+      ? "executing"
+      : thinking
+        ? "thinking"
+        : "idle";
 
   const connectedCount = HUB_APPS.filter((app) => states[app.id] === "connected").length;
   const selected = HUB_APPS.find((app) => app.id === selectedId) ?? HUB_APPS[0];
@@ -191,120 +220,103 @@ export default function HomeHub({ lang }: { lang: Lang }) {
   const SoWhatContent = () => (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="echomind-num-mono text-xs text-honey-deep">
-                  APP {String(selectedIndex + 1).padStart(2, "0")}
-                </span>
-                <StatusDot
-                  tone={
-                    selectedState === "connected"
-                      ? "ok"
-                      : selectedState === "needs_setup"
-                        ? "warn"
-                        : "idle"
-                  }
-                  label={stateLabel(selectedState, lang)}
-                />
-              </div>
-              <span
-                className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider ${stateTone(selectedState)}`}
-              >
-                {stateLabel(selectedState, lang)}
-              </span>
-            </div>
-            <h3 className="mt-2 font-serif text-base font-semibold tracking-tight text-bark">{selected.label[lang]}</h3>
-            <p className="echomind-meta mt-2 text-honey-deep">
-              {STRINGS.whatItPowers[lang]}
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-bark-soft">{selected.powers[lang]}</p>
-            {selectedState === "needs_setup" && selected.setupNote ? (
-              <p className="mt-2 text-sm leading-relaxed text-honey-deep">
-                {selected.setupNote[lang]}
-              </p>
-            ) : null}
-            {selectedState === "unknown" ? (
-              <p className="mt-2 text-sm leading-relaxed text-clay">
-                {STRINGS.signInFirst[lang]}
-              </p>
-            ) : null}
-            {canConnect ? (
-              <div className="mt-3 flex items-center gap-2">
-                <Button
-                  disabled={connectingId === selected.id}
-                  onClick={() => void handleConnect(selected)}
-                >
-                  {connectingId === selected.id ? STRINGS.connecting[lang] : connectLabel}
-                </Button>
-                <Kbd>↵</Kbd>
-                {selectedState === "needs_setup" && selected.id !== "bank" && selected.id !== "instagram" ? (
-                  <span className="ms-2 text-xs text-clay">
-                    {lang === "fa"
-                      ? "دسترسی با حساب گوگل شما درخواست می‌شود."
-                      : "Requested with your Google account."}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            {connectError ? (
-              <p role="alert" className="mt-2 text-sm text-red-700">
-                {connectError}
-              </p>
-            ) : null}
+        <div className="flex items-center gap-2">
+          <span className="echomind-num-mono text-xs text-gold">
+            APP {String(selectedIndex + 1).padStart(2, "0")}
+          </span>
+          <StatusDot
+            tone={
+              selectedState === "connected"
+                ? "ok"
+                : selectedState === "needs_setup"
+                  ? "warn"
+                  : "idle"
+            }
+            label={stateLabel(selectedState, lang)}
+          />
+        </div>
+        <span
+          className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider ${stateTone(selectedState)}`}
+        >
+          {stateLabel(selectedState, lang)}
+        </span>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[0.09] bg-white/[0.04] text-ink">
+          <BrandIcon id={selected.icon} className="h-6 w-6" />
+        </span>
+        <h3 className="min-w-0 truncate text-base font-bold tracking-tight text-ink">{selected.label[lang]}</h3>
+      </div>
+      <p className="echomind-meta mt-3 text-gold">
+        {STRINGS.whatItPowers[lang]}
+      </p>
+      <p className="mt-1 text-sm leading-relaxed text-ink-soft">{selected.powers[lang]}</p>
+      {selectedState === "needs_setup" && selected.setupNote ? (
+        <p className="mt-2 text-sm leading-relaxed text-gold">
+          {selected.setupNote[lang]}
+        </p>
+      ) : null}
+      {selectedState === "unknown" ? (
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          {STRINGS.signInFirst[lang]}
+        </p>
+      ) : null}
+      {canConnect ? (
+        <div className="mt-3 flex items-center gap-2">
+          <Button
+            disabled={connectingId === selected.id}
+            onClick={() => void handleConnect(selected)}
+          >
+            {connectingId === selected.id ? STRINGS.connecting[lang] : connectLabel}
+          </Button>
+          <Kbd>↵</Kbd>
+          {selectedState === "needs_setup" && selected.id !== "bank" && selected.id !== "instagram" ? (
+            <span className="ms-2 text-xs text-muted">
+              {lang === "fa"
+                ? "دسترسی با حساب گوگل شما درخواست می‌شود."
+                : "Requested with your Google account."}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {connectError ? (
+        <p role="alert" className="mt-2 text-sm text-red-300">
+          {connectError}
+        </p>
+      ) : null}
     </>
   );
 
   return (
-    <section aria-label={STRINGS.title[lang]} className="w-full">
+    <section aria-label={STRINGS.hubLabel[lang]} className="w-full">
+      {/* Live count pill — the only header the hub needs. */}
       <Reveal>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-serif text-2xl font-semibold leading-[1.1] tracking-tight text-bark">{STRINGS.title[lang]}</h2>
-            <p className="mt-1 max-w-md text-sm leading-relaxed text-clay">
-              {STRINGS.subtitle[lang]}
-            </p>
-            {/* Technical readout (Linear-style): Latin mono in both
-                locales, like a device readout — counts, not prose.
-                The connected count ticks up (magicui NumberTicker
-                pattern) instead of snapping. */}
-            <p className="echomind-meta mt-2 text-clay" aria-hidden="true">
-              {String(HUB_APPS.length).padStart(2, "0")} APPS ·{" "}
-              <AnimatedCount value={connectedCount} pad={2} /> CONNECTED · ORBIT 01
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-honey-deep">
-              {loading ? (
-                "…"
-              ) : (
-                <>
-                  <AnimatedCount value={connectedCount} />{" "}
-                  {lang === "fa"
-                    ? "برنامه متصل"
-                    : connectedCount === 1
-                      ? "app connected"
-                      : "apps connected"}
-                </>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-bark-soft transition hover:text-bark"
-            >
-              {STRINGS.refresh[lang]}
-            </button>
-          </div>
+        <div className="flex justify-center">
+          <span className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-gold">
+            {loading ? (
+              "…"
+            ) : (
+              <>
+                <AnimatedCount value={connectedCount} />{" "}
+                {lang === "fa"
+                  ? "برنامه متصل"
+                  : connectedCount === 1
+                    ? "app connected"
+                    : "apps connected"}
+              </>
+            )}
+          </span>
         </div>
       </Reveal>
 
-      {/* The orbit: EchoMind at the centre, apps around it on spokes.
-          Pointer parallax leans the scene toward the pointer (r3f
-          pattern, CSS 3D); the tick ring turns slowly like a dial. */}
+      {/* The orbit: the living orb at the centre, apps around it on
+          spokes. Pointer parallax leans the scene toward the pointer
+          (r3f pattern, CSS 3D); the tick ring turns slowly like a dial. */}
       <MotionReveal delay={80}>
         <motion.div
-          className="relative mx-auto mt-6 aspect-square w-full max-w-[340px]"
+          className="relative mx-auto mt-2 aspect-square w-full max-w-[340px]"
           role="group"
-          aria-label={STRINGS.title[lang]}
+          aria-label={STRINGS.hubLabel[lang]}
           style={{ rotateX: orbitSrx, rotateY: orbitSry, transformPerspective: 900 }}
           onPointerMove={handleOrbitMove}
           onPointerLeave={resetOrbit}
@@ -329,7 +341,7 @@ export default function HomeHub({ lang }: { lang: Lang }) {
                     y1={50 + r1 * Math.sin(a)}
                     x2={50 + r2 * Math.cos(a)}
                     y2={50 + r2 * Math.sin(a)}
-                    stroke="rgba(122, 90, 48, 0.4)"
+                    stroke="rgba(255, 255, 255, 0.25)"
                     strokeWidth="0.4"
                   />
                 );
@@ -340,7 +352,7 @@ export default function HomeHub({ lang }: { lang: Lang }) {
               cy="50"
               r={ORBIT_RADIUS}
               fill="none"
-              stroke="rgba(183, 121, 31, 0.3)"
+              stroke="rgba(229, 169, 60, 0.35)"
               strokeWidth="0.5"
               strokeDasharray="1.5 1.5"
             />
@@ -355,8 +367,8 @@ export default function HomeHub({ lang }: { lang: Lang }) {
                   y2={y}
                   stroke={
                     states[app.id] === "connected"
-                      ? "rgba(5, 122, 85, 0.5)"
-                      : "rgba(183, 121, 31, 0.3)"
+                      ? "rgba(16, 185, 129, 0.5)"
+                      : "rgba(229, 169, 60, 0.35)"
                   }
                   strokeWidth="0.5"
                 />
@@ -364,15 +376,13 @@ export default function HomeHub({ lang }: { lang: Lang }) {
             })}
           </svg>
 
-          {/* Centre: EchoMind's own orb. */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-            <Orb3D size={96} />
-            <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-[13px] font-bold tracking-wide text-bark">
-              EchoMind
-            </p>
+          {/* Centre: the living orb. No text stamped across it — the
+              brand title sits above it in the hero. */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <LivingOrb size={150} state={orbState} />
           </div>
 
-          {/* Orbiting apps. */}
+          {/* Orbiting apps — brand icons only, no labels. */}
           {HUB_APPS.map((app, index) => {
             const { x, y } = nodePosition(index);
             const state = states[app.id];
@@ -387,28 +397,25 @@ export default function HomeHub({ lang }: { lang: Lang }) {
                 }}
                 aria-pressed={isSelected}
                 aria-label={`${app.label[lang]} — ${stateLabel(state, lang)}`}
-                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full text-center transition ${
+                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-ink transition ${
                   isSelected
                     ? "echomind-glass-strong scale-110"
                     : "echomind-glass hover:scale-105"
                 }`}
                 style={{ left: `${x}%`, top: `${y}%` }}
               >
-                <span className="text-base font-bold leading-none text-bark">{app.glyph}</span>
-                <span className="mt-0.5 max-w-[52px] truncate font-mono text-[9px] font-semibold uppercase leading-none tracking-wider text-clay">
-                  {app.label[lang]}
-                </span>
+                <BrandIcon id={app.icon} className="h-6 w-6" />
                 {state === "connected" ? (
                   <span
                     aria-hidden="true"
-                    className="absolute -top-1 -end-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-cream"
+                    className="absolute -top-1 -end-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white"
                   >
                     ✓
                   </span>
                 ) : state === "needs_setup" ? (
                   <span
                     aria-hidden="true"
-                    className="absolute -top-1 -end-1 flex h-5 w-5 items-center justify-center rounded-full bg-honey text-[11px] font-bold text-cream"
+                    className="absolute -top-1 -end-1 flex h-5 w-5 items-center justify-center rounded-full bg-gold text-[11px] font-bold text-obsidian"
                   >
                     !
                   </span>
@@ -450,17 +457,17 @@ export default function HomeHub({ lang }: { lang: Lang }) {
       {/* Honest "coming soon": no connector exists, so no orbit node. */}
       <Reveal delay={180}>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="echomind-meta text-clay">
+          <span className="echomind-meta text-muted">
             {STRINGS.comingSoon[lang]}
           </span>
           {HUB_COMING_SOON.map((app) => (
             <span
               key={app.label.en}
-              className="echomind-glass flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[11px] font-semibold text-clay"
+              className="echomind-glass flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-muted"
             >
-              <span aria-hidden="true">{app.glyph}</span>
+              <BrandIcon id={app.icon} className="h-4 w-4" />
               {app.label[lang]}
-              <span className="text-clay">· {STRINGS.comingSoon[lang]}</span>
+              <span className="text-muted">· {STRINGS.comingSoon[lang]}</span>
             </span>
           ))}
         </div>

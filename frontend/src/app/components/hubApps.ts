@@ -14,6 +14,7 @@
  * the orbit.
  */
 
+import type { BrandIconId } from "./BrandIcons";
 import {
   GOOGLE_CALENDAR_SCOPE,
   GOOGLE_DOCS_SCOPE,
@@ -24,6 +25,7 @@ import {
   getGoogleConnectorStatus,
   getInstagramStatus,
   getYouTubeStatus,
+  isEndpointMissing,
   startBankConnection,
   startGoogleConnection,
   startInstagramConnection,
@@ -58,7 +60,8 @@ export type HubConnectKind =
 
 export type HubApp = {
   id: HubAppId;
-  glyph: string;
+  /** Official brand SVG icon — never a text placeholder. */
+  icon: BrandIconId;
   label: { en: string; fa: string };
   /** What this connection powers inside EchoMind — the "so what?". */
   powers: { en: string; fa: string };
@@ -71,7 +74,7 @@ export type HubApp = {
 export const HUB_APPS: HubApp[] = [
   {
     id: "gmail",
-    glyph: "M",
+    icon: "gmail",
     label: { en: "Gmail", fa: "جیمیل" },
     powers: {
       en: "Watches your inbox for train delays, refunds and renewals — and turns them into claims and follow-ups.",
@@ -85,7 +88,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "calendar",
-    glyph: "31",
+    icon: "calendar",
     label: { en: "Calendar", fa: "تقویم" },
     powers: {
       en: "Knows your journeys and deadlines, so Delay Repay claims and renewals never slip past their date.",
@@ -99,7 +102,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "drive",
-    glyph: "D",
+    icon: "drive",
     label: { en: "Drive", fa: "درایو" },
     powers: {
       en: "Your tickets, receipts and documents, ready as evidence for claims and case files.",
@@ -113,7 +116,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "docs",
-    glyph: "Doc",
+    icon: "docs",
     label: { en: "Docs", fa: "داکس" },
     powers: {
       en: "Claim letters and consumer-rights case files, drafted from your own evidence.",
@@ -127,7 +130,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "sheets",
-    glyph: "S",
+    icon: "sheets",
     label: { en: "Sheets", fa: "شیت" },
     powers: {
       en: "Tracks refunds, claims and renewals in one place, so nothing is forgotten.",
@@ -141,7 +144,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "bank",
-    glyph: "£",
+    icon: "bank",
     label: { en: "Bank", fa: "بانک" },
     powers: {
       en: "Read-only: spots refunds, duplicate charges and renewal payments. EchoMind can never move money.",
@@ -155,7 +158,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "instagram",
-    glyph: "Ig",
+    icon: "instagram",
     label: { en: "Instagram", fa: "اینستاگرام" },
     powers: {
       en: "Your posts and reels, read-only — so EchoMind can help with your content and your channels.",
@@ -169,7 +172,7 @@ export const HUB_APPS: HubApp[] = [
   },
   {
     id: "youtube",
-    glyph: "▶",
+    icon: "youtube",
     label: { en: "YouTube", fa: "یوتیوب" },
     powers: {
       en: "Your channel and videos, read-only — so EchoMind can help with your channel.",
@@ -183,10 +186,10 @@ export const HUB_APPS: HubApp[] = [
   },
 ];
 
-export const HUB_COMING_SOON = [
-  { glyph: "S", label: { en: "Slack", fa: "اسلک" } },
-  { glyph: "N", label: { en: "Notion", fa: "نوشن" } },
-] as const;
+export const HUB_COMING_SOON: Array<{ icon: BrandIconId; label: { en: string; fa: string } }> = [
+  { icon: "slack", label: { en: "Slack", fa: "اسلک" } },
+  { icon: "notion", label: { en: "Notion", fa: "نوشن" } },
+];
 
 export type HubStates = Record<HubAppId, HubState>;
 
@@ -206,16 +209,21 @@ export function emptyHubStates(): HubStates {
 /** Loads every app's state from its real status endpoint.
     `readFailed` is true only when every endpoint failed to answer —
     the UI then says the status could not be read, instead of guessing.
+    `outdated` is true when the failures are 404s: the backend is an
+    older build without these endpoints (the branch is not merged) —
+    the UI then says the connections arrive with the next app update.
     `googleConfigured` is true only when the Google connector is set
     up on the server — the Connect button for Drive/Docs/Sheets must
     not appear before that, or it could only fail with a 503. */
 export async function loadHubStatuses(): Promise<{
   states: HubStates;
   readFailed: boolean;
+  outdated: boolean;
   googleConfigured: boolean;
 }> {
   const next = emptyHubStates();
   let failures = 0;
+  let endpointMissing = false;
   let googleConfigured = false;
 
   // Google — one account, per-scope truth. Base connect grants Gmail +
@@ -236,17 +244,19 @@ export async function loadHubStatuses(): Promise<{
       next.docs = google.scopes.includes(GOOGLE_DOCS_SCOPE) ? "connected" : "needs_setup";
       next.sheets = google.scopes.includes(GOOGLE_SHEETS_SCOPE) ? "connected" : "needs_setup";
     }
-  } catch {
+  } catch (error) {
     // Not signed in (or the backend is unreachable): stay "unknown".
     failures += 1;
+    if (isEndpointMissing(error)) endpointMissing = true;
   }
 
   try {
     const bank = await getBankStatus();
     next.bank = !bank.configured ? "needs_setup" : bank.connected ? "connected" : "not_connected";
-  } catch {
+  } catch (error) {
     // keep "unknown"
     failures += 1;
+    if (isEndpointMissing(error)) endpointMissing = true;
   }
 
   try {
@@ -256,9 +266,10 @@ export async function loadHubStatuses(): Promise<{
       : instagram.connected
         ? "connected"
         : "not_connected";
-  } catch {
+  } catch (error) {
     // keep "unknown"
     failures += 1;
+    if (isEndpointMissing(error)) endpointMissing = true;
   }
 
   try {
@@ -268,12 +279,18 @@ export async function loadHubStatuses(): Promise<{
       : youtube.connected
         ? "connected"
         : "not_connected";
-  } catch {
+  } catch (error) {
     // keep "unknown"
     failures += 1;
+    if (isEndpointMissing(error)) endpointMissing = true;
   }
 
-  return { states: next, readFailed: failures === 4, googleConfigured };
+  return {
+    states: next,
+    readFailed: failures === 4,
+    outdated: failures === 4 && endpointMissing,
+    googleConfigured,
+  };
 }
 
 /** Opens the connect flow for one hub app; returns the sign-in URL. */

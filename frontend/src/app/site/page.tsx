@@ -6,8 +6,8 @@
  * A product landing page in the SAME frontend as the mobile app (not a
  * new top-level app): it presents what EchoMind is, its six
  * differentiators and how the Outcome Loop works, and links into the
- * real app at `/`. The blend: warm editorial base (cream, dark brown,
- * honey, Fraunces serif) + Linear's precision (hairline cards, mono
+ * real app at `/`. The blend: Dark Obsidian base (obsidian, dark glass,
+ * Amber-Gold) + Linear's precision (hairline cards, mono
  * numerals, tabular numbers) + Vercel/Arc-style bold typography
  * (tight-tracked display type, one accent used sparingly, mono
  * technical labels) + EchoMind's own thread (the orb, the Outcome
@@ -294,19 +294,19 @@ export default function SitePage() {
   const toggleLocale = () => setLocale(locale === "en" ? "fa" : "en");
 
   return (
-    <div className="echomind-site-scroll bg-canvas text-bark">
+    <div className="echomind-site-scroll bg-obsidian text-ink">
       <div className="echomind-scene relative mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6">
         {/* Ambient depth layers */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-honey/10 via-honey/10 to-transparent blur-2xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-gold/10 via-gold/10 to-transparent blur-2xl" />
 
         {/* Header */}
-        <header className="sticky top-0 z-20 -mx-4 bg-canvas/80 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
+        <header className="sticky top-0 z-20 -mx-4 bg-obsidian/80 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <Link href="/" className="flex items-center gap-2 text-start">
               <span aria-hidden="true" className="echomind-orb-3d inline-block h-8 w-8 shrink-0" />
               <span className="leading-tight">
-                <span className="block font-serif text-base font-semibold text-bark">EchoMind</span>
-                <span className="block text-[11px] text-clay">{t.brandTag}</span>
+                <span className="block font-sans text-base font-semibold text-ink">EchoMind</span>
+                <span className="block text-[11px] text-muted">{t.brandTag}</span>
               </span>
             </Link>
             <div className="flex items-center gap-2">
@@ -314,7 +314,7 @@ export default function SitePage() {
                 type="button"
                 onClick={toggleLocale}
                 aria-label={locale === "en" ? "Switch to Persian" : "Switch to English"}
-                className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-bark"
+                className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-ink"
               >
                 {locale === "en" ? "فارسی" : "English"}
               </button>
@@ -333,17 +333,17 @@ export default function SitePage() {
             </div>
           </MotionReveal>
           <MotionReveal delay={90}>
-            <p className="spark-eyebrow mt-6">{t.heroEyebrow}</p>
+            <p className="echomind-meta mt-6">{t.heroEyebrow}</p>
             {/* Vercel-style display type: bigger, tighter tracking,
-                one accent used boldly — the serif stays, the slack goes. */}
-            <h1 className="mt-2 font-serif text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-bark sm:text-[3.4rem]">
+                one accent used boldly — the gold stays, the slack goes. */}
+            <h1 className="mt-2 font-sans text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-ink sm:text-[3.4rem]">
               {t.heroTitleStart}
-              {/* magicui AnimatedGradientText pattern — the honey
+              {/* magicui AnimatedGradientText pattern — the gold
                   shimmer travels across the accent word. */}
-              <span className="echomind-shimmer-text font-serif italic">{t.heroTitleAccent}</span>
+              <span className="echomind-shimmer-text font-sans italic">{t.heroTitleAccent}</span>
               {t.heroTitleEnd}
             </h1>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-clay sm:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
               {t.heroSubtitle}
             </p>
           </MotionReveal>
@@ -356,7 +356,7 @@ export default function SitePage() {
                 <a href="#how">{t.heroSecondary}</a>
               </Button>
             </div>
-            <p className="mt-4 text-xs text-clay">{t.heroNote}</p>
+            <p className="mt-4 text-xs text-muted">{t.heroNote}</p>
           </MotionReveal>
         </section>
 
@@ -369,7 +369,7 @@ export default function SitePage() {
               bento: the first card spans two columns on sm+. Each
               card tilts toward the pointer (Aceternity 3D Card) and
               carries a pointer spotlight (Aceternity Spotlight);
-              the featured card has a travelling honey border beam
+              the featured card has a travelling gold border beam
               (magicui BorderBeam). All six items and strings kept. */}
           <div className="echomind-bento mt-5">
             {t.differentiators.map((item, index) => (
@@ -382,13 +382,13 @@ export default function SitePage() {
                   <SpotlightCard className="h-full rounded-[1.75rem]">
                     <Card className={`h-full shadow-none ${index === 0 ? "echomind-beam" : ""}`}>
                       <CardHeader>
-                        <p className="echomind-num-mono text-xl text-honey-deep">
+                        <p className="echomind-num-mono text-xl text-gold">
                           {String(index + 1).padStart(2, "0")}
                         </p>
-                        <CardTitle className="mt-1 font-serif">{item.title}</CardTitle>
+                        <CardTitle className="mt-1 font-sans">{item.title}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <CardDescription className="text-[13px] leading-5 text-clay">
+                        <CardDescription className="text-[13px] leading-5 text-muted">
                           {item.body}
                         </CardDescription>
                       </CardContent>
@@ -415,21 +415,21 @@ export default function SitePage() {
                 {t.loopSteps.map((step, index) => (
                   <li key={step.title} className="relative flex-1 text-start">
                     <p className="flex items-baseline gap-2">
-                      <span className="echomind-num-mono bg-cream-card px-1 text-lg text-honey-deep">
+                      <span className="echomind-num-mono bg-white/[0.04] px-1 text-lg text-gold">
                         {String(index + 1).padStart(2, "0")}
                       </span>
-                      <span className="font-serif text-sm font-semibold tracking-tight text-bark">{step.title}</span>
+                      <span className="font-sans text-sm font-semibold tracking-tight text-ink">{step.title}</span>
                     </p>
-                    <p className="mt-1.5 text-xs leading-relaxed text-clay sm:ps-9">{step.body}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted sm:ps-9">{step.body}</p>
                     {index < t.loopSteps.length - 1 ? (
-                      <p aria-hidden="true" className="mt-3 text-center text-clay sm:hidden">
+                      <p aria-hidden="true" className="mt-3 text-center text-muted sm:hidden">
                         ↓
                       </p>
                     ) : null}
                   </li>
                 ))}
               </ol>
-              <p className="mt-4 border-t border-metal-line pt-3 text-xs leading-relaxed text-clay">
+              <p className="mt-4 border-t border-white/[0.09] pt-3 text-xs leading-relaxed text-muted">
                 {t.loopNote}
               </p>
               </GlassCard>
@@ -454,13 +454,13 @@ export default function SitePage() {
                   <SpotlightCard className="rounded-[1.75rem]">
                     <Card className="shadow-none">
                       <CardHeader>
-                        <p className="inline-block self-start rounded-full bg-honey/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-honey-deep">
+                        <p className="inline-block self-start rounded-full bg-gold/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-gold">
                           {item.tag}
                         </p>
-                        <CardTitle className="mt-2 font-serif">{item.title}</CardTitle>
+                        <CardTitle className="mt-2 font-sans">{item.title}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <CardDescription className="text-[13px] leading-5 text-clay">
+                        <CardDescription className="text-[13px] leading-5 text-muted">
                           {item.body}
                         </CardDescription>
                       </CardContent>
@@ -476,9 +476,9 @@ export default function SitePage() {
         <footer className="mt-16">
           <MotionReveal>
             <GlassCard strong className="p-5 text-start sm:p-6">
-              <h2 className="font-serif text-lg font-semibold text-bark">{t.footerTitle}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-clay">{t.footerBody}</p>
-              <p className="mt-2 text-xs leading-relaxed text-clay">{t.footerStatus}</p>
+              <h2 className="font-sans text-lg font-semibold text-ink">{t.footerTitle}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{t.footerBody}</p>
+              <p className="mt-2 text-xs leading-relaxed text-muted">{t.footerStatus}</p>
               <div className="mt-4">
                 <Button asChild>
                   <Link href="/">{t.footerOpenApp}</Link>
@@ -486,7 +486,7 @@ export default function SitePage() {
               </div>
             </GlassCard>
           </MotionReveal>
-          <p className="mt-6 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-clay">EchoMind — UK-first personal AI assistant</p>
+          <p className="mt-6 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">EchoMind — UK-first personal AI assistant</p>
         </footer>
       </div>
     </div>

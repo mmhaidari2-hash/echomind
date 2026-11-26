@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, JetBrains_Mono, Inter, Vazirmatn } from "next/font/google";
+import { JetBrains_Mono, Inter, Plus_Jakarta_Sans, Vazirmatn } from "next/font/google";
 
 import ClerkRoot from "./components/ClerkRoot";
 import InstallPrompt from "./components/InstallPrompt";
@@ -14,14 +14,12 @@ const inter = Inter({
   display: "swap",
 });
 
-/** Fraunces — the serif display face of the warm editorial design
-    (SparkFlow language). Variable optical sizing, italic for accents. */
-const fraunces = Fraunces({
+/** Plus Jakarta Sans — the geometric sans display face of the Dark
+    Obsidian design. Clean, executive, never bookish. */
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-fraunces",
+  variable: "--font-jakarta",
   display: "swap",
-  axes: ["opsz", "SOFT", "WONK"],
-  style: ["normal", "italic"],
 });
 
 /** JetBrains Mono — the mono face for technical labels, counts and
@@ -41,8 +39,8 @@ const vazirmatn = Vazirmatn({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#F3EAD9",
-  colorScheme: "light",
+  themeColor: "#090A0F",
+  colorScheme: "dark",
   viewportFit: "cover",
 };
 
@@ -70,9 +68,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${vazirmatn.variable}`}
+      className={`${inter.variable} ${jakarta.variable} ${jetbrainsMono.variable} ${vazirmatn.variable}`}
     >
-      <body className="bg-canvas font-sans antialiased">
+      <body className="bg-obsidian font-sans antialiased">
         <ClerkRoot>
           {children}
           <NativeShell />

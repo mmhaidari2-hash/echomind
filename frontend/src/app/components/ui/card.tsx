@@ -4,7 +4,7 @@ import { cn } from "@/app/lib/utils";
 
 /**
  * Card — the shadcn/ui Card set (new-york style), restyled for the
- * EchoMind warm palette: warm cream surface, amber hairline, generous
+ * EchoMind Dark Obsidian palette: dark glass surface, gold hairline, generous
  * radius. Same API as shadcn/ui.
  */
 const Card = React.forwardRef<
@@ -14,7 +14,7 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-[1.75rem] border border-bark/10 bg-cream-card text-bark shadow-[0_18px_40px_-20px_rgba(43,29,18,0.35)]",
+      "rounded-[1.75rem] border border-white/[0.09] bg-white/[0.04] text-ink shadow-[0_18px_40px_-20px_rgba(0,0,0,0.6)]",
       className,
     )}
     {...props}
@@ -41,7 +41,7 @@ const CardTitle = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "font-serif text-xl font-semibold leading-snug tracking-tight",
+      "font-sans text-xl font-semibold leading-snug tracking-tight",
       className,
     )}
     {...props}
@@ -55,7 +55,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-sm leading-relaxed text-clay", className)}
+    className={cn("text-sm leading-relaxed text-muted", className)}
     {...props}
   />
 ));

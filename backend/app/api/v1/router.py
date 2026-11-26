@@ -23,6 +23,7 @@ from app.api.endpoints import (
     life,
     mail,
     memory,
+    mentor,
     notifications,
     outcomes,
     overdraft_shield,
@@ -61,6 +62,7 @@ api_router.include_router(watches.router)
 api_router.include_router(notifications.router)
 api_router.include_router(outcomes.router)
 api_router.include_router(memory.router)
+api_router.include_router(mentor.router)
 api_router.include_router(travel.router)
 api_router.include_router(brief.router)
 api_router.include_router(calendar_guard.router)

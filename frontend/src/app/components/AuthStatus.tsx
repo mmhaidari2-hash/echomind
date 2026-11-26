@@ -5,7 +5,7 @@ import { Show, SignInButton, UserButton } from "@clerk/react";
 export default function AuthStatus() {
   if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
     return (
-      <span className="echomind-chip-glass rounded-full px-2.5 py-1.5 text-[11px] font-semibold text-honey-deep">
+      <span className="echomind-chip-glass rounded-full px-2.5 py-1.5 text-[11px] font-semibold text-gold">
         Auth setup
       </span>
     );

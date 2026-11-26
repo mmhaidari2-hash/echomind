@@ -2,7 +2,7 @@
 
 /**
  * Shared components — EchoMind's own design system. The blend:
- * warm editorial base (cream, dark brown, honey, Fraunces serif) +
+ * Dark Obsidian base (obsidian, dark glass, Amber-Gold) +
  * Linear's precision (hairlines, tabular numbers, tight motion) +
  * Raycast's speed (dense command rows, kbd hints) + Vercel/Arc-style
  * bold typography (one accent, mono technical labels, tight-tracked
@@ -31,7 +31,7 @@ export function GlassCard({
   tilt?: boolean;
   /** Dense (Linear-style): smaller radius, hairline border, quiet shadow. */
   dense?: boolean;
-  /** magicui BorderBeam: a honey beam travelling around the border. */
+  /** magicui BorderBeam: a gold beam travelling around the border. */
   beam?: boolean;
 }) {
   const classes = [
@@ -84,7 +84,7 @@ export function AnimatedCount({
   );
 }
 
-/** Aceternity Spotlight pattern — a soft honey glow that follows the
+/** Aceternity Spotlight pattern — a soft gold glow that follows the
     pointer across the card. Position is written to CSS vars on the
     element (no React re-render per move); the glow itself is pure
     CSS (::after, see .echomind-spotlight). */
@@ -174,15 +174,15 @@ export function StatusDot({
     tone === "ok"
       ? "bg-emerald-600"
       : tone === "warn"
-        ? "bg-honey"
-        : "bg-bark/30";
+        ? "bg-gold"
+        : "bg-white/30";
   return (
     <span className={`inline-flex items-center gap-1.5 ${className}`}>
       <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
       {/* Plain semibold label (not mono): the label is a localised
           sentence in Persian too, and mono tracking would disconnect
           joined letters. Mono stays on Latin technical readouts. */}
-      <span className="text-[11px] font-semibold text-clay">{label}</span>
+      <span className="text-[11px] font-semibold text-muted">{label}</span>
     </span>
   );
 }
@@ -215,14 +215,14 @@ export function CommandRow({
       aria-label={ariaLabel}
       className="echomind-row relative"
     >
-      {/* framer-motion layout animation: one shared honey bar that
+      {/* framer-motion layout animation: one shared gold bar that
           glides between rows when the selection moves, instead of
           jumping. The static inset shadow in CSS is gone. */}
       {selected ? (
         <motion.span
           layoutId="echomind-rail-selected"
           aria-hidden="true"
-          className="absolute inset-y-2 start-0 w-[3px] rounded-full bg-honey"
+          className="absolute inset-y-2 start-0 w-[3px] rounded-full bg-gold"
           transition={{ type: "spring", stiffness: 500, damping: 40 }}
         />
       ) : null}
@@ -230,11 +230,11 @@ export function CommandRow({
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold leading-5 tracking-tight text-bark">
+        <span className="block truncate text-[15px] font-semibold leading-5 tracking-tight text-ink">
           {title}
         </span>
         {meta ? (
-          <span className="mt-0.5 block truncate text-[13px] leading-4 text-clay">{meta}</span>
+          <span className="mt-0.5 block truncate text-[13px] leading-4 text-muted">{meta}</span>
         ) : null}
       </span>
       {trailing ? <span className="flex shrink-0 items-center gap-1.5">{trailing}</span> : null}
@@ -242,13 +242,80 @@ export function CommandRow({
   );
 }
 
-export function Orb3D({ size = 180, className = "" }: { size?: number; className?: string }) {
+export type OrbState = "idle" | "listening" | "thinking" | "executing";
+
+/** The living orb — a 3D volumetric sphere from layered radial
+    shaders (no 3D library): specular highlight, molten gold core,
+    deep obsidian base, ambient glow. No text is ever stamped across
+    it — the brand title sits above it. States animate on
+    transform/opacity only, so the phone holds 60fps:
+    idle = slow breathing, listening = gold ripple rings,
+    thinking = rotating golden core, executing = crisp pulse. */
+export function LivingOrb({
+  size = 180,
+  state = "idle",
+  className = "",
+}: {
+  size?: number;
+  state?: OrbState;
+  className?: string;
+}) {
   return (
     <div
       aria-hidden="true"
-      className={`echomind-orb-3d ${className}`}
+      data-state={state}
+      className={`echomind-living-orb ${className}`}
       style={{ width: size, height: size }}
     />
+  );
+}
+
+/** Legacy alias — the old flat orb now renders the living orb. */
+export function Orb3D({ size = 180, className = "" }: { size?: number; className?: string }) {
+  return <LivingOrb size={size} state="idle" className={className} />;
+}
+
+/** Spring-physics staggered cascade reveal — 40ms per item, once on
+    mount (or on tab switch when the key changes). Transform/opacity
+    only; reduced motion renders the children statically. */
+export function Cascade({
+  children,
+  className = "",
+  staggerMs = 40,
+}: {
+  children: ReactNode;
+  className?: string;
+  staggerMs?: number;
+}) {
+  const reduceMotion = useReducedMotion();
+  const items = Array.isArray(children) ? children : [children];
+  if (reduceMotion) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      className={className}
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: staggerMs / 1000 } },
+      }}
+    >
+      {items.map((child, index) => (
+        <motion.div
+          key={index}
+          variants={{
+            hidden: { opacity: 0, y: 14 },
+            show: {
+              opacity: 1,
+              y: 0,
+              transition: { type: "spring", stiffness: 260, damping: 26 },
+            },
+          }}
+        >
+          {child}
+        </motion.div>
+      ))}
+    </motion.div>
   );
 }
 
@@ -342,10 +409,10 @@ export function SectionHeading({
   return (
     <div>
       {/* Mono eyebrow (Vercel-style technical label) + tight-tracked
-          serif title (Arc-style hierarchy): one accent, no decoration. */}
-      <p className="echomind-meta text-honey-deep">{eyebrow}</p>
-      <h2 className="mt-1.5 font-serif text-2xl font-semibold leading-[1.1] tracking-tight text-bark sm:text-3xl">{title}</h2>
-      {subtitle ? <p className="mt-2 max-w-xl text-sm leading-relaxed text-clay">{subtitle}</p> : null}
+          bold title (Arc-style hierarchy): one accent, no decoration. */}
+      <p className="echomind-meta text-gold">{eyebrow}</p>
+      <h2 className="mt-1.5 font-sans text-2xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-3xl">{title}</h2>
+      {subtitle ? <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">{subtitle}</p> : null}
     </div>
   );
 }
@@ -370,7 +437,7 @@ export function GlassPill({
   return (
     <button
       type="button"
-      className={`echomind-chip-glass flex min-h-11 items-center rounded-full px-3 py-1.5 text-xs font-semibold text-bark-soft hover:text-honey-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60 ${className}`}
+      className={`echomind-chip-glass flex min-h-11 items-center rounded-full px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 ${className}`}
       {...props}
     >
       {children}
@@ -393,8 +460,8 @@ export function GlassIconButton({
   return (
     <button
       type="button"
-      className={`echomind-chip-glass relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60 ${
-        active ? "border-red-700/40 text-red-700" : "text-bark-soft hover:text-honey-deep"
+      className={`echomind-chip-glass relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 ${
+        active ? "border-red-500/40 text-red-300" : "text-ink-soft hover:text-gold"
       } ${className}`}
       {...props}
     >
@@ -403,12 +470,12 @@ export function GlassIconButton({
   );
 }
 
-/** Hero orb: the 3D glass sphere with a slow float, for the welcome
+/** Hero orb: the living sphere with a slow float, for the welcome
     heading. Decorative only (aria-hidden). */
-export function HeroOrb({ size = 150, className = "" }: { size?: number; className?: string }) {
+export function HeroOrb({ size = 150, state = "idle", className = "" }: { size?: number; state?: OrbState; className?: string }) {
   return (
     <div aria-hidden="true" className={`echomind-orb-float pointer-events-none ${className}`}>
-      <Orb3D size={size} />
+      <LivingOrb size={size} state={state} />
     </div>
   );
 }

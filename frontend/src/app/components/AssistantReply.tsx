@@ -10,9 +10,9 @@ import {
 } from "@/services/api";
 
 const PILLAR_TONE: Record<PillarId, string> = {
-  delay_repay: "border-honey/40 bg-honey/10 text-honey-deep",
-  consumer_rights: "border-honey/40 bg-honey/10 text-honey-deep",
-  overdraft_shield: "border-emerald-500/25 bg-emerald-600/10 text-emerald-800",
+  delay_repay: "border-gold/40 bg-gold/10 text-gold",
+  consumer_rights: "border-gold/40 bg-gold/10 text-gold",
+  overdraft_shield: "border-emerald-500/25 bg-emerald-600/10 text-emerald-300",
 };
 
 type AssistantReplyProps = {
@@ -127,7 +127,7 @@ export default function AssistantReply({
 
   if (pending) {
     return (
-      <article className="max-w-[85%] self-start rounded-3xl border border-bark/10 bg-cream/85 px-4 py-3 text-sm text-bark-soft">
+      <article className="max-w-[85%] self-start rounded-3xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm text-ink-soft">
         <span className="flex items-center gap-2">
           <span className="echomind-typing" aria-hidden>
             <span />
@@ -141,7 +141,7 @@ export default function AssistantReply({
   }
 
   return (
-    <article className="max-w-[90%] self-start rounded-3xl border border-bark/10 bg-cream/85 px-4 py-3 text-sm leading-6 text-bark-soft">
+    <article className="max-w-[90%] self-start rounded-3xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm leading-6 text-ink-soft">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span
           className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${PILLAR_TONE[pillar]}`}
@@ -151,7 +151,7 @@ export default function AssistantReply({
         {canSpeak ? (
           <button
             type="button"
-            className="rounded-full border border-bark/15 px-2.5 py-0.5 text-[11px] font-semibold text-bark-soft"
+            className="rounded-full border border-white/[0.09] px-2.5 py-0.5 text-[11px] font-semibold text-ink-soft"
             onClick={toggleSpeech}
             aria-pressed={speaking}
           >
@@ -159,9 +159,9 @@ export default function AssistantReply({
           </button>
         ) : null}
       </div>
-      <p className="text-bark-soft">{message}</p>
+      <p className="text-ink-soft">{message}</p>
       {steps.length > 0 ? (
-        <ol className="mt-3 space-y-1.5 ps-4 text-bark-soft">
+        <ol className="mt-3 space-y-1.5 ps-4 text-ink-soft">
           {steps.map((step, index) => (
             <li key={`${index}-${step.slice(0, 24)}`} className="list-decimal">
               {step}
@@ -172,7 +172,7 @@ export default function AssistantReply({
       {actionLabel && onAction ? (
         <button
           type="button"
-          className="mt-3 rounded-full border border-honey/40 bg-honey/10 px-3 py-1.5 text-xs font-semibold text-honey-deep"
+          className="mt-3 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold"
           onClick={onAction}
         >
           {actionLabel}

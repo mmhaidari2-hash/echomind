@@ -21,14 +21,18 @@ that need parameters (issue title, file path, PR branches) carry them
 in `step.params`, extracted from the instruction — the owner sees them
 in the plan before confirming.
 
-For a "mentor-hub" project (Mahdi's MENTOR — the app on his
-phone that is itself connected to all his projects) the planner
-hands any instruction no other verb matches to MENTOR as one gated
+For a "mentor-hub" project (Mahdi's MENTOR — the command centre
+for all his projects, connected via API + GitHub to all his
+agents, working on his command) the planner hands any
+instruction no other verb matches to MENTOR as one gated
 `mentor.delegate` step. MENTOR is the hub: EchoMind proposes, the
-owner confirms, and the work is handed to MENTOR. The step cannot
-run until MENTOR's endpoint is known (see _run_step) — until then
-it fails closed as needs_owner with the exact missing piece, and
-nothing is claimed as done by MENTOR until it has actually run.
+owner confirms, and the work is handed to MENTOR through its
+own dashboard form (POST /app/agents — repo, instruction,
+engine; see services/mentor.py). The step cannot run without a
+stored MENTOR session — until then it fails closed as
+needs_owner with the exact missing piece, and nothing is
+claimed as done by MENTOR until MENTOR itself redirects to the
+created task.
 
 GitHub steps call the public GitHub API with urllib (no new
 dependency, no token). Public repos work with no key. A private repo
@@ -54,8 +58,14 @@ from urllib.request import Request, urlopen
 
 from app.schemas.life import ObligationCreate
 from app.schemas.projects import DelegatedTask, TaskCreate, TaskStep
+from app.services import mentor as mentor_service
 from app.services import projects as projects_service
 from app.services.life import add_obligation
+from app.services.mentor import (
+    MentorNotConfiguredError,
+    MentorNotReadyError,
+    MentorUpstreamError,
+)
 
 _STORE = Path(__file__).resolve().parent.parent / "data" / "delegation.json"
 _lock = threading.Lock()
@@ -156,6 +166,18 @@ def _extract_pr_branches(instruction: str) -> tuple[str, str]:
     return "", ""
 
 
+def _extract_engine(instruction: str) -> str:
+    """Which MENTOR engine the instruction asks for, if any.
+    Only the engines MENTOR's own form accepts; anything else is
+    "auto" — MENTOR decides. Longer names first so "codex_auto"
+    is not read as plain "codex"."""
+    text = instruction.lower()
+    for engine in ("codex_auto", "claude_routine_manual", "claude_routine", "codex", "cursor", "routine"):
+        if engine.replace("_", " ") in text or engine in text:
+            return engine
+    return "auto"
+
+
 def _plan(instruction: str, project_kind: str | None = None) -> list[TaskStep]:
     text = instruction.lower()
     steps: list[TaskStep] = []
@@ -215,7 +237,7 @@ def _plan(instruction: str, project_kind: str | None = None) -> list[TaskStep]:
                 TaskStep(
                     tool="mentor.delegate",
                     summary="Hand this to MENTOR — it reaches all your projects",
-                    params={"instruction": instruction},
+                    params={"instruction": instruction, "engine": _extract_engine(instruction)},
                 )
             )
         else:
@@ -507,20 +529,38 @@ def _run_step(user_id: str, project, step: TaskStep, instruction: str = "", *, _
             step.status = "needs_owner"
             step.evidence = f"Project {project.name} is not a MENTOR hub project."
             return step
-        endpoint = (getattr(project, "endpoint_url", None) or "").strip()
-        if not endpoint:
+        repo = (getattr(project, "repo", None) or "").strip()
+        if not repo:
             step.status = "needs_owner"
             step.evidence = (
-                "MENTOR's endpoint is missing — tell EchoMind where MENTOR lives "
-                "(URL/endpoint) and this can be handed to it."
+                "No repo is linked to this hub project — say which project "
+                "the hub should work on (owner/repo)."
             )
             return step
-        step.status = "needs_owner"
-        step.evidence = (
-            f"MENTOR is linked ({endpoint}) but EchoMind does not yet know how to call it. "
-            "Supply how MENTOR accepts delegated work (API shape) and this step can run. "
-            "Nothing is sent to MENTOR until then."
-        )
+        engine = str(step.params.get("engine") or "auto")
+        try:
+            result = mentor_service.submit_task(
+                user_id,
+                repo,
+                str(step.params.get("instruction") or instruction),
+                engine,
+                endpoint=getattr(project, "endpoint_url", None),
+                _urlopen=_urlopen,
+            )
+        except (MentorNotReadyError, MentorNotConfiguredError) as exc:
+            step.status = "needs_owner"
+            step.evidence = str(exc)
+            return step
+        except MentorUpstreamError as exc:
+            step.status = "failed"
+            step.evidence = str(exc)
+            return step
+        step.status = "done"
+        step.evidence = f"MENTOR task {result.task_id} created: {result.task_url}"
+        if result.paused:
+            step.evidence += (
+                " — the hub's agents are paused, so this stays queued until a worker is enabled."
+            )
         return step
     step.status = "failed"
     step.evidence = f"Unknown tool {step.tool}."

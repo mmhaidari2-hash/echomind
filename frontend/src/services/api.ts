@@ -50,6 +50,13 @@ export class ApiError extends Error {
   }
 }
 
+/** True when the backend answered 404 for a known endpoint — the
+    server is an older build (the branch is not merged yet). The UI
+    must say "needs the next app update", never "could not be read". */
+export function isEndpointMissing(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === "endpoint_missing" || error.status === 404);
+}
+
 const DEFAULT_BASE = "/api/v1";
 const CHAT_TIMEOUT_MS = 20_000;
 const HEALTH_TIMEOUT_MS = 2_500;
@@ -199,9 +206,17 @@ async function request<T>(
         typeof payload?.detail === "string"
           ? payload.detail
           : `Request failed (${response.status})`;
+      // 404 on a known endpoint means the backend is an older build
+      // that does not have it yet (the branch is not merged) — not a
+      // network failure and not the user's fault. The UI tells the
+      // user exactly that instead of "could not be read".
+      const code =
+        response.status === 404
+          ? "endpoint_missing"
+          : payload?.code ?? "http_error";
       throw new ApiError(detail, {
         status: response.status,
-        code: payload?.code ?? "http_error",
+        code,
         requestId: payload?.request_id ?? "",
       });
     }
@@ -2076,6 +2091,61 @@ export async function testProvider(slotId: string): Promise<ProviderTestResult> 
   return api<ProviderTestResult>(`/providers/${encodeURIComponent(slotId)}/test`, {
     auth: "protected",
     method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+/**
+ * Command hub — the generic, pluggable slot. For Mahdi it is
+ * MENTOR; for anyone else it stays empty until they plug in
+ * whatever hub they like. The hub is what actually runs the
+ * work EchoMind hands over, so EchoMind can be commanded
+ * hands-free by voice instead of opening the hub by hand.
+ */
+export type HubConnection = {
+  endpoint: string;
+  cookie_name: string;
+  has_session: boolean;
+  session_valid: boolean | null;
+  paused: boolean | null;
+  worker_state: "ready" | "paused" | "unknown" | "needs-sign-in" | "empty";
+  detail: string | null;
+};
+
+export type HubTaskStatus = {
+  task_id: string;
+  state: "queued" | "running" | "waiting-for-you" | "ready-to-merge" | "finished" | "unknown";
+  detail: string | null;
+  url: string;
+  paused: boolean | null;
+};
+
+export async function getHubStatus(): Promise<HubConnection> {
+  return api<HubConnection>("/mentor/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function saveHubSession(payload: {
+  endpoint?: string;
+  session_cookie?: string;
+  cookie_name?: string;
+  clear?: boolean;
+}): Promise<HubConnection> {
+  return api<HubConnection>("/mentor/session", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getHubTaskStatus(taskId: string): Promise<HubTaskStatus> {
+  return api<HubTaskStatus>(`/mentor/tasks/${encodeURIComponent(taskId)}/status`, {
+    auth: "protected",
+    method: "GET",
     timeoutMs: CHAT_TIMEOUT_MS,
   });
 }

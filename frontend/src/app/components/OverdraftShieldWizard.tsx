@@ -26,7 +26,7 @@ type OverdraftShieldWizardProps = {
 };
 
 const fieldClass =
-  "w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark placeholder:text-clay focus:border-emerald-600/50 focus:outline-none focus:ring-2 focus:ring-emerald-600/50";
+  "w-full rounded-2xl border border-white/[0.09] bg-white/[0.06] px-3 py-2.5 text-[16px] text-ink placeholder:text-muted focus:border-emerald-600/50 focus:outline-none focus:ring-2 focus:ring-emerald-600/50";
 
 function money(value: string | number): string {
   const amount = typeof value === "number" ? value : Number(value);
@@ -112,16 +112,16 @@ export default function OverdraftShieldWizard({
   };
 
   return (
-    <section className="rounded-3xl border border-bark/10 bg-cream/85 p-4 shadow-[0_10px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl sm:p-5">
+    <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] p-4 shadow-[0_10px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-700/80">{t.subtitle}</p>
-          <h2 className="mt-1 font-serif text-xl font-semibold text-bark">{t.title}</h2>
-          <p className="mt-1 text-xs text-clay">{t.bands}</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300/80">{t.subtitle}</p>
+          <h2 className="mt-1 font-sans text-xl font-semibold text-ink">{t.title}</h2>
+          <p className="mt-1 text-xs text-muted">{t.bands}</p>
         </div>
         <button
           type="button"
-          className="rounded-full border border-bark/10 px-3 py-1 text-xs text-clay hover:text-bark"
+          className="rounded-full border border-white/[0.09] px-3 py-1 text-xs text-muted hover:text-ink"
           onClick={onClose}
         >
           {t.close}
@@ -138,10 +138,10 @@ export default function OverdraftShieldWizard({
               key={label}
               className={`rounded-full border px-2 py-1.5 ${
                 active
-                  ? "border-emerald-500/40 bg-emerald-600/10 text-emerald-800"
+                  ? "border-emerald-500/40 bg-emerald-600/10 text-emerald-300"
                   : done
-                    ? "border-bark/15 text-bark-soft"
-                    : "border-bark/10 text-clay"
+                    ? "border-white/[0.09] text-ink-soft"
+                    : "border-white/[0.09] text-muted"
               }`}
             >
               {label}
@@ -152,11 +152,11 @@ export default function OverdraftShieldWizard({
 
       {step === 1 ? (
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.bank}
             <input className={fieldClass} value={bank} onChange={(e) => setBank(e.target.value)} />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.bankAddress}
             <input
               className={fieldClass}
@@ -164,7 +164,7 @@ export default function OverdraftShieldWizard({
               onChange={(e) => setBankAddress(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.accountType}
             <select
               className={fieldClass}
@@ -176,7 +176,7 @@ export default function OverdraftShieldWizard({
               <option value="basic">{t.basic}</option>
             </select>
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.last4}
             <input
               className={fieldClass}
@@ -186,7 +186,7 @@ export default function OverdraftShieldWizard({
               onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.customer}
             <input className={fieldClass} value={customer} onChange={(e) => setCustomer(e.target.value)} />
           </label>
@@ -203,7 +203,7 @@ export default function OverdraftShieldWizard({
 
       {step === 2 ? (
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.overdraftKind}
             <select className={fieldClass} value={kind} onChange={(e) => setKind(e.target.value as OverdraftKind)}>
               <option value="unarranged">{t.unarranged}</option>
@@ -211,7 +211,7 @@ export default function OverdraftShieldWizard({
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1.5 text-sm text-bark-soft">
+            <label className="grid gap-1.5 text-sm text-ink-soft">
               {t.feeAmount}
               <input
                 type="number"
@@ -222,7 +222,7 @@ export default function OverdraftShieldWizard({
                 onChange={(e) => setFeeAmount(e.target.value)}
               />
             </label>
-            <label className="grid gap-1.5 text-sm text-bark-soft">
+            <label className="grid gap-1.5 text-sm text-ink-soft">
               {t.feeDate}
               <input
                 type="date"
@@ -232,7 +232,7 @@ export default function OverdraftShieldWizard({
               />
             </label>
           </div>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.description}
             <textarea
               rows={4}
@@ -241,7 +241,7 @@ export default function OverdraftShieldWizard({
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.prior}
             <select
               className={fieldClass}
@@ -255,21 +255,21 @@ export default function OverdraftShieldWizard({
               <option value="eight_weeks">{t.priorEightWeeks}</option>
             </select>
           </label>
-          <label className="flex items-center gap-2 text-sm text-bark-soft">
+          <label className="flex items-center gap-2 text-sm text-ink-soft">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-bark/15 bg-white"
+              className="h-4 w-4 rounded border-white/[0.09] bg-white"
               checked={struggling}
               onChange={(e) => setStruggling(e.target.checked)}
             />
             {t.struggling}
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.proof}
             <input
               type="file"
               accept="image/*,application/pdf"
-              className="text-sm text-clay file:me-3 file:rounded-full file:border-0 file:bg-bark/10 file:px-3 file:py-1.5 file:text-bark-soft"
+              className="text-sm text-muted file:me-3 file:rounded-full file:border-0 file:bg-white/[0.08]/10 file:px-3 file:py-1.5 file:text-ink-soft"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 setProofName(file?.name ?? "");
@@ -283,13 +283,13 @@ export default function OverdraftShieldWizard({
                 });
               }}
             />
-            {proofName ? <span className="text-xs text-clay">{proofName}</span> : null}
+            {proofName ? <span className="text-xs text-muted">{proofName}</span> : null}
           </label>
-          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          {error ? <p className="text-sm text-red-300">{error}</p> : null}
           <div className="mt-1 grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
+              className="rounded-2xl border border-white/[0.09] px-4 py-3 text-sm text-ink-soft"
               onClick={() => setStep(1)}
             >
               {t.back}
@@ -315,28 +315,28 @@ export default function OverdraftShieldWizard({
               {t.days}: {result.days_since_fee} · {result.overdraft_kind} · {money(result.fee_amount)}
             </p>
           </div>
-          <p className="text-sm text-bark-soft">{result.summary}</p>
-          <p className="text-sm text-clay">{result.can_refer_fos ? t.fosReady : t.fosWait}</p>
-          <p className="text-sm text-clay">
-            <span className="text-clay">{t.guideline}: </span>
+          <p className="text-sm text-ink-soft">{result.summary}</p>
+          <p className="text-sm text-muted">{result.can_refer_fos ? t.fosReady : t.fosWait}</p>
+          <p className="text-sm text-muted">
+            <span className="text-muted">{t.guideline}: </span>
             {result.guideline}
           </p>
-          <p className="text-xs text-clay">
+          <p className="text-xs text-muted">
             {t.fos}: {result.fos_url}
           </p>
-          <ul className="space-y-1 text-xs text-clay">
+          <ul className="space-y-1 text-xs text-muted">
             {result.statute_refs.map((ref) => (
               <li key={ref}>{ref}</li>
             ))}
           </ul>
-          <ol className="space-y-1.5 ps-4 text-sm text-bark-soft">
+          <ol className="space-y-1.5 ps-4 text-sm text-ink-soft">
             {result.next_steps.map((stepText) => (
               <li key={stepText} className="list-decimal">
                 {stepText}
               </li>
             ))}
           </ol>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.draft}
             <textarea
               readOnly
@@ -345,11 +345,11 @@ export default function OverdraftShieldWizard({
               value={result.notice_draft}
             />
           </label>
-          <p className="text-xs text-clay">{t.disclaimer}</p>
+          <p className="text-xs text-muted">{t.disclaimer}</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
+              className="rounded-2xl border border-white/[0.09] px-4 py-3 text-sm text-ink-soft"
               onClick={() => void copyDraft()}
             >
               {copied ? t.copied : t.copyDraft}

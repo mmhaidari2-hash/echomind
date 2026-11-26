@@ -18,9 +18,10 @@
  * Bilingual EN/FA.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
-import { GlassCard, Reveal, SectionHeading, SpotlightCard } from "./Glass";
+import { Cascade, GlassCard, Reveal, SectionHeading, SpotlightCard } from "./Glass";
+import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   confirmProjectTask,
   listProjects,
@@ -63,7 +64,6 @@ const STRINGS = {
   },
   evidence: { en: "Evidence", fa: "مدرک" },
   result: { en: "Result", fa: "نتیجه" },
-  refresh: { en: "Refresh", fa: "به‌روزرسانی" },
   loadFailed: {
     en: "Could not load your projects. Sign in and try again.",
     fa: "پروژه‌ها بارگذاری نشدند. وارد شوید و دوباره تلاش کنید.",
@@ -94,15 +94,15 @@ function statusLabel(status: string, lang: Lang): string {
 function statusTone(status: string): string {
   switch (status) {
     case "done":
-      return "bg-emerald-600/15 text-emerald-700 border-emerald-600/30";
+      return "bg-emerald-600/15 text-emerald-300 border-emerald-600/30";
     case "running":
-      return "bg-honey/10 text-honey-deep border-honey/40";
+      return "bg-gold/10 text-gold border-gold/40";
     case "failed":
-      return "bg-rose-400/15 text-red-700 border-rose-300/30";
+      return "bg-rose-400/15 text-red-300 border-rose-300/30";
     case "needs_owner":
-      return "bg-honey/15 text-honey-deep border-honey/30";
+      return "bg-gold/15 text-gold border-gold/30";
     default:
-      return "bg-honey/15 text-honey-deep border-honey/30";
+      return "bg-gold/15 text-gold border-gold/30";
   }
 }
 
@@ -142,13 +142,8 @@ export default function DelegatedWork({
     }
   }, [lang]);
 
-  useEffect(() => {
-    void load();
-    window.addEventListener("echomind-auth-ready", load);
-    return () => {
-      window.removeEventListener("echomind-auth-ready", load);
-    };
-  }, [load]);
+  /* No manual Refresh: projects and tasks revalidate themselves. */
+  useLiveRefresh(load, { intervalMs: 30_000 });
 
   const handleConfirm = async (taskId: string) => {
     setConfirmingId(taskId);
@@ -166,36 +161,27 @@ export default function DelegatedWork({
   return (
     <section aria-label={STRINGS.title[lang]} className="mt-8 w-full">
       <Reveal>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <SectionHeading
-            eyebrow={STRINGS.eyebrow[lang]}
-            title={STRINGS.title[lang]}
-            subtitle={STRINGS.subtitle[lang]}
-          />
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-bark-soft transition hover:text-bark"
-          >
-            {STRINGS.refresh[lang]}
-          </button>
-        </div>
+        <SectionHeading
+          eyebrow={STRINGS.eyebrow[lang]}
+          title={STRINGS.title[lang]}
+          subtitle={STRINGS.subtitle[lang]}
+        />
       </Reveal>
 
       {error ? (
-        <p role="alert" className="mt-4 text-sm text-red-700">
+        <p role="alert" className="mt-4 text-sm text-red-300">
           {error}
         </p>
       ) : null}
 
       {loading ? (
-        <p className="mt-4 text-sm text-clay">…</p>
+        <p className="mt-4 text-sm text-muted">…</p>
       ) : projects.length === 0 ? (
         <Reveal delay={80}>
           {/* Aceternity spotlight follows the pointer across the card. */}
           <SpotlightCard className="mt-4 rounded-[1.4rem]">
             <GlassCard className="p-4">
-              <p className="text-sm leading-relaxed text-bark-soft">{STRINGS.noProjects[lang]}</p>
+              <p className="text-sm leading-relaxed text-ink-soft">{STRINGS.noProjects[lang]}</p>
             <button
               type="button"
               onClick={() =>
@@ -205,7 +191,7 @@ export default function DelegatedWork({
                     : "In my project, do this: ",
                 )
               }
-              className="mt-3 rounded-full bg-gradient-to-r from-honey to-honey-light px-4 py-2 text-sm font-bold text-bark transition"
+              className="mt-3 rounded-full bg-gradient-to-r from-gold to-gold-light px-4 py-2 text-sm font-bold text-obsidian transition"
             >
               {STRINGS.delegateTo[lang]}
             </button>
@@ -213,17 +199,17 @@ export default function DelegatedWork({
           </SpotlightCard>
         </Reveal>
       ) : (
-        <div className="mt-4 space-y-4">
-          {projects.map(({ project, tasks }, index) => (
-            <Reveal key={project.id} delay={index * 60}>
+        <Cascade className="echomind-waterfall-offset mt-4 grid gap-4" staggerMs={40}>
+          {projects.map(({ project, tasks }) => (
+            <div key={project.id}>
               {/* Aceternity spotlight follows the pointer across the card. */}
               <SpotlightCard className="rounded-[1.4rem]">
                 <GlassCard className="p-4" strong>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="font-serif text-base font-semibold tracking-tight text-bark">{project.name}</h3>
+                    <h3 className="font-sans text-base font-semibold tracking-tight text-ink">{project.name}</h3>
                     {/* Technical readout (Linear-style): repo identity in mono. */}
-                    <p className="mt-0.5 font-mono text-[11px] font-medium tracking-wide text-clay">
+                    <p className="mt-0.5 font-mono text-[11px] font-medium tracking-wide text-muted">
                       {[project.kind, project.repo, project.branch].filter(Boolean).join(" · ")}
                     </p>
                   </div>
@@ -236,14 +222,14 @@ export default function DelegatedWork({
                           : `In ${project.name}, do this: `,
                       )
                     }
-                    className="rounded-full bg-gradient-to-r from-honey to-honey-light px-3.5 py-1.5 text-xs font-bold text-bark transition"
+                    className="rounded-full bg-gradient-to-r from-gold to-gold-light px-3.5 py-1.5 text-xs font-bold text-obsidian transition"
                   >
                     {STRINGS.delegateTo[lang]}
                   </button>
                 </div>
 
                 {tasks.length === 0 ? (
-                  <p className="mt-3 text-sm text-clay">{STRINGS.noTasks[lang]}</p>
+                  <p className="mt-3 text-sm text-muted">{STRINGS.noTasks[lang]}</p>
                 ) : (
                   <ul className="mt-3 space-y-3">
                     {tasks.map((task) => {
@@ -255,7 +241,7 @@ export default function DelegatedWork({
                           className="echomind-glass rounded-2xl p-3"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold leading-snug text-bark">
+                            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-ink">
                               {task.instruction}
                             </p>
                             <span
@@ -264,19 +250,19 @@ export default function DelegatedWork({
                               {statusLabel(task.status, lang)}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs text-clay">
+                          <p className="mt-1 text-xs text-muted">
                             {STRINGS.steps[lang](doneSteps, task.plan.length)}
                           </p>
                           {task.status === "proposed" ? (
                             <div className="mt-2">
-                              <p className="text-xs text-honey-deep/90">
+                              <p className="text-xs text-gold/90">
                                 {STRINGS.needsConfirmation[lang]}
                               </p>
                               <button
                                 type="button"
                                 disabled={confirmingId === task.id}
                                 onClick={() => void handleConfirm(task.id)}
-                                className="mt-2 rounded-full bg-gradient-to-r from-honey to-honey-light px-4 py-2 text-sm font-bold text-bark transition disabled:opacity-60"
+                                className="mt-2 rounded-full bg-gradient-to-r from-gold to-gold-light px-4 py-2 text-sm font-bold text-obsidian transition disabled:opacity-60"
                               >
                                 {confirmingId === task.id
                                   ? STRINGS.confirming[lang]
@@ -285,16 +271,16 @@ export default function DelegatedWork({
                             </div>
                           ) : null}
                           {task.result ? (
-                            <p className="mt-2 text-sm leading-relaxed text-bark-soft">
-                              <span className="font-semibold text-bark">
+                            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+                              <span className="font-semibold text-ink">
                                 {STRINGS.result[lang]}:{" "}
                               </span>
                               {task.result}
                             </p>
                           ) : null}
                           {evidenceSteps.length > 0 ? (
-                            <p className="mt-1 text-xs text-clay">
-                              <span className="font-semibold text-bark-soft">
+                            <p className="mt-1 text-xs text-muted">
+                              <span className="font-semibold text-ink-soft">
                                 {STRINGS.evidence[lang]}:{" "}
                               </span>
                               {evidenceSteps
@@ -310,13 +296,13 @@ export default function DelegatedWork({
                 )}
               </GlassCard>
               </SpotlightCard>
-            </Reveal>
+            </div>
           ))}
-        </div>
+        </Cascade>
       )}
 
       {confirmError ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-red-300">
           {confirmError}
         </p>
       ) : null}

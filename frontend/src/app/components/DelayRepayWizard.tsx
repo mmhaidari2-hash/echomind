@@ -47,7 +47,7 @@ const TICKET_TYPES: TicketType[] = [
 ];
 
 const fieldClass =
-  "w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark placeholder:text-clay focus:border-honey/50 focus:outline-none focus:ring-2 focus:ring-honey/50";
+  "w-full rounded-2xl border border-white/[0.09] bg-white/[0.06] px-3 py-2.5 text-[16px] text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-2 focus:ring-gold/50";
 
 function money(value: string | number): string {
   const amount = typeof value === "number" ? value : Number(value);
@@ -160,16 +160,16 @@ export default function DelayRepayWizard({
   };
 
   return (
-    <section className="rounded-3xl border border-bark/10 bg-cream/85 p-4 shadow-[0_10px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl sm:p-5">
+    <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] p-4 shadow-[0_10px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-honey-deep/80">{t.subtitle}</p>
-          <h2 className="mt-1 font-serif text-xl font-semibold text-bark">{t.title}</h2>
-          <p className="mt-1 text-xs text-clay">{t.bands}</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">{t.subtitle}</p>
+          <h2 className="mt-1 font-sans text-xl font-semibold text-ink">{t.title}</h2>
+          <p className="mt-1 text-xs text-muted">{t.bands}</p>
         </div>
         <button
           type="button"
-          className="rounded-full border border-bark/10 px-3 py-1 text-xs text-clay hover:text-bark"
+          className="rounded-full border border-white/[0.09] px-3 py-1 text-xs text-muted hover:text-ink"
           onClick={onClose}
         >
           {t.close}
@@ -186,10 +186,10 @@ export default function DelayRepayWizard({
               key={label}
               className={`rounded-full border px-2 py-1.5 ${
                 active
-                  ? "border-honey/40 bg-honey/10 text-honey-deep"
+                  ? "border-gold/40 bg-gold/10 text-gold"
                   : done
-                    ? "border-bark/15 text-bark-soft"
-                    : "border-bark/10 text-clay"
+                    ? "border-white/[0.09] text-ink-soft"
+                    : "border-white/[0.09] text-muted"
               }`}
             >
               {label}
@@ -200,7 +200,7 @@ export default function DelayRepayWizard({
 
       {step === 1 ? (
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.operator}
             <select
               className={fieldClass}
@@ -216,11 +216,11 @@ export default function DelayRepayWizard({
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1.5 text-sm text-bark-soft">
+            <label className="grid gap-1.5 text-sm text-ink-soft">
               {t.origin}
               <input className={fieldClass} value={origin} onChange={(e) => setOrigin(e.target.value)} />
             </label>
-            <label className="grid gap-1.5 text-sm text-bark-soft">
+            <label className="grid gap-1.5 text-sm text-ink-soft">
               {t.destination}
               <input
                 className={fieldClass}
@@ -229,7 +229,7 @@ export default function DelayRepayWizard({
               />
             </label>
           </div>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.journeyDate}
             <input
               type="date"
@@ -238,7 +238,7 @@ export default function DelayRepayWizard({
               onChange={(e) => setJourneyDate(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.delayMinutes}
             <input
               type="number"
@@ -250,7 +250,7 @@ export default function DelayRepayWizard({
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1.5 text-sm text-bark-soft">
+            <label className="grid gap-1.5 text-sm text-ink-soft">
               {t.scheduled}
               <input
                 type="time"
@@ -259,14 +259,14 @@ export default function DelayRepayWizard({
                 onChange={(e) => setScheduled(e.target.value)}
               />
             </label>
-            <label className="grid gap-1.5 text-sm text-bark-soft">
+            <label className="grid gap-1.5 text-sm text-ink-soft">
               {t.actual}
               <input type="time" className={fieldClass} value={actual} onChange={(e) => setActual(e.target.value)} />
             </label>
           </div>
           <button
             type="button"
-            className="mt-1 rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-sm font-semibold text-honey-deep disabled:opacity-40"
+            className="mt-1 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold disabled:opacity-40"
             disabled={!canContinueJourney}
             onClick={() => setStep(2)}
           >
@@ -277,7 +277,7 @@ export default function DelayRepayWizard({
 
       {step === 2 ? (
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.ticketType}
             <select
               className={fieldClass}
@@ -291,7 +291,7 @@ export default function DelayRepayWizard({
               ))}
             </select>
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.ticketCost}
             <input
               type="number"
@@ -302,7 +302,7 @@ export default function DelayRepayWizard({
               onChange={(e) => setTicketCost(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.ticketReference}
             <input
               className={fieldClass}
@@ -311,12 +311,12 @@ export default function DelayRepayWizard({
               placeholder="ABC123456"
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.proof}
             <input
               type="file"
               accept="image/*,application/pdf"
-              className="text-sm text-clay file:me-3 file:rounded-full file:border-0 file:bg-bark/10 file:px-3 file:py-1.5 file:text-bark-soft"
+              className="text-sm text-muted file:me-3 file:rounded-full file:border-0 file:bg-white/[0.08]/10 file:px-3 file:py-1.5 file:text-ink-soft"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 setProofName(file?.name ?? "");
@@ -336,24 +336,24 @@ export default function DelayRepayWizard({
                 });
               }}
             />
-            {proofName ? <span className="text-xs text-clay">{proofName}</span> : null}
+            {proofName ? <span className="text-xs text-muted">{proofName}</span> : null}
           </label>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.passenger}
             <input className={fieldClass} value={passenger} onChange={(e) => setPassenger(e.target.value)} />
           </label>
-          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          {error ? <p className="text-sm text-red-300">{error}</p> : null}
           <div className="mt-1 grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
+              className="rounded-2xl border border-white/[0.09] px-4 py-3 text-sm text-ink-soft"
               onClick={() => setStep(1)}
             >
               {t.back}
             </button>
             <button
               type="button"
-              className="rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-sm font-semibold text-honey-deep disabled:opacity-40"
+              className="rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold disabled:opacity-40"
               disabled={!canCalculate || busy}
               onClick={() => void calculate()}
             >
@@ -369,7 +369,7 @@ export default function DelayRepayWizard({
             className={`rounded-2xl border px-4 py-3 ${
               result.eligible
                 ? "border-emerald-500/25 bg-emerald-600/10 text-emerald-100"
-                : "border-amber-500/25 bg-honey/10 text-honey-deep"
+                : "border-amber-500/25 bg-gold/10 text-gold"
             }`}
           >
             <p className="text-xs uppercase tracking-[0.16em] opacity-80">
@@ -380,22 +380,22 @@ export default function DelayRepayWizard({
               {result.tier_label} · {result.percent}%
             </p>
           </div>
-          <p className="text-sm text-bark-soft">
-            <span className="text-clay">{t.basis}: </span>
+          <p className="text-sm text-ink-soft">
+            <span className="text-muted">{t.basis}: </span>
             {money(result.basis_amount)} · {result.operator_name}
           </p>
-          <p className="text-sm text-clay">
-            <span className="text-clay">{t.guideline}: </span>
+          <p className="text-sm text-muted">
+            <span className="text-muted">{t.guideline}: </span>
             {result.guideline}
           </p>
-          <ol className="space-y-1.5 ps-4 text-sm text-bark-soft">
+          <ol className="space-y-1.5 ps-4 text-sm text-ink-soft">
             {result.next_steps.map((stepText) => (
               <li key={stepText} className="list-decimal">
                 {stepText}
               </li>
             ))}
           </ol>
-          <label className="grid gap-1.5 text-sm text-bark-soft">
+          <label className="grid gap-1.5 text-sm text-ink-soft">
             {t.draft}
             <textarea
               readOnly
@@ -407,7 +407,7 @@ export default function DelayRepayWizard({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
+              className="rounded-2xl border border-white/[0.09] px-4 py-3 text-sm text-ink-soft"
               onClick={() => void copyDraft()}
             >
               {copied ? t.copied : t.copyDraft}
@@ -417,14 +417,14 @@ export default function DelayRepayWizard({
                 href={result.claim_url}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-center text-sm font-semibold text-honey-deep"
+                className="rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-center text-sm font-semibold text-gold"
               >
                 {t.openForm}
               </a>
             ) : (
               <button
                 type="button"
-                className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
+                className="rounded-2xl border border-white/[0.09] px-4 py-3 text-sm text-ink-soft"
                 onClick={() => {
                   setResult(null);
                   setStep(1);
@@ -437,7 +437,7 @@ export default function DelayRepayWizard({
           {result.claim_url ? (
             <button
               type="button"
-              className="text-sm text-clay underline-offset-2 hover:underline"
+              className="text-sm text-muted underline-offset-2 hover:underline"
               onClick={() => {
                 setResult(null);
                 setStep(1);

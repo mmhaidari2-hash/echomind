@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
+import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   activateProvider,
   createProvider,
   deleteProvider,
+  isEndpointMissing,
   listProviders,
   testProvider,
   updateProvider,
@@ -27,6 +29,8 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
   const t = copy[locale];
   const [slots, setSlots] = useState<ProviderSlot[] | null>(null);
   const [readFailed, setReadFailed] = useState(false);
+  /** The backend is an older build without /providers (merge pending). */
+  const [outdated, setOutdated] = useState(false);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, { name: string; model: string; endpoint: string }>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -37,14 +41,16 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
       const rows = await listProviders();
       setSlots(rows);
       setReadFailed(false);
-    } catch {
+      setOutdated(false);
+    } catch (error) {
       setReadFailed(true);
+      setOutdated(isEndpointMissing(error));
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  /* No manual Refresh: revalidates on mount, interval, focus,
+     visibility and auth-ready. */
+  useLiveRefresh(refresh, { intervalMs: 60_000 });
 
   const markBusy = (id: string, value: boolean) =>
     setBusy((prev) => ({ ...prev, [id]: value }));
@@ -138,22 +144,22 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
   };
 
   const statusClass = (slot: ProviderSlot): string => {
-    if (slot.is_active) return "bg-honey/15 text-honey-deep border-honey/40";
-    if (!slot.has_key || !slot.has_endpoint) return "bg-amber-50 text-amber-700 border-amber-200";
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (slot.is_active) return "bg-gold/15 text-gold border-gold/40";
+    if (!slot.has_key || !slot.has_endpoint) return "bg-amber-400/10 text-amber-300 border-amber-400/30";
+    return "bg-emerald-400/10 text-emerald-300 border-emerald-400/30";
   };
 
   const fieldFor = (slot: ProviderSlot) =>
     drafts[slot.id] ?? { name: slot.name, model: slot.model, endpoint: slot.endpoint };
 
   return (
-    <section className="rounded-2xl border border-metal-line bg-cream p-4">
-      <h3 className="font-serif text-base font-semibold text-bark">{t.providersTitle}</h3>
-      <p className="mt-1 text-xs leading-relaxed text-clay">{t.providersHint}</p>
+    <section className="rounded-2xl border border-white/[0.09] bg-white/[0.04] p-4">
+      <h3 className="font-sans text-base font-semibold text-ink">{t.providersTitle}</h3>
+      <p className="mt-1 text-xs leading-relaxed text-muted">{t.providersHint}</p>
       {readFailed ? (
-        <p className="mt-3 text-xs text-red-600">{t.providersUnavailable}</p>
+        <p className="mt-3 text-xs text-red-400">{t.providersUnavailable}</p>
       ) : slots === null ? (
-        <p className="mt-3 text-xs text-clay">…</p>
+        <p className="mt-3 text-xs text-muted">…</p>
       ) : (
         <ul className="mt-3 flex flex-col gap-3">
           {slots.map((slot) => {
@@ -162,9 +168,9 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
             const dirty =
               draft.name !== slot.name || draft.model !== slot.model || draft.endpoint !== slot.endpoint;
             return (
-              <li key={slot.id} className="rounded-xl border border-metal-line bg-carbon p-3">
+              <li key={slot.id} className="rounded-xl border border-white/[0.09] bg-white/[0.05] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-bark">
+                  <p className="text-sm font-semibold text-ink">
                     {isEmpty ? t.providersEmptySlot : slot.name}
                   </p>
                   <span
@@ -175,7 +181,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                 </div>
                 <div className="mt-2 flex flex-col gap-2">
                   {!slot.builtin && (
-                    <label className="text-xs text-clay">
+                    <label className="text-xs text-muted">
                       {t.providersName}
                       <input
                         type="text"
@@ -184,11 +190,11 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                         onChange={(event) =>
                           setDrafts((prev) => ({ ...prev, [slot.id]: { ...draft, name: event.target.value } }))
                         }
-                        className="mt-1 w-full rounded-lg border border-metal-line bg-cream px-2 py-1.5 text-sm text-bark"
+                        className="mt-1 w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-2 py-1.5 text-sm text-ink"
                       />
                     </label>
                   )}
-                  <label className="text-xs text-clay">
+                  <label className="text-xs text-muted">
                     {t.providersModel}
                     <input
                       type="text"
@@ -197,10 +203,10 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                       onChange={(event) =>
                         setDrafts((prev) => ({ ...prev, [slot.id]: { ...draft, model: event.target.value } }))
                       }
-                      className="mt-1 w-full rounded-lg border border-metal-line bg-cream px-2 py-1.5 font-mono text-sm text-bark"
+                      className="mt-1 w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-2 py-1.5 font-mono text-sm text-ink"
                     />
                   </label>
-                  <label className="text-xs text-clay">
+                  <label className="text-xs text-muted">
                     {t.providersEndpoint}
                     <input
                       type="text"
@@ -209,13 +215,13 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                       onChange={(event) =>
                         setDrafts((prev) => ({ ...prev, [slot.id]: { ...draft, endpoint: event.target.value } }))
                       }
-                      className="mt-1 w-full rounded-lg border border-metal-line bg-cream px-2 py-1.5 font-mono text-sm text-bark"
+                      className="mt-1 w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-2 py-1.5 font-mono text-sm text-ink"
                     />
                   </label>
-                  <label className="text-xs text-clay">
+                  <label className="text-xs text-muted">
                     {t.providersApiKey}
                     {slot.has_key ? (
-                      <span className="mt-1 block text-xs text-emerald-700">{t.providersKeySet}</span>
+                      <span className="mt-1 block text-xs text-emerald-300">{t.providersKeySet}</span>
                     ) : null}
                     <span className="mt-1 flex gap-2">
                       <input
@@ -226,13 +232,13 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                         onChange={(event) =>
                           setKeys((prev) => ({ ...prev, [slot.id]: event.target.value }))
                         }
-                        className="min-w-0 flex-1 rounded-lg border border-metal-line bg-cream px-2 py-1.5 text-sm text-bark"
+                        className="min-w-0 flex-1 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2 py-1.5 text-sm text-ink"
                       />
                       <button
                         type="button"
                         disabled={!(keys[slot.id] ?? "").trim() || busy[slot.id]}
                         onClick={() => void saveKey(slot)}
-                        className="shrink-0 rounded-full border border-metal-line px-3 text-xs font-semibold text-bark-soft hover:text-honey-deep disabled:opacity-40"
+                        className="shrink-0 rounded-full border border-white/[0.09] px-3 text-xs font-semibold text-ink-soft hover:text-gold disabled:opacity-40"
                       >
                         {t.providersSaveKey}
                       </button>
@@ -240,7 +246,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                   </label>
                 </div>
                 {notice[slot.id] ? (
-                  <p className="mt-2 text-xs text-clay">{notice[slot.id]}</p>
+                  <p className="mt-2 text-xs text-muted">{notice[slot.id]}</p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {dirty ? (
@@ -248,7 +254,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                       type="button"
                       disabled={busy[slot.id]}
                       onClick={() => void saveFields(slot)}
-                      className="rounded-full bg-honey px-3 py-1.5 text-xs font-semibold text-cream disabled:opacity-40"
+                      className="rounded-full bg-gold px-3 py-1.5 text-xs font-semibold text-obsidian disabled:opacity-40"
                     >
                       {t.providersSave}
                     </button>
@@ -257,7 +263,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                     type="button"
                     disabled={!slot.has_key || !slot.has_endpoint || busy[slot.id]}
                     onClick={() => void onTest(slot)}
-                    className="rounded-full border border-metal-line px-3 py-1.5 text-xs font-semibold text-bark-soft hover:text-honey-deep disabled:opacity-40"
+                    className="rounded-full border border-white/[0.09] px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-gold disabled:opacity-40"
                   >
                     {t.providersTest}
                   </button>
@@ -266,7 +272,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                       type="button"
                       disabled={!slot.has_key || !slot.has_endpoint || busy[slot.id]}
                       onClick={() => void onActivate(slot)}
-                      className="rounded-full border border-metal-line px-3 py-1.5 text-xs font-semibold text-bark-soft hover:text-honey-deep disabled:opacity-40"
+                      className="rounded-full border border-white/[0.09] px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-gold disabled:opacity-40"
                     >
                       {t.providersActivate}
                     </button>
@@ -276,7 +282,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
                       type="button"
                       disabled={busy[slot.id]}
                       onClick={() => void onDelete(slot)}
-                      className="rounded-full border border-metal-line px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-40"
+                      className="rounded-full border border-white/[0.09] px-3 py-1.5 text-xs font-semibold text-red-400 disabled:opacity-40"
                     >
                       {t.providersDelete}
                     </button>
@@ -291,7 +297,7 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
         type="button"
         disabled={busy.add || slots === null}
         onClick={() => void onAdd()}
-        className="mt-3 w-full rounded-full border border-metal-line px-3 py-2 text-xs font-semibold text-bark-soft hover:text-honey-deep disabled:opacity-40"
+        className="mt-3 w-full rounded-full border border-white/[0.09] px-3 py-2 text-xs font-semibold text-ink-soft hover:text-gold disabled:opacity-40"
       >
         {t.providersAdd}
       </button>

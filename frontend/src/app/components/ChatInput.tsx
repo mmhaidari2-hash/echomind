@@ -11,7 +11,6 @@ import {
 } from "react";
 
 import { copy } from "../lib/copy";
-import { GlassIconButton, Kbd } from "./Glass";
 import { getPhotoService } from "../../services/photos";
 import {
   detectTextDirection,
@@ -249,8 +248,10 @@ export default function ChatInput({
   const resizeField = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
+    // One clean line only: the dock never grows, long text scrolls
+    // inside the field (mockups 1 & 3).
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 44)}px`;
   }, []);
 
   useEffect(() => {
@@ -287,6 +288,10 @@ export default function ChatInput({
     const next = [prefix, transcript].filter(Boolean).join(" ");
     onChange(next);
   }, [listening, transcript, onChange]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<boolean>("echomind-listening", { detail: listening }));
+  }, [listening]);
 
   const addFilesList = (list: File[]) => {
     if (!list.length) return;
@@ -395,7 +400,7 @@ export default function ChatInput({
         {leading}
         {notice ? (
           <p
-            className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-bark-soft"
+            className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-ink-soft"
             role="status"
           >
             {listening ? <ListeningWave /> : null}
@@ -408,7 +413,7 @@ export default function ChatInput({
 
         {photoNotice ? (
           <p
-            className="echomind-glass mb-2 rounded-2xl px-3 py-2 text-center text-xs text-bark-soft"
+            className="echomind-glass mb-2 rounded-2xl px-3 py-2 text-center text-xs text-ink-soft"
             role="status"
           >
             {photoNotice}
@@ -420,7 +425,7 @@ export default function ChatInput({
             {attachments.map((item) => (
               <li
                 key={item.id}
-                className="echomind-chip-glass flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-bark-soft"
+                className="echomind-chip-glass flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-ink-soft"
               >
                 {item.previewUrl ? (
                   <img
@@ -432,7 +437,7 @@ export default function ChatInput({
                 <span className="truncate">{item.file.name}</span>
                 <button
                   type="button"
-                  className="rounded-full p-0.5 text-clay hover:text-bark"
+                  className="rounded-full p-0.5 text-muted hover:text-ink"
                   aria-label="Remove attachment"
                   onClick={() => removeAttachment(item.id)}
                 >
@@ -443,50 +448,49 @@ export default function ChatInput({
           </ul>
         ) : null}
 
-        <div className="echomind-glass-input flex items-end gap-2 rounded-3xl p-2">
-          <div className="relative" ref={attachMenuRef}>
-            <GlassIconButton
+        <div className="echomind-glass-blur flex min-h-[3.5rem] items-center gap-1 rounded-full px-2 py-1.5">
+          <div className="relative shrink-0" ref={attachMenuRef}>
+            <button
+              type="button"
               aria-label={t.attach}
               aria-expanded={attachOpen}
               disabled={disabled}
               onClick={() => setAttachOpen((open) => !open)}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40"
             >
               <IconPaperclip className="h-5 w-5" />
-            </GlassIconButton>
+            </button>
             {attachOpen ? (
               <div
-                className="echomind-glass-strong absolute bottom-[calc(100%+0.5rem)] start-0 z-40 min-w-[10.5rem] overflow-hidden rounded-2xl"
+                className="echomind-glass-blur absolute bottom-[calc(100%+0.5rem)] start-0 z-40 min-w-[10.5rem] overflow-hidden rounded-2xl"
                 role="menu"
               >
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-bark-soft hover:bg-bark/5"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-ink-soft hover:bg-white/[0.06]"
                   onClick={() => void pickPhotoFromLibrary()}
                 >
-                  <IconPhoto className="h-4 w-4 text-honey-deep" />
+                  <IconPhoto className="h-4 w-4 text-gold" />
                   {t.photoLibrary}
-                  <Kbd className="ms-auto">P</Kbd>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-bark-soft hover:bg-bark/5"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-ink-soft hover:bg-white/[0.06]"
                   onClick={() => void takePhoto()}
                 >
-                  <IconCamera className="h-4 w-4 text-honey-deep" />
+                  <IconCamera className="h-4 w-4 text-gold" />
                   {t.takePhoto}
-                  <Kbd className="ms-auto">C</Kbd>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-bark-soft hover:bg-bark/5"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-ink-soft hover:bg-white/[0.06]"
                   onClick={() => fileRef.current?.click()}
                 >
-                  <IconPaperclip className="h-4 w-4 text-honey-deep" />
+                  <IconPaperclip className="h-4 w-4 text-gold" />
                   {t.files}
-                  <Kbd className="ms-auto">F</Kbd>
                 </button>
               </div>
             ) : null}
@@ -528,7 +532,7 @@ export default function ChatInput({
             value={value}
             disabled={disabled}
             placeholder={t.placeholder}
-            className={`max-h-32 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-2.5 text-[16px] leading-6 text-bark placeholder:text-clay focus:outline-none ${
+            className={`max-h-11 min-h-[2.75rem] flex-1 resize-none overflow-y-auto whitespace-nowrap bg-transparent px-1 py-2.5 text-[16px] leading-6 text-ink placeholder:text-muted focus:outline-none ${
               dir === "rtl" ? "font-fa" : ""
             }`}
             onChange={(event) => onChange(event.target.value)}
@@ -540,32 +544,25 @@ export default function ChatInput({
             }}
           />
 
-          <GlassIconButton
-            active={listening}
+          <button
+            type="button"
             aria-label={listening ? t.voiceStop : t.voiceStart}
             aria-pressed={listening}
             disabled={disabled}
             onClick={toggleListening}
+            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40 ${
+              listening ? "text-gold" : "text-muted hover:text-gold"
+            }`}
           >
             {listening ? (
-              <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-[1.15rem]" />
+              <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-full" />
             ) : null}
             <IconMic className={`relative h-5 w-5 ${listening ? "echomind-pulse" : ""}`} />
-          </GlassIconButton>
-
-          {/* ⌘K — focus the composer, Raycast-style. */}
-          <button
-            type="button"
-            className="hidden shrink-0 items-center gap-1 rounded-full px-1 py-1 text-clay hover:text-bark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60 sm:flex"
-            aria-label="Focus the composer (Ctrl+K)"
-            onClick={() => textareaRef.current?.focus()}
-          >
-            <Kbd>⌘K</Kbd>
           </button>
 
           <button
             type="button"
-            className="echomind-send-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gold transition hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label={t.send}
             disabled={!canSend}
             onClick={submit}
