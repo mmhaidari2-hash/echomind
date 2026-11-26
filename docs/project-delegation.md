@@ -56,6 +56,19 @@ still proposes the step, and confirmation runs it only when the
 backend has a `GITHUB_TOKEN` with `repo` scope; otherwise the step
 finishes as `needs_owner` with the exact reason.
 
+### 3b. MENTOR hub projects
+A project with `kind: "mentor-hub"` is Mahdi's MENTOR — the app on
+his phone that is itself connected to all his projects. EchoMind
+hands anything no other verb matches to MENTOR as one gated step,
+`mentor.delegate`: EchoMind proposes, the owner confirms, MENTOR
+does the work. The default allowlist for the kind
+(`MENTOR_HUB_TOOLS`) is the mentor tool plus read-only GitHub verbs
+and the obligation verb — no direct write verbs, so writing goes
+through MENTOR, gated on confirmation. The project carries an
+`endpoint_url` field (MENTOR's endpoint/URL), required before any
+mentor step can run. Full detail, including what is gated and why,
+lives in `docs/mentor-plugin.md`.
+
 ### 4. Executor
 - **GitHub steps** call the public GitHub API with urllib (no new
   dependency, no token by default). A `GITHUB_TOKEN` env var, when
@@ -106,11 +119,17 @@ finishes as `needs_owner` with the exact reason.
   logic is verified with stubbed HTTP (tests pass); the live path
   from the deployed backend is UNVERIFIED here and needs CI or a
   token to confirm.
-- The planner knows seven verbs (three read-only GitHub, four added
-  in the gaps run: create issue, read file, open PR, CI status).
-  Everything else is `needs_owner`
+- The planner knows seven generic verbs (three read-only GitHub,
+  four added in the gaps run: create issue, read file, open PR, CI
+  status). On `kind: "mentor-hub"` projects, anything no verb
+  matches becomes one gated `mentor.delegate` step. Everything else
+  is `needs_owner`
   by design — that is the safety boundary, not a bug, and the report
   says so instead of pretending.
+- MENTOR's endpoint is not known and no MENTOR repo exists under
+  `mmhaidari2-hash` (public search: 0 results, checked 2026-11-26).
+  The endpoint is a required but empty field, and the mentor step
+  gates on it — see `docs/mentor-plugin.md`.
 
 ## Verify
 ```bash

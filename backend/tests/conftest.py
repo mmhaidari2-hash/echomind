@@ -18,6 +18,7 @@ def isolated_stores(tmp_path: Path):
         memory_engine,
         notifications,
         projects,
+        providers,
         truelayer_connector,
     )
 
@@ -29,6 +30,7 @@ def isolated_stores(tmp_path: Path):
     truelayer_connector.use_store_path(tmp_path / "truelayer.json")
     projects.use_store_path(tmp_path / "projects.json")
     delegation.use_store_path(tmp_path / "delegation.json")
+    providers.use_store_path(tmp_path / "providers.json")
     notifications.reset_store()
     reset_rate_limits()
     app.dependency_overrides[require_user] = lambda: "test-user"

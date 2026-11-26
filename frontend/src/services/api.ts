@@ -1346,6 +1346,140 @@ export async function getYouTubeVideos(limit = 10): Promise<YouTubeVideo[]> {
   });
 }
 
+// --- Drive / Docs / Sheets (Google, read-only) ---
+// Each rides the shared Google token; the hub reads their state from
+// the per-scope Google status, and these helpers call the connectors
+// directly (search, read) when a surface needs file content.
+
+export type ConnectorStatus = {
+  configured: boolean;
+  connected: boolean;
+  scopes: string[];
+};
+
+export type DriveFileItem = {
+  id: string;
+  name: string;
+  mime_type: string;
+  modified_time: string;
+  web_view_link: string | null;
+};
+
+export type DriveFileRead = {
+  file: DriveFileItem;
+  content: string;
+  truncated: boolean;
+  total_chars: number;
+};
+
+export type SheetTabItem = {
+  title: string;
+  index: number;
+};
+
+export type SheetValues = {
+  spreadsheet: DriveFileItem;
+  sheet_title: string;
+  range: string;
+  values: string[][];
+  truncated: boolean;
+  total_rows: number;
+  total_cells: number;
+};
+
+export async function getDriveStatus(): Promise<ConnectorStatus> {
+  return api<ConnectorStatus>("/connectors/drive/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function searchDrive(q = "", limit = 10): Promise<DriveFileItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api<DriveFileItem[]>(`/connectors/drive/search?${params.toString()}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function readDriveFile(fileId: string): Promise<DriveFileRead> {
+  return api<DriveFileRead>(`/connectors/drive/files/${encodeURIComponent(fileId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getDocsStatus(): Promise<ConnectorStatus> {
+  return api<ConnectorStatus>("/connectors/docs/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function searchDocs(q = "", limit = 10): Promise<DriveFileItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api<DriveFileItem[]>(`/connectors/docs/search?${params.toString()}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function readDocument(documentId: string): Promise<DriveFileRead> {
+  return api<DriveFileRead>(`/connectors/docs/documents/${encodeURIComponent(documentId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getSheetsStatus(): Promise<ConnectorStatus> {
+  return api<ConnectorStatus>("/connectors/sheets/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function searchSheets(q = "", limit = 10): Promise<DriveFileItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api<DriveFileItem[]>(`/connectors/sheets/search?${params.toString()}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function listSheetTabs(spreadsheetId: string): Promise<SheetTabItem[]> {
+  return api<SheetTabItem[]>(
+    `/connectors/sheets/spreadsheets/${encodeURIComponent(spreadsheetId)}/tabs`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+export async function readSheetValues(
+  spreadsheetId: string,
+  range?: string,
+): Promise<SheetValues> {
+  const params = range ? `?${new URLSearchParams({ range }).toString()}` : "";
+  return api<SheetValues>(
+    `/connectors/sheets/spreadsheets/${encodeURIComponent(spreadsheetId)}${params}`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
 // --- Bank (UK Open Banking via TrueLayer, read-only) ---
 
 export type BankStatus = {
@@ -1867,4 +2001,81 @@ export async function confirmProjectTask(taskId: string): Promise<{ task: Delega
       timeoutMs: CHAT_TIMEOUT_MS,
     },
   );
+}
+
+export type ProviderSlot = {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  endpoint: string;
+  has_key: boolean;
+  has_endpoint: boolean;
+  is_active: boolean;
+  builtin: boolean;
+};
+
+export type ProviderTestResult = {
+  ok: boolean;
+  status: number | null;
+  detail: string;
+};
+
+export async function listProviders(): Promise<ProviderSlot[]> {
+  return api<ProviderSlot[]>("/providers", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function createProvider(payload: {
+  name?: string;
+  provider?: string;
+  model?: string;
+  endpoint?: string;
+  api_key?: string;
+}): Promise<ProviderSlot> {
+  return api<ProviderSlot>("/providers", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProvider(
+  slotId: string,
+  payload: { name?: string; model?: string; endpoint?: string; api_key?: string; clear_key?: boolean },
+): Promise<ProviderSlot> {
+  return api<ProviderSlot>(`/providers/${encodeURIComponent(slotId)}`, {
+    auth: "protected",
+    method: "PATCH",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProvider(slotId: string): Promise<{ deleted: boolean }> {
+  return api<{ deleted: boolean }>(`/providers/${encodeURIComponent(slotId)}`, {
+    auth: "protected",
+    method: "DELETE",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function activateProvider(slotId: string): Promise<ProviderSlot> {
+  return api<ProviderSlot>(`/providers/${encodeURIComponent(slotId)}/activate`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function testProvider(slotId: string): Promise<ProviderTestResult> {
+  return api<ProviderTestResult>(`/providers/${encodeURIComponent(slotId)}/test`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
 }

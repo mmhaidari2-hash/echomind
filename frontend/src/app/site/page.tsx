@@ -27,7 +27,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GlassCard, MotionReveal, Orb3D, SectionHeading, Waterfall } from "../components/Glass";
+import { GlassCard, MotionReveal, Orb3D, SectionHeading, SpotlightCard, TiltCard, Waterfall } from "../components/Glass";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -338,7 +338,9 @@ export default function SitePage() {
                 one accent used boldly — the serif stays, the slack goes. */}
             <h1 className="mt-2 font-serif text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-bark sm:text-[3.4rem]">
               {t.heroTitleStart}
-              <span className="echomind-gradient-text font-serif italic">{t.heroTitleAccent}</span>
+              {/* magicui AnimatedGradientText pattern — the honey
+                  shimmer travels across the accent word. */}
+              <span className="echomind-shimmer-text font-serif italic">{t.heroTitleAccent}</span>
               {t.heroTitleEnd}
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-clay sm:text-base">
@@ -363,27 +365,39 @@ export default function SitePage() {
           <MotionReveal>
             <SectionHeading eyebrow={t.diffEyebrow} title={t.diffTitle} subtitle={t.diffSubtitle} />
           </MotionReveal>
-          <Waterfall className="mt-5">
+          {/* magicui BentoGrid pattern — six differentiators as a
+              bento: the first card spans two columns on sm+. Each
+              card tilts toward the pointer (Aceternity 3D Card) and
+              carries a pointer spotlight (Aceternity Spotlight);
+              the featured card has a travelling honey border beam
+              (magicui BorderBeam). All six items and strings kept. */}
+          <div className="echomind-bento mt-5">
             {t.differentiators.map((item, index) => (
-              <MotionReveal key={item.title} delay={(index % 3) * 90}>
-                {/* Linear precision: flat hairline card, mono numeral,
-                    dense 13px body — no big shadow, no decoration. */}
-                <Card className="echomind-tilt shadow-none">
-                  <CardHeader>
-                    <p className="echomind-num-mono text-xl text-honey-deep">
-                      {String(index + 1).padStart(2, "0")}
-                    </p>
-                    <CardTitle className="mt-1 font-serif">{item.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-[13px] leading-5 text-clay">
-                      {item.body}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
+              <MotionReveal
+                key={item.title}
+                delay={(index % 3) * 90}
+                className={index === 0 ? "echomind-bento-featured" : undefined}
+              >
+                <TiltCard className="h-full">
+                  <SpotlightCard className="h-full rounded-[1.75rem]">
+                    <Card className={`h-full shadow-none ${index === 0 ? "echomind-beam" : ""}`}>
+                      <CardHeader>
+                        <p className="echomind-num-mono text-xl text-honey-deep">
+                          {String(index + 1).padStart(2, "0")}
+                        </p>
+                        <CardTitle className="mt-1 font-serif">{item.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <CardDescription className="text-[13px] leading-5 text-clay">
+                          {item.body}
+                        </CardDescription>
+                      </CardContent>
+                    </Card>
+                  </SpotlightCard>
+                </TiltCard>
               </MotionReveal>
             ))}
-          </Waterfall>
+          </div>
         </section>
 
         {/* (3) Outcome Loop */}
@@ -392,7 +406,9 @@ export default function SitePage() {
             <SectionHeading eyebrow={t.loopEyebrow} title={t.loopTitle} subtitle={t.loopSubtitle} />
           </MotionReveal>
           <MotionReveal delay={90}>
-            <GlassCard strong dense className="mt-5 p-4 sm:p-5">
+            {/* Aceternity spotlight follows the pointer across the Loop. */}
+            <SpotlightCard className="mt-5 rounded-2xl">
+              <GlassCard strong dense className="p-4 sm:p-5">
               {/* The Loop as one precise instrument: a hairline track
                   with mono step markers, not five separate cards. */}
               <ol className="echomind-loop-track flex flex-col gap-4 pt-5 sm:flex-row sm:gap-3 sm:pt-6">
@@ -416,7 +432,8 @@ export default function SitePage() {
               <p className="mt-4 border-t border-metal-line pt-3 text-xs leading-relaxed text-clay">
                 {t.loopNote}
               </p>
-            </GlassCard>
+              </GlassCard>
+            </SpotlightCard>
           </MotionReveal>
         </section>
 
@@ -432,19 +449,24 @@ export default function SitePage() {
           <Waterfall className="mt-5">
             {t.outcomes.map((item, index) => (
               <MotionReveal key={item.title} delay={(index % 3) * 90}>
-                <Card className="echomind-tilt shadow-none">
-                  <CardHeader>
-                    <p className="inline-block self-start rounded-full bg-honey/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-honey-deep">
-                      {item.tag}
-                    </p>
-                    <CardTitle className="mt-2 font-serif">{item.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-[13px] leading-5 text-clay">
-                      {item.body}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
+                {/* Aceternity tilt + spotlight, same as the bento. */}
+                <TiltCard>
+                  <SpotlightCard className="rounded-[1.75rem]">
+                    <Card className="shadow-none">
+                      <CardHeader>
+                        <p className="inline-block self-start rounded-full bg-honey/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-honey-deep">
+                          {item.tag}
+                        </p>
+                        <CardTitle className="mt-2 font-serif">{item.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <CardDescription className="text-[13px] leading-5 text-clay">
+                          {item.body}
+                        </CardDescription>
+                      </CardContent>
+                    </Card>
+                  </SpotlightCard>
+                </TiltCard>
               </MotionReveal>
             ))}
           </Waterfall>

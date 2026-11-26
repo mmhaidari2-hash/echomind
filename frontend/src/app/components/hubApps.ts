@@ -105,6 +105,10 @@ export const HUB_APPS: HubApp[] = [
       en: "Your tickets, receipts and documents, ready as evidence for claims and case files.",
       fa: "بلیت‌ها، رسیدها و مدارک شما، آماده به‌عنوان مدرک برای درخواست‌ها و پرونده‌ها.",
     },
+    setupNote: {
+      en: "Google sign-in needs to be set up on the server first — then connect from here.",
+      fa: "اول باید ورود با گوگل روی سرور راه‌اندازی شود — بعد از همین‌جا وصل کنید.",
+    },
     connect: "google-drive",
   },
   {
@@ -115,6 +119,10 @@ export const HUB_APPS: HubApp[] = [
       en: "Claim letters and consumer-rights case files, drafted from your own evidence.",
       fa: "نامه‌های درخواست و پرونده‌های حقوق مصرف‌کننده، نوشته‌شده از روی مدارک خودتان.",
     },
+    setupNote: {
+      en: "Google sign-in needs to be set up on the server first — then connect from here.",
+      fa: "اول باید ورود با گوگل روی سرور راه‌اندازی شود — بعد از همین‌جا وصل کنید.",
+    },
     connect: "google-docs",
   },
   {
@@ -124,6 +132,10 @@ export const HUB_APPS: HubApp[] = [
     powers: {
       en: "Tracks refunds, claims and renewals in one place, so nothing is forgotten.",
       fa: "بازپرداخت‌ها، درخواست‌ها و تمدیدها را در یک جا دنبال می‌کند، تا چیزی فراموش نشود.",
+    },
+    setupNote: {
+      en: "Google sign-in needs to be set up on the server first — then connect from here.",
+      fa: "اول باید ورود با گوگل روی سرور راه‌اندازی شود — بعد از همین‌جا وصل کنید.",
     },
     connect: "google-sheets",
   },
@@ -193,18 +205,24 @@ export function emptyHubStates(): HubStates {
 
 /** Loads every app's state from its real status endpoint.
     `readFailed` is true only when every endpoint failed to answer —
-    the UI then says the status could not be read, instead of guessing. */
+    the UI then says the status could not be read, instead of guessing.
+    `googleConfigured` is true only when the Google connector is set
+    up on the server — the Connect button for Drive/Docs/Sheets must
+    not appear before that, or it could only fail with a 503. */
 export async function loadHubStatuses(): Promise<{
   states: HubStates;
   readFailed: boolean;
+  googleConfigured: boolean;
 }> {
   const next = emptyHubStates();
   let failures = 0;
+  let googleConfigured = false;
 
   // Google — one account, per-scope truth. Base connect grants Gmail +
   // Calendar; Drive/Docs/Sheets are extra scopes requested on demand.
   try {
     const google = await getGoogleConnectorStatus();
+    googleConfigured = google.configured;
     if (!google.configured) {
       next.gmail = next.calendar = next.drive = next.docs = next.sheets = "needs_setup";
     } else if (!google.connected) {
@@ -255,7 +273,7 @@ export async function loadHubStatuses(): Promise<{
     failures += 1;
   }
 
-  return { states: next, readFailed: failures === 4 };
+  return { states: next, readFailed: failures === 4, googleConfigured };
 }
 
 /** Opens the connect flow for one hub app; returns the sign-in URL. */
@@ -287,14 +305,15 @@ export async function startHubAppConnection(
     when only their scope is missing (the scope is requested from the
     already-connected Google account). When the missing piece is
     server-side, the setup note is the truth — no button that can
-    only fail. */
-export function hubAppCanConnect(app: HubApp, state: HubState): boolean {
+    only fail. `googleConfigured` gates the Drive/Docs/Sheets button:
+    without the Google connector set up on the server, the connect
+    flow would only answer 503. */
+export function hubAppCanConnect(app: HubApp, state: HubState, googleConfigured: boolean): boolean {
   if (app.connect === null) return false;
   if (state === "connected" || state === "unknown") return false;
-  return (
-    state === "not_connected" ||
-    app.id === "drive" ||
-    app.id === "docs" ||
-    app.id === "sheets"
-  );
+  if (state === "not_connected") return true;
+  if (app.id === "drive" || app.id === "docs" || app.id === "sheets") {
+    return googleConfigured;
+  }
+  return false;
 }

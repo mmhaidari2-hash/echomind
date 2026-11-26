@@ -8,7 +8,37 @@ before confirmation, nothing runs beyond the project's allowed tools.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+# Known project kinds. "app" is any ordinary project; "mentor-hub"
+# is Mahdi's MENTOR — the app on his phone that is itself connected
+# to all his projects. EchoMind hands work it cannot do itself to
+# MENTOR as one gated step. Other kinds are accepted but get the
+# default tool set.
+PROJECT_KINDS: tuple[str, ...] = ("app", "mentor-hub")
+
+# Default tools for an ordinary project.
+DEFAULT_TOOLS: list[str] = [
+    "life.create_obligation",
+    "github.latest_commit",
+    "github.open_issues",
+    "github.create_issue",
+    "github.read_file",
+    "github.open_pr",
+    "github.ci_status",
+]
+
+# Default tools for a MENTOR hub project. One delegation tool —
+# mentor.delegate — plus read-only GitHub verbs and the obligation
+# verb. No direct write verbs: writing goes through MENTOR, gated on
+# the owner's confirmation.
+MENTOR_HUB_TOOLS: list[str] = [
+    "mentor.delegate",
+    "github.latest_commit",
+    "github.open_issues",
+    "github.ci_status",
+    "life.create_obligation",
+]
 
 
 class ProjectCreate(BaseModel):
@@ -16,19 +46,22 @@ class ProjectCreate(BaseModel):
     kind: str = Field(default="app", max_length=40)
     identity: str | None = Field(default=None, max_length=80)
     repo: str | None = Field(default=None, max_length=160)
+    # MENTOR's endpoint/URL for mentor-hub projects. Required before
+    # any mentor step can run; left empty until the owner supplies
+    # where MENTOR lives.
+    endpoint_url: str | None = Field(default=None, max_length=300)
     branch: str | None = Field(default=None, max_length=80)
-    allowed_tools: list[str] = Field(
-        default_factory=lambda: [
-            "life.create_obligation",
-            "github.latest_commit",
-            "github.open_issues",
-            "github.create_issue",
-            "github.read_file",
-            "github.open_pr",
-            "github.ci_status",
-        ]
-    )
+    allowed_tools: list[str] | None = Field(default=None)
     notes: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def _default_tools(self) -> "ProjectCreate":
+        if self.allowed_tools is None:
+            if self.kind == "mentor-hub":
+                self.allowed_tools = list(MENTOR_HUB_TOOLS)
+            else:
+                self.allowed_tools = list(DEFAULT_TOOLS)
+        return self
 
 
 class Project(ProjectCreate):

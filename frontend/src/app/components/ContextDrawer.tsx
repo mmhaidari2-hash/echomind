@@ -8,6 +8,7 @@ import PreferencesCard from "./PreferencesCard";
 import LifeSummaryCard from "./LifeSummaryCard";
 import ConnectionsHub from "./ConnectionsHub";
 import GoogleConnectionsCard from "./GoogleConnectionsCard";
+import ProvidersPanel from "./ProvidersPanel";
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import type {
@@ -142,6 +143,7 @@ export default function ContextDrawer({
               <LifeSummaryCard locale={locale} snapshot={lifeSnapshot} onChanged={onLifeChanged} />
               <ConnectionsHub locale={locale} />
               <GoogleConnectionsCard locale={locale} />
+              <ProvidersPanel locale={locale} />
               <PreferencesCard
                 locale={locale}
                 preferences={preferences}

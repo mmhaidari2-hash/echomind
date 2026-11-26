@@ -75,14 +75,16 @@ function stateLabel(state: HubState, locale: Locale): string {
 
 export default function ConnectionsHub({ locale }: { locale: Locale }) {
   const [states, setStates] = useState<Record<HubAppId, HubState>>(emptyHubStates);
+  const [googleConfigured, setGoogleConfigured] = useState(false);
   const [readFailed, setReadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = async () => {
-    const { states: next, readFailed: failed } = await loadHubStatuses();
+    const { states: next, readFailed: failed, googleConfigured: configured } = await loadHubStatuses();
     setStates(next);
+    setGoogleConfigured(configured);
     setReadFailed(failed);
   };
 
@@ -264,7 +266,7 @@ export default function ConnectionsHub({ locale }: { locale: Locale }) {
                 : "Sign in to EchoMind first, then connect your apps from here."}
             </p>
           ) : null}
-          {hubAppCanConnect(selectedApp, selectedState) ? (
+          {hubAppCanConnect(selectedApp, selectedState, googleConfigured) ? (
             <Button size="sm" className="mt-2" disabled={busy} onClick={() => void connectSelected()}>
               {locale === "fa" ? "وصل کردن" : "Connect"}
             </Button>

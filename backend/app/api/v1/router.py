@@ -14,6 +14,7 @@ from app.api.endpoints import (
     delay_repay,
     detection,
     documents,
+    docs,
     drive,
     evidence,
     followup,
@@ -27,7 +28,9 @@ from app.api.endpoints import (
     overdraft_shield,
     persian,
     projects,
+    providers,
     renewals,
+    sheets,
     travel,
     travel_guard,
     verification,
@@ -51,6 +54,7 @@ api_router.include_router(detection.router)
 api_router.include_router(consumer_rights.router)
 api_router.include_router(overdraft_shield.router)
 api_router.include_router(documents.router)
+api_router.include_router(docs.router)
 api_router.include_router(drive.router)
 api_router.include_router(mail.router)
 api_router.include_router(watches.router)
@@ -66,7 +70,9 @@ api_router.include_router(evidence.router)
 api_router.include_router(followup.router)
 api_router.include_router(persian.router)
 api_router.include_router(projects.router)
+api_router.include_router(providers.router)
 api_router.include_router(renewals.router)
+api_router.include_router(sheets.router)
 api_router.include_router(travel_guard.router)
 api_router.include_router(verification.router)
 api_router.include_router(voice.router)

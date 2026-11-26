@@ -21,6 +21,15 @@ that need parameters (issue title, file path, PR branches) carry them
 in `step.params`, extracted from the instruction — the owner sees them
 in the plan before confirming.
 
+For a "mentor-hub" project (Mahdi's MENTOR — the app on his
+phone that is itself connected to all his projects) the planner
+hands any instruction no other verb matches to MENTOR as one gated
+`mentor.delegate` step. MENTOR is the hub: EchoMind proposes, the
+owner confirms, and the work is handed to MENTOR. The step cannot
+run until MENTOR's endpoint is known (see _run_step) — until then
+it fails closed as needs_owner with the exact missing piece, and
+nothing is claimed as done by MENTOR until it has actually run.
+
 GitHub steps call the public GitHub API with urllib (no new
 dependency, no token). Public repos work with no key. A private repo
 returns 404/403 and the step fails closed as "needs access" — the task
@@ -109,7 +118,6 @@ _PR_WORDS = ("open a pull request", "create a pull request", "new pull request",
 _CI_WORDS = ("ci status", "build status", "check status", "latest build", "وضعیت بیلد", "وضعیت سی آی", "وضعیت سی‌آی", "چک ها", "چک‌ها", "آخرین بیلد")
 _BARE_FILENAMES = ("README", "LICENSE", "CHANGELOG", "CONTRIBUTING")
 
-
 def _after_keyword(instruction: str, keywords: tuple[str, ...]) -> str:
     """Text after the first matching keyword, separators stripped."""
     lowered = instruction.lower()
@@ -148,7 +156,7 @@ def _extract_pr_branches(instruction: str) -> tuple[str, str]:
     return "", ""
 
 
-def _plan(instruction: str) -> list[TaskStep]:
+def _plan(instruction: str, project_kind: str | None = None) -> list[TaskStep]:
     text = instruction.lower()
     steps: list[TaskStep] = []
     if any(word in text for word in ("آخرین کامیت", "latest commit", "last commit", "آخرین تغییر")):
@@ -200,12 +208,23 @@ def _plan(instruction: str) -> list[TaskStep]:
     if any(word in text for word in ("یادآوری", "یادم بنداز", "مهلت", "remind", "deadline", "obligation")):
         steps.append(TaskStep(tool="life.create_obligation", summary="Record the obligation in the Life Graph, tagged to this project"))
     if not steps:
-        steps.append(
-            TaskStep(
-                tool="owner",
-                summary="This needs the owner: no executor tool matches the instruction yet.",
+        if project_kind == "mentor-hub":
+            # MENTOR is the hub for all his projects: anything no
+            # other verb matches is handed to MENTOR, gated.
+            steps.append(
+                TaskStep(
+                    tool="mentor.delegate",
+                    summary="Hand this to MENTOR — it reaches all your projects",
+                    params={"instruction": instruction},
+                )
             )
-        )
+        else:
+            steps.append(
+                TaskStep(
+                    tool="owner",
+                    summary="This needs the owner: no executor tool matches the instruction yet.",
+                )
+            )
     return steps
 
 
@@ -223,7 +242,7 @@ def create_task(user_id: str, project_id: str, payload: TaskCreate) -> Delegated
         instruction=payload.instruction,
         language=payload.language,
         status="proposed",
-        plan=_plan(payload.instruction),
+        plan=_plan(payload.instruction, project.kind),
         created_at=_now(),
         updated_at=_now(),
     )
@@ -482,6 +501,26 @@ def _run_step(user_id: str, project, step: TaskStep, instruction: str = "", *, _
         )
         step.status = "done"
         step.evidence = f"Obligation recorded: {item.id}"
+        return step
+    if step.tool == "mentor.delegate":
+        if project.kind != "mentor-hub":
+            step.status = "needs_owner"
+            step.evidence = f"Project {project.name} is not a MENTOR hub project."
+            return step
+        endpoint = (getattr(project, "endpoint_url", None) or "").strip()
+        if not endpoint:
+            step.status = "needs_owner"
+            step.evidence = (
+                "MENTOR's endpoint is missing — tell EchoMind where MENTOR lives "
+                "(URL/endpoint) and this can be handed to it."
+            )
+            return step
+        step.status = "needs_owner"
+        step.evidence = (
+            f"MENTOR is linked ({endpoint}) but EchoMind does not yet know how to call it. "
+            "Supply how MENTOR accepts delegated work (API shape) and this step can run. "
+            "Nothing is sent to MENTOR until then."
+        )
         return step
     step.status = "failed"
     step.evidence = f"Unknown tool {step.tool}."

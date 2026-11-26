@@ -14,8 +14,8 @@
  * works without a second layout.
  */
 
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useSpring } from "framer-motion";
 
 export function GlassCard({
   children,
@@ -23,6 +23,7 @@ export function GlassCard({
   strong = false,
   tilt = false,
   dense = false,
+  beam = false,
 }: {
   children: ReactNode;
   className?: string;
@@ -30,16 +31,128 @@ export function GlassCard({
   tilt?: boolean;
   /** Dense (Linear-style): smaller radius, hairline border, quiet shadow. */
   dense?: boolean;
+  /** magicui BorderBeam: a honey beam travelling around the border. */
+  beam?: boolean;
 }) {
   const classes = [
     strong ? "echomind-glass-strong" : "echomind-glass",
     dense ? "rounded-2xl" : "rounded-[1.4rem]",
     tilt ? "echomind-tilt" : "",
+    beam ? "echomind-beam" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
   return <div className={classes}>{children}</div>;
+}
+
+/** magicui NumberTicker pattern, on a framer-motion spring — a count
+    that ticks up to its value (e.g. "02 CONNECTED"). Latin digits in
+    mono; Persian labels around it stay plain semibold. Reduced motion
+    jumps straight to the final value. Written via a ref so the
+    animation never re-renders the component. */
+export function AnimatedCount({
+  value,
+  pad = 0,
+  className = "",
+}: {
+  value: number;
+  pad?: number;
+  className?: string;
+}) {
+  const reduceMotion = useReducedMotion();
+  const ref = useRef<HTMLSpanElement>(null);
+  const mv = useMotionValue(0);
+  const format = (v: number) => String(Math.round(v)).padStart(pad, "0");
+  useMotionValueEvent(mv, "change", (v) => {
+    if (ref.current) ref.current.textContent = format(v);
+  });
+  useEffect(() => {
+    if (reduceMotion) {
+      mv.set(value);
+      if (ref.current) ref.current.textContent = format(value);
+      return;
+    }
+    const controls = animate(mv, value, { type: "spring", stiffness: 90, damping: 20 });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, mv, reduceMotion]);
+  return (
+    <span ref={ref} className={className}>
+      {format(0)}
+    </span>
+  );
+}
+
+/** Aceternity Spotlight pattern — a soft honey glow that follows the
+    pointer across the card. Position is written to CSS vars on the
+    element (no React re-render per move); the glow itself is pure
+    CSS (::after, see .echomind-spotlight). */
+export function SpotlightCard({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const handleMove = (e: PointerEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--spot-x", `${e.clientX - rect.left}px`);
+    el.style.setProperty("--spot-y", `${e.clientY - rect.top}px`);
+  };
+  return (
+    <div ref={ref} onPointerMove={handleMove} className={`echomind-spotlight ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/** Aceternity 3D Card pattern, on framer-motion springs — the card
+    tilts toward the pointer (mouse only, ±6°) and springs back on
+    leave. RTL mirrors the yaw so the tilt follows the pointer in
+    both directions. Reduced motion renders a plain div. */
+export function TiltCard({
+  children,
+  className = "",
+  max = 6,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Maximum tilt in degrees. */
+  max?: number;
+}) {
+  const reduceMotion = useReducedMotion();
+  const rx = useMotionValue(0);
+  const ry = useMotionValue(0);
+  const srx = useSpring(rx, { stiffness: 200, damping: 18 });
+  const sry = useSpring(ry, { stiffness: 200, damping: 18 });
+  if (reduceMotion) return <div className={className}>{children}</div>;
+  const handleMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    const rtl = document.documentElement.dir === "rtl";
+    rx.set(-py * max);
+    ry.set((rtl ? -1 : 1) * px * max);
+  };
+  const reset = () => {
+    rx.set(0);
+    ry.set(0);
+  };
+  return (
+    <motion.div
+      className={className}
+      style={{ rotateX: srx, rotateY: sry, transformPerspective: 900, transformStyle: "preserve-3d" }}
+      onPointerMove={handleMove}
+      onPointerLeave={reset}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 /** Raycast kbd chip — the keyboard-first hint (⌘K, ↵, P, C, F). */
@@ -100,8 +213,19 @@ export function CommandRow({
       onClick={onClick}
       aria-current={selected || undefined}
       aria-label={ariaLabel}
-      className="echomind-row"
+      className="echomind-row relative"
     >
+      {/* framer-motion layout animation: one shared honey bar that
+          glides between rows when the selection moves, instead of
+          jumping. The static inset shadow in CSS is gone. */}
+      {selected ? (
+        <motion.span
+          layoutId="echomind-rail-selected"
+          aria-hidden="true"
+          className="absolute inset-y-2 start-0 w-[3px] rounded-full bg-honey"
+          transition={{ type: "spring", stiffness: 500, damping: 40 }}
+        />
+      ) : null}
       <span className="echomind-rail-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl [&_svg]:h-5 [&_svg]:w-5">
         {icon}
       </span>

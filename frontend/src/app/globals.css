@@ -693,11 +693,9 @@ html[dir="rtl"] body {
 
 .echomind-row[aria-current="true"] {
   background: rgb(183 121 31 / 0.09);
-  box-shadow: inset 2px 0 0 #b7791f;
-}
-
-[dir="rtl"] .echomind-row[aria-current="true"] {
-  box-shadow: inset -2px 0 0 #b7791f;
+  /* The honey bar is a framer-motion element with a shared layoutId
+     (see CommandRow in Glass.tsx), so it glides between rows instead
+     of jumping — no static inset shadow here. */
 }
 
 /* Hairline divider — Linear's 1px separator. */
@@ -734,3 +732,160 @@ html[dir="rtl"] body {
   }
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Repo-feature blend — ideas + features mixed from several top       */
+/* GitHub repos, reimplemented as patterns (no copied code, no new    */
+/* dependencies). magicui: animated gradient/shimmer text, bento      */
+/* grid, animated border beam, NumberTicker-style count-up.            */
+/* Aceternity UI: pointer spotlight on cards, pointer-driven 3D tilt  */
+/* (see TiltCard in components/Glass.tsx). shadcn/ui + framer-motion: */
+/* layout animations (the selected-row bar glides), AnimatePresence   */
+/* crossfade on the "so what?" card, spring physics everywhere.        */
+/* react-three-fiber patterns as CSS 3D (no 3D library): pointer      */
+/* parallax on the orbit, slow-spinning instrument tick ring. The     */
+/* warm cream/brown/honey base, Linear hairlines + mono precision,    */
+/* Raycast command speed and EchoMind's orb + hub + Outcome Loop      */
+/* stay the unifying thread — the whole still reads as EchoMind.      */
+/* ------------------------------------------------------------------ */
+
+/* magicui AnimatedGradientText pattern — honey shimmer travelling
+   across the hero accent word. Background-position animation only;
+   cheap on mid-range phones. */
+.echomind-shimmer-text {
+  background: linear-gradient(92deg, #8a5a1b 0%, #b7791f 32%, #eec27c 50%, #b7791f 68%, #8a5a1b 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: echomind-shimmer 5s linear infinite;
+}
+
+@keyframes echomind-shimmer {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* magicui BentoGrid pattern — the six differentiators as a bento:
+   the first card spans two columns on sm+, the rest fill one each. */
+.echomind-bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.echomind-bento > * {
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .echomind-bento {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .echomind-bento-featured {
+    grid-column: span 2;
+  }
+}
+
+/* magicui BorderBeam pattern — a honey beam travelling around the
+   border of a featured card. @property animates the conic angle
+   without rotating the element; where @property is unsupported the
+   beam sits still as a honey arc (graceful fallback). */
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.echomind-beam {
+  position: relative;
+}
+
+.echomind-beam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    transparent 290deg,
+    #d9a45b 325deg,
+    #b7791f 345deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: echomind-beam-spin 4.5s linear infinite;
+}
+
+@keyframes echomind-beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+/* Aceternity Spotlight pattern — a soft honey glow that follows the
+   pointer across a card. Position comes from JS (--spot-x/--spot-y);
+   the glow only appears on hover-capable pointers. */
+.echomind-spotlight {
+  position: relative;
+}
+
+.echomind-spotlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: radial-gradient(
+    260px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgb(217 164 91 / 0.2),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .echomind-spotlight:hover::after {
+    opacity: 1;
+  }
+}
+
+/* react-three-fiber pattern as CSS 3D — the orbit's instrument tick
+   ring turns slowly, like a dial. Transform-only, 90s per turn. */
+.echomind-orb-ring-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: echomind-ring-spin 90s linear infinite;
+}
+
+@keyframes echomind-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echomind-shimmer-text,
+  .echomind-beam::before,
+  .echomind-orb-ring-spin {
+    animation: none;
+  }
+
+  .echomind-spotlight::after {
+    transition: none;
+  }
+}

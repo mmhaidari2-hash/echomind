@@ -102,6 +102,7 @@ def find_project_by_name(user_id: str, name: str) -> Project | None:
         "لانچر": "orbit-shell-launcher",
         "اربیت": "orbit-shell-launcher",
         "دودومبه": "doodombeh",
+        "منتور": "mentor",
     }
     needle = aliases.get(needle, needle)
     for project in list_projects(user_id):

@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { GlassCard, Reveal, SectionHeading } from "./Glass";
+import { GlassCard, Reveal, SectionHeading, SpotlightCard } from "./Glass";
 import {
   confirmProjectTask,
   listProjects,
@@ -100,9 +100,9 @@ function statusTone(status: string): string {
     case "failed":
       return "bg-rose-400/15 text-red-700 border-rose-300/30";
     case "needs_owner":
-      return "bg-honey/15 text-honey-deep border-amber-300/30";
+      return "bg-honey/15 text-honey-deep border-honey/30";
     default:
-      return "bg-honey/15 text-honey-deep border-amber-300/30";
+      return "bg-honey/15 text-honey-deep border-honey/30";
   }
 }
 
@@ -192,8 +192,10 @@ export default function DelegatedWork({
         <p className="mt-4 text-sm text-clay">…</p>
       ) : projects.length === 0 ? (
         <Reveal delay={80}>
-          <GlassCard className="mt-4 p-4">
-            <p className="text-sm leading-relaxed text-bark-soft">{STRINGS.noProjects[lang]}</p>
+          {/* Aceternity spotlight follows the pointer across the card. */}
+          <SpotlightCard className="mt-4 rounded-[1.4rem]">
+            <GlassCard className="p-4">
+              <p className="text-sm leading-relaxed text-bark-soft">{STRINGS.noProjects[lang]}</p>
             <button
               type="button"
               onClick={() =>
@@ -207,13 +209,16 @@ export default function DelegatedWork({
             >
               {STRINGS.delegateTo[lang]}
             </button>
-          </GlassCard>
+            </GlassCard>
+          </SpotlightCard>
         </Reveal>
       ) : (
         <div className="mt-4 space-y-4">
           {projects.map(({ project, tasks }, index) => (
             <Reveal key={project.id} delay={index * 60}>
-              <GlassCard className="p-4" strong>
+              {/* Aceternity spotlight follows the pointer across the card. */}
+              <SpotlightCard className="rounded-[1.4rem]">
+                <GlassCard className="p-4" strong>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="font-serif text-base font-semibold tracking-tight text-bark">{project.name}</h3>
@@ -304,6 +309,7 @@ export default function DelegatedWork({
                   </ul>
                 )}
               </GlassCard>
+              </SpotlightCard>
             </Reveal>
           ))}
         </div>
