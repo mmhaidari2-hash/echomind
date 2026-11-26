@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+from app.schemas.life import ObligationCreate, PromiseCreate
 from app.schemas.memory import MemoryFactCreate, MemorySource
 from app.schemas.notifications import WatchCreate
 from app.schemas.connectors import CalendarEventCreate, GmailSendRequest, GmailTrashRequest
+from app.services.life import add_obligation, add_promise
 from app.services.memory_engine import remember
 from app.services.notifications import add_watch
 from app.services.google_connector import create_calendar_event, send_gmail, trash_gmail_messages
 
-ALLOWED_TOOLS = {"memory.remember", "watch.create", "gmail.send", "gmail.trash", "calendar.event.create"}
+ALLOWED_TOOLS = {
+    "memory.remember",
+    "watch.create",
+    "gmail.send",
+    "gmail.trash",
+    "calendar.event.create",
+    "life.create_obligation",
+    "life.create_promise",
+}
 
 
 def execute_tool(user_id: str, tool: str, parameters: dict[str, object]) -> dict[str, object]:
@@ -42,5 +52,22 @@ def execute_tool(user_id: str, tool: str, parameters: dict[str, object]) -> dict
     if tool == "calendar.event.create":
         result = create_calendar_event(user_id, CalendarEventCreate.model_validate(parameters))
         return {"event_id": str(result.get("id", "")), "html_link": str(result.get("htmlLink", ""))}
+
+    if tool == "life.create_obligation":
+        item = add_obligation(user_id, ObligationCreate.model_validate(parameters))
+        return {
+            "obligation_id": item.id,
+            "title": item.title,
+            "status": item.status.value,
+            "due_date": item.due_date.isoformat() if item.due_date else None,
+        }
+
+    if tool == "life.create_promise":
+        item = add_promise(user_id, PromiseCreate.model_validate(parameters))
+        return {
+            "promise_id": item.id,
+            "counterparty": item.counterparty,
+            "status": item.status.value,
+        }
 
     raise ValueError("Tool is not allowlisted")

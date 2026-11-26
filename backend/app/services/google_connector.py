@@ -516,10 +516,16 @@ def upcoming_calendar(user_id: str, limit: int = 10) -> list[CalendarEventSummar
                 summary=str(item.get("summary", "")),
                 start=str(start.get("dateTime") or start.get("date") or ""),
                 end=str(end.get("dateTime") or end.get("date") or ""),
+                location=str(item.get("location", "") or ""),
                 html_link=str(item.get("htmlLink")) if item.get("htmlLink") else None,
             )
         )
     return rows
+
+
+def gmail_summary(user_id: str, message_id: str) -> GmailMessageSummary:
+    """Public wrapper for one message's metadata (Evidence Locker)."""
+    return _gmail_summary(user_id, message_id)
 
 
 def send_gmail(user_id: str, payload: GmailSendRequest) -> dict[str, object]:

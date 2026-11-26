@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import type { PillarId } from "@/services/api";
+import {
+  ApiError,
+  getVoiceReadiness,
+  speakText,
+  type PillarId,
+} from "@/services/api";
 
 const PILLAR_TONE: Record<PillarId, string> = {
   delay_repay: "border-sky-500/25 bg-sky-400/10 text-sky-200",
@@ -34,6 +39,8 @@ export default function AssistantReply({
   onAction,
 }: AssistantReplyProps) {
   const [speaking, setSpeaking] = useState(false);
+  const [cloudVoice, setCloudVoice] = useState<boolean | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
 
   useEffect(() => {
@@ -41,26 +48,81 @@ export default function AssistantReply({
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, []);
 
-  const toggleSpeech = () => {
-    if (!canSpeak) return;
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
+  // A cloud voice (Gemini-TTS, fa-IR preview) is used when one is
+  // configured; otherwise the device voice is the fallback. The check
+  // runs once and is cached — a 503 from /voice/speak also falls back.
+  const hasCloudVoice = async (): Promise<boolean> => {
+    if (cloudVoice !== null) return cloudVoice;
+    try {
+      const readiness = await getVoiceReadiness();
+      const selected = readiness.selected !== "browser";
+      setCloudVoice(selected);
+      return selected;
+    } catch {
+      setCloudVoice(false);
+      return false;
     }
+  };
+
+  const speakWithDevice = (text: string) => {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(
-      [message, ...steps].filter(Boolean).join(". "),
-    );
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = locale === "fa" ? "fa-IR" : "en-GB";
     utterance.rate = 1;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
     window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleSpeech = async () => {
+    if (speaking) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (canSpeak) window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const text = [message, ...steps].filter(Boolean).join(". ");
+    if (!text.trim()) return;
+    if (await hasCloudVoice()) {
+      try {
+        const blob = await speakText(text, locale);
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+        };
+        audio.onerror = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+          if (canSpeak) speakWithDevice(text);
+        };
+        setSpeaking(true);
+        await audio.play();
+        return;
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 503) {
+          setCloudVoice(false);
+        }
+        // Fall through to the device voice.
+      }
+    }
+    if (!canSpeak) return;
+    speakWithDevice(text);
   };
 
   if (pending) {

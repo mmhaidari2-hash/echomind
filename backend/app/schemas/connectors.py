@@ -34,6 +34,7 @@ class CalendarEventSummary(BaseModel):
     summary: str = ""
     start: str = ""
     end: str = ""
+    location: str = ""
     html_link: str | None = None
 
 

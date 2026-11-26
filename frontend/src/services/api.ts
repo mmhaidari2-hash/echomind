@@ -1242,3 +1242,435 @@ export async function getPendingOutcomes(): Promise<OutcomeItem[]> {
     timeoutMs: CHAT_TIMEOUT_MS,
   });
 }
+
+export type DetectionProposal = {
+  id: string;
+  kind: "delay_repay" | "payment_due" | "refund_promised" | "renewal";
+  target: "obligation" | "promise";
+  title: string;
+  due_date?: string | null;
+  due_date_estimated: boolean;
+  counterparty?: string | null;
+  promise_text?: string | null;
+  reason: string;
+  confidence: "high" | "medium";
+  evidence_message_id: string;
+  evidence_subject: string;
+  evidence_sender: string;
+  status: "new" | "already_recorded" | "dismissed";
+  claim_url?: string | null;
+  notes?: string | null;
+};
+
+export type DetectionScanResult = {
+  scanned: number;
+  proposals: DetectionProposal[];
+  scanned_at: string;
+};
+
+export async function scanInboxForDeadlines(limit = 20): Promise<DetectionScanResult> {
+  return api<DetectionScanResult>(`/life/detect?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function dismissDetectionProposal(
+  proposalId: string,
+): Promise<{ dismissed: boolean }> {
+  return api<{ dismissed: boolean }>(
+    `/life/detect/${encodeURIComponent(proposalId)}/dismiss`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+/* ---- World-best ten: new clients (Promise Chaser, Verifier, Claim Pack,
+   Case File, Renewal Guard, Travel/Calendar Guard, Morning Brief, Evidence) ---- */
+
+export type FollowupStep = {
+  id: string;
+  step: "check" | "verify" | "chase" | "escalate";
+  due_date?: string | null;
+  label: string;
+  detail: string;
+  state: "upcoming" | "due" | "overdue";
+};
+
+export type FollowupDraftResponse = {
+  promise_id: string;
+  step: FollowupStep["step"];
+  draft: { to: string; subject: string; body: string; to_missing: boolean };
+  authority_proposal: {
+    tool: string;
+    summary: string;
+    parameters: Record<string, unknown>;
+    evidence_ids?: string[];
+    idempotency_key?: string;
+  };
+};
+
+export async function getPromiseFollowups(promiseId: string): Promise<FollowupStep[]> {
+  return api<FollowupStep[]>(`/life/promises/${encodeURIComponent(promiseId)}/followups`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function draftPromiseFollowup(
+  promiseId: string,
+  step: FollowupStep["step"],
+  payload: { to?: string | null; locale: "en" | "fa" },
+): Promise<FollowupDraftResponse> {
+  return api<FollowupDraftResponse>(
+    `/life/promises/${encodeURIComponent(promiseId)}/followups/${encodeURIComponent(step)}/draft`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export type VerificationResult = {
+  source_id: string;
+  kind: string;
+  status: "verified" | "awaiting" | "failed";
+  evidence_message_id?: string | null;
+  matched_text?: string | null;
+  checked_at: string;
+  detail: string;
+};
+
+export async function verifyOutcome(
+  kind: "obligation" | "promise",
+  sourceId: string,
+): Promise<VerificationResult> {
+  return api<VerificationResult>("/outcomes/verify", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify({ kind, source_id: sourceId }),
+  });
+}
+
+export async function getStoredVerification(sourceId: string): Promise<VerificationResult> {
+  return api<VerificationResult>(`/outcomes/${encodeURIComponent(sourceId)}/verification`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type ClaimPack = {
+  eligible: boolean;
+  tier: string;
+  tier_label: string;
+  delay_minutes: number;
+  percent: number;
+  estimate_gbp: string;
+  currency: string;
+  guideline: string;
+  claim_deadline_days: number;
+  operator_id: string;
+  operator_name: string;
+  claim_url?: string | null;
+  claim_draft: string;
+  next_steps: string[];
+  filing_deadline?: string | null;
+  filing_deadline_estimated: boolean;
+  evidence_checklist: string[];
+  filing_obligation: Record<string, unknown>;
+};
+
+export async function getClaimPack(payload: Record<string, unknown>): Promise<ClaimPack> {
+  return api<ClaimPack>("/delay-repay/pack", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export type CaseFile = {
+  case_node: { id: string; kind: string; label: string };
+  pathway: string;
+  pathway_label: string;
+  recommended_remedy: string;
+  notice_draft: string;
+  deadlines: Array<{ label: string; date: string; kind: string }>;
+  obligations: LifeObligation[];
+  statute_refs: string[];
+  next_steps: string[];
+};
+
+export async function createCaseFile(payload: Record<string, unknown>): Promise<CaseFile> {
+  return api<CaseFile>("/consumer-rights/cases", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export type RenewalItem = {
+  obligation_id: string;
+  title: string;
+  renewal_date?: string | null;
+  decision_deadline?: string | null;
+  annual_cost_gbp?: number | null;
+  currency: string;
+  status: string;
+  actions: Record<string, string>;
+  calendar_blocker: Record<string, unknown>;
+};
+
+export async function getRenewals(): Promise<{
+  renewals: RenewalItem[];
+  total_annual_cost_gbp: number;
+}> {
+  return api<{ renewals: RenewalItem[]; total_annual_cost_gbp: number }>("/life/renewals", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type TripCheck = {
+  event_id: string;
+  summary: string;
+  start: string;
+  status: "confirmed" | "missing_booking" | "disruption";
+  evidence_message_id?: string | null;
+  detail: string;
+};
+
+export async function getTravelGuard(): Promise<{ trips: TripCheck[]; checked_events: number }> {
+  return api<{ trips: TripCheck[]; checked_events: number }>("/travel/guard", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type CalendarConflict = {
+  type: "overlap" | "travel_risk";
+  event_ids: string[];
+  titles: string[];
+  detail: string;
+};
+
+export async function getCalendarGuard(): Promise<{
+  conflicts: CalendarConflict[];
+  checked_events: number;
+}> {
+  return api<{ conflicts: CalendarConflict[]; checked_events: number }>("/calendar/guard", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type BriefItem = {
+  priority: number;
+  kind: string;
+  title: string;
+  reason: string;
+  due_date?: string | null;
+};
+
+export type MorningBrief = {
+  date: string;
+  locale: string;
+  items: BriefItem[];
+  counts: Record<string, number>;
+};
+
+export async function getMorningBrief(locale: "en" | "fa"): Promise<MorningBrief> {
+  return api<MorningBrief>(`/brief/today?locale=${locale}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type EvidencePack = {
+  generated_at: string;
+  items: Array<{
+    kind: string;
+    id: string;
+    title: string;
+    counterparty: string;
+    due_date?: string | null;
+    status: string;
+    completeness: number;
+    evidence: Array<{ message_id: string; subject: string; sender: string; date: string; available: boolean }>;
+  }>;
+  total: number;
+  complete: number;
+};
+
+export async function getEvidencePack(): Promise<EvidencePack> {
+  return api<EvidencePack>("/life/evidence-pack", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+/* ---- Persian understanding + voice + project delegation ---- */
+
+export type IntentResult = {
+  intent: string;
+  confidence: "high" | "medium" | "low";
+  language: "fa" | "en";
+  entities: Record<string, unknown>;
+  action: Record<string, unknown>;
+  due_date?: string | null;
+};
+
+export async function understandMessage(
+  text: string,
+  locale: "en" | "fa",
+): Promise<IntentResult> {
+  return api<IntentResult>("/chat/understand", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify({ text, locale }),
+  });
+}
+
+export type VoiceProvider = {
+  id: string;
+  configured: boolean;
+  implemented: boolean;
+  note: string;
+};
+
+export type VoiceReadiness = {
+  providers: VoiceProvider[];
+  selected: string;
+};
+
+export async function getVoiceReadiness(): Promise<VoiceReadiness> {
+  return api<VoiceReadiness>("/voice/readiness", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+async function requestBlob(base: string, path: string, body: string): Promise<Blob> {
+  const secureHeaders = await authorizationHeaders();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${base}${path}`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...secureHeaders },
+      body,
+    });
+    if (!response.ok) {
+      throw new ApiError(`Voice unavailable (${response.status})`, { status: response.status, code: "voice_unavailable" });
+    }
+    return await response.blob();
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("Could not reach EchoMind", { code: "network_error" });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function speakText(text: string, locale: "en" | "fa"): Promise<Blob> {
+  return withBase((base) => requestBlob(base, "/voice/speak", JSON.stringify({ text, locale })));
+}
+
+export type Project = {
+  id: string;
+  name: string;
+  kind: string;
+  identity?: string | null;
+  repo?: string | null;
+  branch?: string | null;
+  allowed_tools: string[];
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DelegatedTask = {
+  id: string;
+  project_id: string;
+  instruction: string;
+  language: string;
+  status: string;
+  plan: Array<{ tool: string; summary: string; status: string; evidence?: string | null }>;
+  result?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listProjects(): Promise<Project[]> {
+  return api<Project[]>("/projects", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function createProject(payload: {
+  name: string;
+  kind?: string;
+  identity?: string | null;
+  repo?: string | null;
+  branch?: string | null;
+  allowed_tools?: string[];
+  notes?: string | null;
+}): Promise<Project> {
+  return api<Project>("/projects", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createProjectTask(
+  projectId: string,
+  payload: { instruction: string; language: "en" | "fa"; idempotency_key?: string },
+): Promise<DelegatedTask> {
+  return api<DelegatedTask>(`/projects/${encodeURIComponent(projectId)}/tasks`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getProjectTask(taskId: string): Promise<DelegatedTask> {
+  return api<DelegatedTask>(`/projects/tasks/${encodeURIComponent(taskId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function confirmProjectTask(taskId: string): Promise<{ task: DelegatedTask; executed: boolean }> {
+  return api<{ task: DelegatedTask; executed: boolean }>(
+    `/projects/tasks/${encodeURIComponent(taskId)}/confirm`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}

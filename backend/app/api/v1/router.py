@@ -2,19 +2,32 @@ from fastapi import APIRouter
 
 from app.api.endpoints import (
     authority,
+    brief,
+    calendar_guard,
+    case_file,
     chat,
+    claim_pack,
     conversations,
     connectors,
     consumer_rights,
     delay_repay,
+    detection,
     documents,
+    evidence,
+    followup,
     health,
     life,
     memory,
     notifications,
     outcomes,
     overdraft_shield,
+    persian,
+    projects,
+    renewals,
     travel,
+    travel_guard,
+    verification,
+    voice,
 )
 
 api_router = APIRouter()
@@ -25,6 +38,7 @@ api_router.include_router(chat.router)
 api_router.include_router(conversations.router)
 api_router.include_router(connectors.router)
 api_router.include_router(delay_repay.router)
+api_router.include_router(detection.router)
 api_router.include_router(consumer_rights.router)
 api_router.include_router(overdraft_shield.router)
 api_router.include_router(documents.router)
@@ -32,3 +46,15 @@ api_router.include_router(notifications.router)
 api_router.include_router(outcomes.router)
 api_router.include_router(memory.router)
 api_router.include_router(travel.router)
+api_router.include_router(brief.router)
+api_router.include_router(calendar_guard.router)
+api_router.include_router(case_file.router)
+api_router.include_router(claim_pack.router)
+api_router.include_router(evidence.router)
+api_router.include_router(followup.router)
+api_router.include_router(persian.router)
+api_router.include_router(projects.router)
+api_router.include_router(renewals.router)
+api_router.include_router(travel_guard.router)
+api_router.include_router(verification.router)
+api_router.include_router(voice.router)

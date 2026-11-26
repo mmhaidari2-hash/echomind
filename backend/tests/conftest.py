@@ -9,12 +9,14 @@ from app.rate_limit import reset_rate_limits
 
 @pytest.fixture(autouse=True)
 def isolated_stores(tmp_path: Path):
-    from app.services import authority, google_connector, life, memory_engine, notifications
+    from app.services import authority, delegation, google_connector, life, memory_engine, notifications, projects
 
     memory_engine.use_store_path(tmp_path / "memory.json")
     authority.use_store_path(tmp_path / "authority.json")
     life.use_store_path(tmp_path / "life.json")
     google_connector.use_store_path(tmp_path / "connectors.json")
+    projects.use_store_path(tmp_path / "projects.json")
+    delegation.use_store_path(tmp_path / "delegation.json")
     notifications.reset_store()
     reset_rate_limits()
     app.dependency_overrides[require_user] = lambda: "test-user"
