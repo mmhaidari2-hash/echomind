@@ -6,11 +6,14 @@
  * A product landing page in the SAME frontend as the mobile app (not a
  * new top-level app): it presents what EchoMind is, its six
  * differentiators and how the Outcome Loop works, and links into the
- * real app at `/`. Warm editorial design in the SparkFlow spirit:
- * cream, dark brown, honey, Fraunces serif display type, big amber
- * serif numerals, rounded cards, a waterfall feed. Real components:
- * shadcn/ui Button + Card, framer-motion (MotionReveal) for the
- * entrance and stagger — no hand-rolled imitations.
+ * real app at `/`. The blend: warm editorial base (cream, dark brown,
+ * honey, Fraunces serif) + Linear's precision (hairline cards, mono
+ * numerals, tabular numbers) + Vercel/Arc-style bold typography
+ * (tight-tracked display type, one accent used sparingly, mono
+ * technical labels) + EchoMind's own thread (the orb, the Outcome
+ * Loop as a precise instrument). Real components: shadcn/ui Button +
+ * Card, framer-motion (MotionReveal) for the entrance and stagger —
+ * no hand-rolled imitations.
  *
  * Bilingual EN/FA: one inline dictionary, a locale toggle in the
  * header, persisted under `echomind.locale`. Persian sets lang/dir on
@@ -331,7 +334,9 @@ export default function SitePage() {
           </MotionReveal>
           <MotionReveal delay={90}>
             <p className="spark-eyebrow mt-6">{t.heroEyebrow}</p>
-            <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight text-bark sm:text-5xl">
+            {/* Vercel-style display type: bigger, tighter tracking,
+                one accent used boldly — the serif stays, the slack goes. */}
+            <h1 className="mt-2 font-serif text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-bark sm:text-[3.4rem]">
               {t.heroTitleStart}
               <span className="echomind-gradient-text font-serif italic">{t.heroTitleAccent}</span>
               {t.heroTitleEnd}
@@ -361,13 +366,17 @@ export default function SitePage() {
           <Waterfall className="mt-5">
             {t.differentiators.map((item, index) => (
               <MotionReveal key={item.title} delay={(index % 3) * 90}>
-                <Card className="echomind-tilt">
+                {/* Linear precision: flat hairline card, mono numeral,
+                    dense 13px body — no big shadow, no decoration. */}
+                <Card className="echomind-tilt shadow-none">
                   <CardHeader>
-                    <p className="spark-num">{String(index + 1).padStart(2, "0")}</p>
+                    <p className="echomind-num-mono text-xl text-honey-deep">
+                      {String(index + 1).padStart(2, "0")}
+                    </p>
                     <CardTitle className="mt-1 font-serif">{item.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CardDescription className="text-sm leading-relaxed text-clay">
+                    <CardDescription className="text-[13px] leading-5 text-clay">
                       {item.body}
                     </CardDescription>
                   </CardContent>
@@ -383,13 +392,17 @@ export default function SitePage() {
             <SectionHeading eyebrow={t.loopEyebrow} title={t.loopTitle} subtitle={t.loopSubtitle} />
           </MotionReveal>
           <MotionReveal delay={90}>
-            <GlassCard strong className="mt-5 p-4 sm:p-5">
-              <ol className="flex flex-col gap-4 sm:flex-row sm:gap-3">
+            <GlassCard strong dense className="mt-5 p-4 sm:p-5">
+              {/* The Loop as one precise instrument: a hairline track
+                  with mono step markers, not five separate cards. */}
+              <ol className="echomind-loop-track flex flex-col gap-4 pt-5 sm:flex-row sm:gap-3 sm:pt-6">
                 {t.loopSteps.map((step, index) => (
-                  <li key={step.title} className="flex-1 text-start">
+                  <li key={step.title} className="relative flex-1 text-start">
                     <p className="flex items-baseline gap-2">
-                      <span className="spark-num text-2xl">{index + 1}</span>
-                      <span className="font-serif text-sm font-semibold text-bark">{step.title}</span>
+                      <span className="echomind-num-mono bg-cream-card px-1 text-lg text-honey-deep">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="font-serif text-sm font-semibold tracking-tight text-bark">{step.title}</span>
                     </p>
                     <p className="mt-1.5 text-xs leading-relaxed text-clay sm:ps-9">{step.body}</p>
                     {index < t.loopSteps.length - 1 ? (
@@ -419,15 +432,15 @@ export default function SitePage() {
           <Waterfall className="mt-5">
             {t.outcomes.map((item, index) => (
               <MotionReveal key={item.title} delay={(index % 3) * 90}>
-                <Card className="echomind-tilt">
+                <Card className="echomind-tilt shadow-none">
                   <CardHeader>
-                    <p className="inline-block self-start rounded-full bg-honey/10 px-2.5 py-1 text-[11px] font-semibold text-honey-deep">
+                    <p className="inline-block self-start rounded-full bg-honey/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-honey-deep">
                       {item.tag}
                     </p>
                     <CardTitle className="mt-2 font-serif">{item.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CardDescription className="text-sm leading-relaxed text-clay">
+                    <CardDescription className="text-[13px] leading-5 text-clay">
                       {item.body}
                     </CardDescription>
                   </CardContent>
@@ -451,7 +464,7 @@ export default function SitePage() {
               </div>
             </GlassCard>
           </MotionReveal>
-          <p className="mt-6 text-center font-serif text-[11px] text-clay">EchoMind — UK-first personal AI assistant</p>
+          <p className="mt-6 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-clay">EchoMind — UK-first personal AI assistant</p>
         </footer>
       </div>
     </div>

@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * Shared glass/3D components — one design system for the mobile app and
- * the website. Warm editorial language (cream, dark brown, honey,
- * Fraunces serif). Copy-paste components in the shadcn-ui spirit:
+ * Shared components — EchoMind's own design system. The blend:
+ * warm editorial base (cream, dark brown, honey, Fraunces serif) +
+ * Linear's precision (hairlines, tabular numbers, tight motion) +
+ * Raycast's speed (dense command rows, kbd hints) + Vercel/Arc-style
+ * bold typography (one accent, mono technical labels, tight-tracked
+ * display type). Copy-paste components in the shadcn-ui spirit:
  * small, owned by the repo — the real shadcn components live in
  * ./ui/ (Button, Card). Motion is real framer-motion
  * (MotionReveal), not CSS imitations. All of them are dir-neutral:
@@ -19,21 +22,100 @@ export function GlassCard({
   className = "",
   strong = false,
   tilt = false,
+  dense = false,
 }: {
   children: ReactNode;
   className?: string;
   strong?: boolean;
   tilt?: boolean;
+  /** Dense (Linear-style): smaller radius, hairline border, quiet shadow. */
+  dense?: boolean;
 }) {
   const classes = [
     strong ? "echomind-glass-strong" : "echomind-glass",
-    "rounded-[1.4rem]",
+    dense ? "rounded-2xl" : "rounded-[1.4rem]",
     tilt ? "echomind-tilt" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
   return <div className={classes}>{children}</div>;
+}
+
+/** Raycast kbd chip — the keyboard-first hint (⌘K, ↵, P, C, F). */
+export function Kbd({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <kbd className={`echomind-kbd ${className}`}>{children}</kbd>;
+}
+
+/** Precise status dot + mono label (Linear-style object status). */
+export function StatusDot({
+  tone,
+  label,
+  className = "",
+}: {
+  tone: "ok" | "warn" | "idle";
+  label: string;
+  className?: string;
+}) {
+  const dot =
+    tone === "ok"
+      ? "bg-emerald-600"
+      : tone === "warn"
+        ? "bg-honey"
+        : "bg-bark/30";
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+      <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+      {/* Plain semibold label (not mono): the label is a localised
+          sentence in Persian too, and mono tracking would disconnect
+          joined letters. Mono stays on Latin technical readouts. */}
+      <span className="text-[11px] font-semibold text-clay">{label}</span>
+    </span>
+  );
+}
+
+/** Raycast-style dense command row — icon tile, title + one-line meta,
+    trailing kbd or chevron, hairline divider. The fast surface: one
+    row, one job, one keypress. */
+export function CommandRow({
+  icon,
+  title,
+  meta,
+  trailing,
+  selected = false,
+  onClick,
+  ariaLabel,
+}: {
+  icon: ReactNode;
+  title: ReactNode;
+  meta?: ReactNode;
+  trailing?: ReactNode;
+  selected?: boolean;
+  onClick?: () => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={selected || undefined}
+      aria-label={ariaLabel}
+      className="echomind-row"
+    >
+      <span className="echomind-rail-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl [&_svg]:h-5 [&_svg]:w-5">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold leading-5 tracking-tight text-bark">
+          {title}
+        </span>
+        {meta ? (
+          <span className="mt-0.5 block truncate text-[13px] leading-4 text-clay">{meta}</span>
+        ) : null}
+      </span>
+      {trailing ? <span className="flex shrink-0 items-center gap-1.5">{trailing}</span> : null}
+    </button>
+  );
 }
 
 export function Orb3D({ size = 180, className = "" }: { size?: number; className?: string }) {
@@ -87,9 +169,10 @@ export function Reveal({
 }
 
 /** Reveal on scroll: real framer-motion entrance (fade + rise, with a
-    stagger delay). Falls back to no animation when the user prefers
-    reduced motion. Replaces the old CSS-only Reveal for the surfaces
-    that need to feel alive — the waterfall cards and the hub. */
+    stagger delay). Linear-quick: 0.5s, 14px — precise, never floaty.
+    Falls back to no animation when the user prefers reduced motion.
+    Replaces the old CSS-only Reveal for the surfaces that need to
+    feel alive — the waterfall cards and the hub. */
 export function MotionReveal({
   children,
   className = "",
@@ -104,11 +187,11 @@ export function MotionReveal({
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 22 }}
+      initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{
-        duration: 0.65,
+        duration: 0.5,
         delay: delay / 1000,
         ease: [0.22, 1, 0.36, 1],
       }}
@@ -134,9 +217,11 @@ export function SectionHeading({
 }) {
   return (
     <div>
-      <p className="spark-eyebrow">{eyebrow}</p>
-      <h2 className="mt-1 font-serif text-2xl font-semibold leading-tight text-bark sm:text-3xl">{title}</h2>
-      {subtitle ? <p className="mt-1 text-sm leading-relaxed text-clay">{subtitle}</p> : null}
+      {/* Mono eyebrow (Vercel-style technical label) + tight-tracked
+          serif title (Arc-style hierarchy): one accent, no decoration. */}
+      <p className="echomind-meta text-honey-deep">{eyebrow}</p>
+      <h2 className="mt-1.5 font-serif text-2xl font-semibold leading-[1.1] tracking-tight text-bark sm:text-3xl">{title}</h2>
+      {subtitle ? <p className="mt-2 max-w-xl text-sm leading-relaxed text-clay">{subtitle}</p> : null}
     </div>
   );
 }

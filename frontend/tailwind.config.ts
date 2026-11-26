@@ -1,12 +1,16 @@
 import type { Config } from "tailwindcss";
 
 /**
- * EchoMind warm palette — the SparkFlow language Mahdi chose:
+ * EchoMind palette — warm base (SparkFlow language Mahdi chose:
  * warm cream canvas, dark brown ink, amber/honey accents, elegant
- * serif display type (Fraunces). The old dark-navy tokens are
- * re-pointed at warm equivalents so existing class names keep
- * working: canvas is now cream, navy is a warm sand card, metal is
- * warm clay, carbon is deep brown.
+ * serif display type Fraunces), blended with Linear's precision,
+ * Raycast's speed and Vercel/Arc-style bold typography so the result
+ * is EchoMind's own, not a copy of any one source. The old dark-navy
+ * tokens are re-pointed at warm equivalents so existing class names
+ * keep working: canvas is now cream, navy is a warm sand card, metal
+ * is warm clay, carbon is deep brown. `font-mono` is JetBrains Mono
+ * (Vercel's mono) for technical labels, counts and refs — tabular,
+ * precise, never decorative.
  */
 const config: Config = {
   content: [
@@ -53,6 +57,13 @@ const config: Config = {
           "serif",
         ],
         fa: ["var(--font-vazirmatn)", "Tahoma", "sans-serif"],
+        mono: [
+          "var(--font-jetbrains-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "monospace",
+        ],
       },
       boxShadow: {
         lift: "0 18px 40px -20px rgba(43, 29, 18, 0.35)",

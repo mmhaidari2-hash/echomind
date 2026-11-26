@@ -3,7 +3,7 @@
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import type { ContextWorkflow } from "./ActiveContextBar";
-import { Reveal, Waterfall } from "./Glass";
+import { CommandRow, GlassCard, Kbd, MotionReveal } from "./Glass";
 
 type ActionRailProps = {
   locale: Locale;
@@ -15,7 +15,7 @@ type ActionRailProps = {
   onTravel: () => void;
 };
 
-function RailIcon({ name }: { name: "delay" | "shield" | "scan" | "travel" }) {
+function RailIcon({ name }: { name: "delay" | "shield" | "scan" | "travel" | "rights" }) {
   const common = "h-6 w-6";
   if (name === "delay") {
     return (
@@ -54,6 +54,25 @@ function RailIcon({ name }: { name: "delay" | "shield" | "scan" | "travel" }) {
           d="M12 3.8 19 6.5v5.2c0 4.3-2.9 7.4-7 8.5-4.1-1.1-7-4.2-7-8.5V6.5L12 3.8Z"
           stroke="currentColor"
           strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  if (name === "rights") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className={common} aria-hidden>
+        <path
+          d="M7 3.5h7l4 4v13H7V3.5Z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <path
+          d="m10 13 2 2 3.5-4"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
           strokeLinejoin="round"
         />
       </svg>
@@ -111,45 +130,37 @@ export default function ActionRail({
       icon: "scan" as const,
       onClick: onScan,
     },
+    {
+      id: "consumer_rights" as const,
+      title: t.actionRights,
+      hint: t.actionHintRights,
+      icon: "rights" as const,
+      onClick: onRights,
+    },
   ];
 
+  /* Dense command list (Raycast) instead of four big cards: one
+     glass slab, hairline rows, one job per row, ↵ to run it. The
+     waterfall stays on the website sections; the rail is the fast
+     surface, so it is dense. All five actions, all strings kept. */
   return (
     <section aria-label={t.subtitle} className="grid gap-3">
-      <Waterfall>
-        {actions.map((action, index) => {
-          const selected = active === action.id;
-          return (
-            <Reveal key={action.id} delay={index * 70}>
-              <button
-                type="button"
-                className={`flex min-h-[5.75rem] w-full flex-col items-start gap-3 rounded-[1.4rem] px-4 py-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60 ${
-                  selected
-                    ? "echomind-glass-strong echomind-tilt text-honey-deep"
-                    : "echomind-glass echomind-tilt text-bark hover:border-honey/50"
-                }`}
-                onClick={action.onClick}
-              >
-                <span className="echomind-rail-icon flex h-11 w-11 items-center justify-center rounded-2xl">
-                  <RailIcon name={action.icon} />
-                </span>
-                <span>
-                  <span className="block font-serif text-lg font-semibold tracking-tight">{action.title}</span>
-                  <span className="mt-1 block text-sm leading-5 text-clay">{action.hint}</span>
-                </span>
-              </button>
-            </Reveal>
-          );
-        })}
-      </Waterfall>
-      <button
-        type="button"
-        className={`echomind-chip-glass min-h-11 justify-self-start rounded-full px-4 py-2 text-sm font-medium transition ${
-          active === "consumer_rights" ? "text-honey-deep" : "text-bark-soft hover:text-honey-deep"
-        }`}
-        onClick={onRights}
-      >
-        {t.actionRights}
-      </button>
+      <MotionReveal>
+        <GlassCard dense className="echomind-command-list px-3 py-1">
+          {actions.map((action) => (
+            <CommandRow
+              key={action.id}
+              icon={<RailIcon name={action.icon} />}
+              title={action.title}
+              meta={action.hint}
+              selected={active === action.id}
+              onClick={action.onClick}
+              ariaLabel={action.title}
+              trailing={<Kbd>↵</Kbd>}
+            />
+          ))}
+        </GlassCard>
+      </MotionReveal>
     </section>
   );
 }

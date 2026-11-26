@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter, Vazirmatn } from "next/font/google";
+import { Fraunces, JetBrains_Mono, Inter, Vazirmatn } from "next/font/google";
 
 import ClerkRoot from "./components/ClerkRoot";
 import InstallPrompt from "./components/InstallPrompt";
@@ -22,6 +22,16 @@ const fraunces = Fraunces({
   display: "swap",
   axes: ["opsz", "SOFT", "WONK"],
   style: ["normal", "italic"],
+});
+
+/** JetBrains Mono — the mono face for technical labels, counts and
+    refs (developer-grade precision: tabular numbers, never
+    decorative). Next 14 has no Geist export, so JetBrains Mono is
+    the real top-tier mono available here. */
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 const vazirmatn = Vazirmatn({
@@ -60,7 +70,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${fraunces.variable} ${vazirmatn.variable}`}
+      className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${vazirmatn.variable}`}
     >
       <body className="bg-canvas font-sans antialiased">
         <ClerkRoot>

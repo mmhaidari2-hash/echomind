@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { copy } from "../lib/copy";
-import { GlassIconButton } from "./Glass";
+import { GlassIconButton, Kbd } from "./Glass";
 import { getPhotoService } from "../../services/photos";
 import {
   detectTextDirection,
@@ -257,6 +257,19 @@ export default function ChatInput({
     resizeField();
   }, [value, resizeField]);
 
+  /** Raycast-style command bar: ⌘K focuses the composer from anywhere
+      in the app (the chip next to the mic does the same on tap). */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        textareaRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   useEffect(() => {
     if (!attachOpen) return;
     const onPointer = (event: PointerEvent) => {
@@ -453,6 +466,7 @@ export default function ChatInput({
                 >
                   <IconPhoto className="h-4 w-4 text-honey-deep" />
                   {t.photoLibrary}
+                  <Kbd className="ms-auto">P</Kbd>
                 </button>
                 <button
                   type="button"
@@ -462,6 +476,7 @@ export default function ChatInput({
                 >
                   <IconCamera className="h-4 w-4 text-honey-deep" />
                   {t.takePhoto}
+                  <Kbd className="ms-auto">C</Kbd>
                 </button>
                 <button
                   type="button"
@@ -471,6 +486,7 @@ export default function ChatInput({
                 >
                   <IconPaperclip className="h-4 w-4 text-honey-deep" />
                   {t.files}
+                  <Kbd className="ms-auto">F</Kbd>
                 </button>
               </div>
             ) : null}
@@ -536,6 +552,16 @@ export default function ChatInput({
             ) : null}
             <IconMic className={`relative h-5 w-5 ${listening ? "echomind-pulse" : ""}`} />
           </GlassIconButton>
+
+          {/* ⌘K — focus the composer, Raycast-style. */}
+          <button
+            type="button"
+            className="hidden shrink-0 items-center gap-1 rounded-full px-1 py-1 text-clay hover:text-bark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60 sm:flex"
+            aria-label="Focus the composer (Ctrl+K)"
+            onClick={() => textareaRef.current?.focus()}
+          >
+            <Kbd>⌘K</Kbd>
+          </button>
 
           <button
             type="button"

@@ -25,7 +25,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { GlassCard, MotionReveal, Orb3D, Reveal } from "./Glass";
+import { GlassCard, Kbd, MotionReveal, Orb3D, Reveal, StatusDot } from "./Glass";
 import { Button } from "./ui/button";
 import {
   HUB_APPS,
@@ -137,6 +137,7 @@ export default function HomeHub({ lang }: { lang: Lang }) {
 
   const connectedCount = HUB_APPS.filter((app) => states[app.id] === "connected").length;
   const selected = HUB_APPS.find((app) => app.id === selectedId) ?? HUB_APPS[0];
+  const selectedIndex = HUB_APPS.findIndex((app) => app.id === selected.id);
   const selectedState = states[selected.id];
 
   const handleConnect = async (app: HubApp) => {
@@ -169,9 +170,15 @@ export default function HomeHub({ lang }: { lang: Lang }) {
       <Reveal>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-serif text-2xl font-semibold leading-tight text-bark">{STRINGS.title[lang]}</h2>
+            <h2 className="font-serif text-2xl font-semibold leading-[1.1] tracking-tight text-bark">{STRINGS.title[lang]}</h2>
             <p className="mt-1 max-w-md text-sm leading-relaxed text-clay">
               {STRINGS.subtitle[lang]}
+            </p>
+            {/* Technical readout (Linear-style): Latin mono in both
+                locales, like a device readout — counts, not prose. */}
+            <p className="echomind-meta mt-2 text-clay" aria-hidden="true">
+              {String(HUB_APPS.length).padStart(2, "0")} APPS ·{" "}
+              {String(connectedCount).padStart(2, "0")} CONNECTED · ORBIT 01
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -203,6 +210,25 @@ export default function HomeHub({ lang }: { lang: Lang }) {
             viewBox="0 0 100 100"
             className="absolute inset-0 h-full w-full"
           >
+            {/* Precision tick ring (Linear-style instrument dial): 24
+                ticks around the orbit, so the hub reads as an
+                instrument, not a decoration. */}
+            {Array.from({ length: 24 }, (_, i) => {
+              const a = (i * 15 * Math.PI) / 180;
+              const r1 = ORBIT_RADIUS + 2.5;
+              const r2 = ORBIT_RADIUS + (i % 6 === 0 ? 4.5 : 3.5);
+              return (
+                <line
+                  key={i}
+                  x1={50 + r1 * Math.cos(a)}
+                  y1={50 + r1 * Math.sin(a)}
+                  x2={50 + r2 * Math.cos(a)}
+                  y2={50 + r2 * Math.sin(a)}
+                  stroke="rgba(122, 90, 48, 0.4)"
+                  strokeWidth="0.4"
+                />
+              );
+            })}
             <circle
               cx="50"
               cy="50"
@@ -263,7 +289,7 @@ export default function HomeHub({ lang }: { lang: Lang }) {
                 style={{ left: `${x}%`, top: `${y}%` }}
               >
                 <span className="text-base font-bold leading-none text-bark">{app.glyph}</span>
-                <span className="mt-0.5 max-w-[52px] truncate text-[9px] font-medium leading-none text-clay">
+                <span className="mt-0.5 max-w-[52px] truncate font-mono text-[9px] font-semibold uppercase leading-none tracking-wider text-clay">
                   {app.label[lang]}
                 </span>
                 {state === "connected" ? (
@@ -287,18 +313,35 @@ export default function HomeHub({ lang }: { lang: Lang }) {
         </div>
       </MotionReveal>
 
-      {/* "So what?" — the selected app, and its connect action. */}
+      {/* "So what?" — the selected app, and its connect action.
+          Dense command-row layout (Raycast): object id + status dot
+          on top, one-line powers, one action. */}
       <MotionReveal delay={140}>
-        <GlassCard className="mt-4 p-4" strong>
+        <GlassCard className="mt-4 p-4" strong dense>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-serif text-base font-semibold text-bark">{selected.label[lang]}</h3>
+            <div className="flex items-center gap-2">
+              <span className="echomind-num-mono text-xs text-honey-deep">
+                APP {String(selectedIndex + 1).padStart(2, "0")}
+              </span>
+              <StatusDot
+                tone={
+                  selectedState === "connected"
+                    ? "ok"
+                    : selectedState === "needs_setup"
+                      ? "warn"
+                      : "idle"
+                }
+                label={stateLabel(selectedState, lang)}
+              />
+            </div>
             <span
-              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${stateTone(selectedState)}`}
+              className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider ${stateTone(selectedState)}`}
             >
               {stateLabel(selectedState, lang)}
             </span>
           </div>
-          <p className="spark-eyebrow mt-2">
+          <h3 className="mt-2 font-serif text-base font-semibold tracking-tight text-bark">{selected.label[lang]}</h3>
+          <p className="echomind-meta mt-2 text-honey-deep">
             {STRINGS.whatItPowers[lang]}
           </p>
           <p className="mt-1 text-sm leading-relaxed text-bark-soft">{selected.powers[lang]}</p>
@@ -313,13 +356,14 @@ export default function HomeHub({ lang }: { lang: Lang }) {
             </p>
           ) : null}
           {canConnect ? (
-            <div className="mt-3">
+            <div className="mt-3 flex items-center gap-2">
               <Button
                 disabled={connectingId === selected.id}
                 onClick={() => void handleConnect(selected)}
               >
                 {connectingId === selected.id ? STRINGS.connecting[lang] : connectLabel}
               </Button>
+              <Kbd>↵</Kbd>
               {selectedState === "needs_setup" && selected.id !== "bank" && selected.id !== "instagram" ? (
                 <span className="ms-2 text-xs text-clay">
                   {lang === "fa"
@@ -340,13 +384,13 @@ export default function HomeHub({ lang }: { lang: Lang }) {
       {/* Honest "coming soon": no connector exists, so no orbit node. */}
       <Reveal delay={180}>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-clay">
+          <span className="echomind-meta text-clay">
             {STRINGS.comingSoon[lang]}
           </span>
           {HUB_COMING_SOON.map((app) => (
             <span
               key={app.label.en}
-              className="echomind-glass flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-clay"
+              className="echomind-glass flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[11px] font-semibold text-clay"
             >
               <span aria-hidden="true">{app.glyph}</span>
               {app.label[lang]}

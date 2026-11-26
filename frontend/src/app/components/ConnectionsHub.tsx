@@ -25,6 +25,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "./ui/button";
+import { StatusDot } from "./Glass";
 import {
   HUB_APPS,
   HUB_COMING_SOON,
@@ -123,19 +124,38 @@ export default function ConnectionsHub({ locale }: { locale: Locale }) {
   return (
     <section className="echomind-glass rounded-[1.4rem] p-4" aria-label={locale === "fa" ? "اتصال‌ها" : "Connections"}>
       <div className="flex items-center justify-between gap-2">
-        <p className="spark-eyebrow">
+        <p className="echomind-meta text-honey-deep">
           {locale === "fa" ? "اتصال‌ها" : "Connections"}
         </p>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden />
-          {locale === "fa"
-            ? `${connectedCount} برنامه متصل`
-            : `${connectedCount} app${connectedCount === 1 ? "" : "s"} connected`}
-        </span>
+        <StatusDot
+          tone={connectedCount > 0 ? "ok" : "idle"}
+          label={
+            locale === "fa"
+              ? `${connectedCount} برنامه متصل`
+              : `${connectedCount} app${connectedCount === 1 ? "" : "s"} connected`
+          }
+        />
       </div>
 
       <div className="echomind-scene relative mx-auto mt-2 h-[300px] w-full max-w-[340px]">
         <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" aria-hidden>
+          {/* Precision tick ring — the hub as an instrument. */}
+          {Array.from({ length: 24 }, (_, i) => {
+            const a = (i * 15 * Math.PI) / 180;
+            const r1 = ORBIT_RADIUS + 2.5;
+            const r2 = ORBIT_RADIUS + (i % 6 === 0 ? 4.5 : 3.5);
+            return (
+              <line
+                key={i}
+                x1={50 + r1 * Math.cos(a)}
+                y1={50 + r1 * Math.sin(a)}
+                x2={50 + r2 * Math.cos(a)}
+                y2={50 + r2 * Math.sin(a)}
+                stroke="rgba(122, 90, 48, 0.4)"
+                strokeWidth="0.4"
+              />
+            );
+          })}
           <circle
             cx="50"
             cy="50"
@@ -196,7 +216,7 @@ export default function ConnectionsHub({ locale }: { locale: Locale }) {
                   </span>
                 ) : null}
               </span>
-              <span className="mt-1 block text-center text-[11px] font-medium text-clay">
+              <span className="mt-1 block text-center font-mono text-[10px] font-semibold uppercase tracking-wider text-clay">
                 {app.label[locale]}
                 {state === "coming_soon" ? (locale === "fa" ? " (به‌زودی)" : " (soon)") : ""}
               </span>
@@ -213,10 +233,21 @@ export default function ConnectionsHub({ locale }: { locale: Locale }) {
 
       {selectedApp && selectedState ? (
         <div className="mt-2 rounded-xl border border-bark/10 bg-cream/70 px-3 py-2">
-          <p className="text-xs font-medium text-bark">
-            {selectedApp.label[locale]}
-            {" — "}
-            {stateLabel(selectedState, locale)}
+          <p className="flex flex-wrap items-center gap-2">
+            <span className="echomind-num-mono text-[11px] text-honey-deep">
+              APP {String(HUB_APPS.findIndex((a) => a.id === selectedApp.id) + 1).padStart(2, "0")}
+            </span>
+            <span className="text-xs font-semibold text-bark">{selectedApp.label[locale]}</span>
+            <StatusDot
+              tone={
+                selectedState === "connected"
+                  ? "ok"
+                  : selectedState === "needs_setup"
+                    ? "warn"
+                    : "idle"
+              }
+              label={stateLabel(selectedState, locale)}
+            />
           </p>
           <p className="mt-0.5 text-[11px] text-clay">
             {locale === "fa" ? selectedApp.powers.fa : selectedApp.powers.en}
@@ -253,12 +284,12 @@ export default function ConnectionsHub({ locale }: { locale: Locale }) {
       )}
 
       <div className="mt-3 border-t border-bark/10 pt-3">
-        <p className="spark-eyebrow">
+        <p className="echomind-meta text-honey-deep">
           {locale === "fa" ? "بخشی از اکومایند گسترده‌تر" : "Part of the wider EchoMind"}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {ENGINES.map((engine) => (
-            <span key={engine.en} className="rounded-full border border-bark/15 px-2.5 py-1 text-[11px] text-bark-soft">
+            <span key={engine.en} className="rounded-full border border-bark/15 px-2.5 py-1 font-mono text-[11px] font-semibold text-bark-soft">
               {locale === "fa" ? engine.fa : engine.en}
             </span>
           ))}

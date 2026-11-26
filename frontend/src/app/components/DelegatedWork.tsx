@@ -216,8 +216,9 @@ export default function DelegatedWork({
               <GlassCard className="p-4" strong>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="font-serif text-base font-semibold text-bark">{project.name}</h3>
-                    <p className="text-xs text-clay">
+                    <h3 className="font-serif text-base font-semibold tracking-tight text-bark">{project.name}</h3>
+                    {/* Technical readout (Linear-style): repo identity in mono. */}
+                    <p className="mt-0.5 font-mono text-[11px] font-medium tracking-wide text-clay">
                       {[project.kind, project.repo, project.branch].filter(Boolean).join(" · ")}
                     </p>
                   </div>
@@ -253,7 +254,7 @@ export default function DelegatedWork({
                               {task.instruction}
                             </p>
                             <span
-                              className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(task.status)}`}
+                              className={`shrink-0 rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider ${statusTone(task.status)}`}
                             >
                               {statusLabel(task.status, lang)}
                             </span>
@@ -270,7 +271,7 @@ export default function DelegatedWork({
                                 type="button"
                                 disabled={confirmingId === task.id}
                                 onClick={() => void handleConfirm(task.id)}
-                                className="mt-2 rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 px-4 py-2 text-sm font-bold text-cream transition disabled:opacity-60"
+                                className="mt-2 rounded-full bg-gradient-to-r from-honey to-honey-light px-4 py-2 text-sm font-bold text-bark transition disabled:opacity-60"
                               >
                                 {confirmingId === task.id
                                   ? STRINGS.confirming[lang]
