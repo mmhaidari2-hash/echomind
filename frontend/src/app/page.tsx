@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import ActionRail from "./components/ActionRail";
+import { AuroraBackground, GlassPill } from "./components/Glass";
+import DelegatedWork from "./components/DelegatedWork";
+import HomeHub from "./components/HomeHub";
 import type { ContextWorkflow } from "./components/ActiveContextBar";
 import AssistantReply from "./components/AssistantReply";
 import AuthStatus from "./components/AuthStatus";
@@ -600,6 +603,16 @@ export default function HomePage() {
   };
 
   const workflow = workflowFromSurface(surface);
+
+  // Delegation from the home screen: prefill the composer with a
+  // "go do this in my project" sentence and focus it, so the owner can
+  // finish the instruction in Persian or English and send it.
+  const handleDelegateDraft = (text: string) => {
+    setDraft(text);
+    window.setTimeout(() => {
+      document.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+    }, 50);
+  };
   const memoryLabel = [preferences.home_station, tagText]
     .filter(Boolean)
     .join(" · ") || null;
@@ -611,10 +624,11 @@ export default function HomePage() {
       lang={locale === "fa" ? "fa" : "en"}
       className={`echomind-app bg-canvas ${locale === "fa" ? "font-fa" : "font-sans"}`}
     >
-      <header className="z-20 shrink-0 border-b border-metal-line bg-carbon/90 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+      <AuroraBackground />
+      <header className="echomind-glass-header z-20 shrink-0 pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-2 overflow-hidden px-3 sm:gap-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-metal-line bg-navy">
+            <span className="echomind-logo-3d flex h-11 w-11 items-center justify-center rounded-2xl">
               <EchoMark className="h-7 w-7" />
             </span>
             <div className="min-w-0">
@@ -628,9 +642,8 @@ export default function HomePage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              className="relative flex min-h-11 items-center rounded-full border border-metal-line bg-navy px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+            <GlassPill
+              className="relative"
               aria-label={t.contextOpen}
               aria-expanded={contextOpen}
               onClick={() => setContextOpen(true)}
@@ -639,7 +652,7 @@ export default function HomePage() {
               {workflow !== "idle" || documentLabel || memoryLabel ? (
                 <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-sky-300" />
               ) : null}
-            </button>
+            </GlassPill>
             <AuthStatus />
             <span
               role="status"
@@ -652,7 +665,7 @@ export default function HomePage() {
             <div
               role="status"
               aria-live="polite"
-              className="hidden rounded-full border border-metal-line bg-navy p-0.5 text-xs font-medium sm:flex"
+              className="echomind-chip-glass hidden rounded-full p-0.5 text-xs font-medium sm:flex"
             >
               <span
                 className={`rounded-full px-2.5 py-1.5 ${
@@ -670,9 +683,8 @@ export default function HomePage() {
               </span>
             </div>
 
-            <button
-              type="button"
-              className="flex min-h-11 items-center gap-1 rounded-full border border-metal-line bg-navy px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+            <GlassPill
+              className="gap-1"
               aria-label={t.langToggle}
               onClick={() => setLocale((prev) => (prev === "en" ? "fa" : "en"))}
             >
@@ -683,7 +695,7 @@ export default function HomePage() {
               <span className={locale === "fa" ? "text-sky-300" : "text-slate-500"}>
                 فا
               </span>
-            </button>
+            </GlassPill>
           </div>
         </div>
       </header>
@@ -700,14 +712,21 @@ export default function HomePage() {
 
       <main ref={mainRef} className="echomind-scroll px-4 pb-6 pt-6 sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-          <section className="space-y-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
+          <section className="relative space-y-1">
+            <h1 className="echomind-hero-title echomind-fade-up relative text-2xl font-semibold tracking-tight sm:text-3xl">
               {t.greeting}
             </h1>
-            <p className="max-w-xl text-base leading-7 text-slate-400 sm:text-lg">
+            <p className="echomind-fade-up relative max-w-xl text-sm leading-6 text-slate-300/90">
               {t.subtitle}
             </p>
           </section>
+
+          {/* The home screen IS the hub: EchoMind at the centre, the
+              owner's apps orbiting it, and below it what EchoMind is
+              doing for him — the delegated work. The engines stay
+              visible further down (ActionRail waterfall). */}
+          <HomeHub lang={locale} />
+          <DelegatedWork lang={locale} onDelegateDraft={handleDelegateDraft} />
 
           <ActionRail
             locale={locale}
@@ -764,7 +783,7 @@ export default function HomePage() {
             />
           ) : null}
           {surface === "travel" ? (
-            <section className="rounded-[1.6rem] border border-metal-line bg-navy/70 px-4 py-3">
+            <section className="echomind-glass rounded-[1.6rem] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/80">
                 {travelText(locale).title}
               </p>
@@ -904,10 +923,8 @@ export default function HomePage() {
                   <article
                     key={message.id}
                     dir={dir}
-                    className={`max-w-[85%] rounded-3xl border px-4 py-3 text-base leading-7 ${
-                      isUser
-                        ? "self-end border-sky-500/20 bg-sky-400/10 text-slate-100"
-                        : "self-start border-rose-500/20 bg-rose-500/10 text-rose-100"
+                    className={`echomind-glass max-w-[85%] rounded-3xl px-4 py-3 text-base leading-7 ${
+                      isUser ? "self-end text-slate-100" : "self-start text-rose-100"
                     }`}
                   >
                     {message.text}

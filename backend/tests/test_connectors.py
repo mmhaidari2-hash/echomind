@@ -88,3 +88,29 @@ def test_gmail_trash_action_requires_connection_and_confirmation() -> None:
 
     actions = client.get("/api/v1/authority/actions").json()
     assert actions[0]["status"] == "failed"
+
+
+def test_google_start_accepts_extra_scopes(monkeypatch) -> None:
+    """Drive/Docs/Sheets ride the same Google account: the hub requests
+    their scopes through /connectors/google/start?scopes=..."""
+    from cryptography.fernet import Fernet
+
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "google-client-id")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "google-client-secret")
+    monkeypatch.setattr(settings, "GOOGLE_REDIRECT_URI", "https://example.test/google/callback")
+    monkeypatch.setattr(settings, "CONNECTOR_TOKEN_KEY", Fernet.generate_key().decode())
+    _as("user-a")
+
+    drive = "https://www.googleapis.com/auth/drive.readonly"
+    started = client.post(f"/api/v1/connectors/google/start?scopes={drive}")
+    assert started.status_code == 200
+    url = started.json()["authorization_url"]
+    assert "accounts.google.com" in url
+    assert "drive.readonly" in url
+
+    # Non-https scope values are dropped, never requested.
+    started = client.post("/api/v1/connectors/google/start?scopes=evil-scope")
+    assert started.status_code == 200
+    assert "evil-scope" not in started.json()["authorization_url"]

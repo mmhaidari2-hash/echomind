@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { copy } from "../lib/copy";
+import { GlassIconButton } from "./Glass";
 import {
   detectTextDirection,
   localeDir,
@@ -277,7 +278,7 @@ export default function ChatInput({
         {leading}
         {notice ? (
           <p
-            className="mb-2 flex items-center justify-center gap-2 rounded-2xl border border-metal-line bg-navy/90 px-3 py-2 text-center text-xs text-slate-300 backdrop-blur-xl"
+            className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-slate-300"
             role="status"
           >
             {listening ? <ListeningWave /> : null}
@@ -293,7 +294,7 @@ export default function ChatInput({
             {attachments.map((item) => (
               <li
                 key={item.id}
-                className="flex max-w-full items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-200 backdrop-blur-xl"
+                className="echomind-chip-glass flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-slate-200"
               >
                 <span className="truncate">{item.file.name}</span>
                 <button
@@ -313,21 +314,19 @@ export default function ChatInput({
           </ul>
         ) : null}
 
-        <div className="flex items-end gap-2 rounded-3xl border border-metal-line bg-navy/90 p-2 shadow-lift backdrop-blur-xl">
+        <div className="echomind-glass-input flex items-end gap-2 rounded-3xl p-2">
           <div className="relative" ref={attachMenuRef}>
-            <button
-              type="button"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950/50 text-slate-300 transition hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+            <GlassIconButton
               aria-label={t.attach}
               aria-expanded={attachOpen}
               disabled={disabled}
               onClick={() => setAttachOpen((open) => !open)}
             >
               <IconPaperclip className="h-5 w-5" />
-            </button>
+            </GlassIconButton>
             {attachOpen ? (
               <div
-                className="absolute bottom-[calc(100%+0.5rem)] start-0 z-40 min-w-[10.5rem] overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-xl backdrop-blur-xl"
+                className="echomind-glass-strong absolute bottom-[calc(100%+0.5rem)] start-0 z-40 min-w-[10.5rem] overflow-hidden rounded-2xl"
                 role="menu"
               >
                 <button
@@ -400,13 +399,8 @@ export default function ChatInput({
             }}
           />
 
-          <button
-            type="button"
-            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
-              listening
-                ? "border-rose-400/50 bg-rose-500/20 text-rose-300"
-                : "border-slate-800 bg-slate-950/50 text-slate-300 hover:text-sky-200"
-            }`}
+          <GlassIconButton
+            active={listening}
             aria-label={listening ? t.voiceStop : t.voiceStart}
             aria-pressed={listening}
             disabled={disabled}
@@ -416,11 +410,11 @@ export default function ChatInput({
               <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-[1.15rem]" />
             ) : null}
             <IconMic className={`relative h-5 w-5 ${listening ? "echomind-pulse" : ""}`} />
-          </button>
+          </GlassIconButton>
 
           <button
             type="button"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-500/30 bg-sky-400/15 text-sky-200 transition enabled:hover:bg-sky-400/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+            className="echomind-send-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
             aria-label={t.send}
             disabled={!canSend}
             onClick={submit}

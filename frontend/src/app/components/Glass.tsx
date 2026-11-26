@@ -104,3 +104,66 @@ export function SectionHeading({
     </div>
   );
 }
+
+/** Aurora backdrop for the home shell: soft light behind the whole
+    app. Rendered once inside the app root, above the canvas colour,
+    below the scroll content. */
+export function AuroraBackground() {
+  return <div aria-hidden="true" className="echomind-aurora" />;
+}
+
+/** Glass pill button — the header controls (context, language, auth).
+    Passes all button props through; only the surface is owned here. */
+export function GlassPill({
+  children,
+  className = "",
+  ...props
+}: {
+  children: ReactNode;
+  className?: string;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={`echomind-chip-glass flex min-h-11 items-center rounded-full px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Glass icon button — the composer controls (attach, mic, menu).
+    `active` gives it the recording/selected tint. */
+export function GlassIconButton({
+  children,
+  className = "",
+  active = false,
+  ...props
+}: {
+  children: ReactNode;
+  className?: string;
+  active?: boolean;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={`echomind-chip-glass relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
+        active ? "border-rose-400/50 text-rose-300" : "text-slate-300 hover:text-sky-200"
+      } ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Hero orb: the 3D glass sphere with a slow float, for the welcome
+    heading. Decorative only (aria-hidden). */
+export function HeroOrb({ size = 150, className = "" }: { size?: number; className?: string }) {
+  return (
+    <div aria-hidden="true" className={`echomind-orb-float pointer-events-none ${className}`}>
+      <Orb3D size={size} />
+    </div>
+  );
+}

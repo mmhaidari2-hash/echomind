@@ -47,10 +47,17 @@ def connector_status(user_id: str = Depends(require_user)) -> GoogleConnectorSta
 @router.post("/start", response_model=GoogleConnectStart)
 def start(
     access: GoogleAccessLevel = Query(default=GoogleAccessLevel.read),
+    scopes: str | None = Query(
+        default=None,
+        description="Comma-separated extra Google OAuth scope URLs to request (e.g. Drive/Docs/Sheets). Only https:// scope URLs are accepted.",
+    ),
     user_id: str = Depends(require_user),
 ) -> GoogleConnectStart:
     try:
-        return GoogleConnectStart(authorization_url=begin(user_id, access))
+        extra = tuple(
+            s.strip() for s in (scopes.split(",") if scopes else []) if s.strip().startswith("https://")
+        )
+        return GoogleConnectStart(authorization_url=begin(user_id, access, extra))
     except Exception as exc:
         _raise_connector(exc)
         raise

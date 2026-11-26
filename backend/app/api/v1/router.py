@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.endpoints import (
     authority,
+    bank,
     brief,
     calendar_guard,
     case_file,
@@ -16,6 +17,7 @@ from app.api.endpoints import (
     evidence,
     followup,
     health,
+    instagram,
     life,
     memory,
     notifications,
@@ -28,6 +30,7 @@ from app.api.endpoints import (
     travel_guard,
     verification,
     voice,
+    youtube,
 )
 
 api_router = APIRouter()
@@ -37,6 +40,9 @@ api_router.include_router(life.router)
 api_router.include_router(chat.router)
 api_router.include_router(conversations.router)
 api_router.include_router(connectors.router)
+api_router.include_router(bank.router)
+api_router.include_router(instagram.router)
+api_router.include_router(youtube.router)
 api_router.include_router(delay_repay.router)
 api_router.include_router(detection.router)
 api_router.include_router(consumer_rights.router)

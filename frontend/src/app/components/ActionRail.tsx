@@ -3,6 +3,7 @@
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import type { ContextWorkflow } from "./ActiveContextBar";
+import { Reveal, Waterfall } from "./Glass";
 
 type ActionRailProps = {
   locale: Locale;
@@ -114,43 +115,36 @@ export default function ActionRail({
 
   return (
     <section aria-label={t.subtitle} className="grid gap-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {actions.map((action) => {
+      <Waterfall>
+        {actions.map((action, index) => {
           const selected = active === action.id;
           return (
-            <button
-              key={action.id}
-              type="button"
-              className={`flex min-h-[5.75rem] flex-col items-start gap-3 rounded-[1.4rem] border px-4 py-4 text-start shadow-lift transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
-                selected
-                  ? "border-sky-400/40 bg-sky-400/10 text-sky-100 shadow-cta"
-                  : "border-metal-line bg-navy text-slate-100 hover:border-metal/50 hover:bg-navy/80"
-              }`}
-              onClick={action.onClick}
-            >
-              <span
-                className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${
+            <Reveal key={action.id} delay={index * 70}>
+              <button
+                type="button"
+                className={`flex min-h-[5.75rem] w-full flex-col items-start gap-3 rounded-[1.4rem] px-4 py-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
                   selected
-                    ? "border-sky-400/40 bg-sky-400/10 text-sky-200"
-                    : "border-metal-line bg-carbon text-metal"
+                    ? "echomind-glass-strong echomind-tilt text-sky-100"
+                    : "echomind-glass echomind-tilt text-slate-100 hover:border-sky-300/40"
                 }`}
+                onClick={action.onClick}
               >
-                <RailIcon name={action.icon} />
-              </span>
-              <span>
-                <span className="block text-lg font-semibold tracking-tight">{action.title}</span>
-                <span className="mt-1 block text-sm leading-5 text-slate-400">{action.hint}</span>
-              </span>
-            </button>
+                <span className="echomind-rail-icon flex h-11 w-11 items-center justify-center rounded-2xl">
+                  <RailIcon name={action.icon} />
+                </span>
+                <span>
+                  <span className="block text-lg font-semibold tracking-tight">{action.title}</span>
+                  <span className="mt-1 block text-sm leading-5 text-slate-400">{action.hint}</span>
+                </span>
+              </button>
+            </Reveal>
           );
         })}
-      </div>
+      </Waterfall>
       <button
         type="button"
-        className={`min-h-11 justify-self-start rounded-full border px-4 py-2 text-sm font-medium transition ${
-          active === "consumer_rights"
-            ? "border-sky-400/40 bg-sky-400/10 text-sky-100"
-            : "border-metal-line text-slate-300 hover:text-slate-100"
+        className={`echomind-chip-glass min-h-11 justify-self-start rounded-full px-4 py-2 text-sm font-medium transition ${
+          active === "consumer_rights" ? "text-sky-100" : "text-slate-300 hover:text-sky-200"
         }`}
         onClick={onRights}
       >

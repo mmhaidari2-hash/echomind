@@ -93,8 +93,14 @@ launcher — like six months from now with a ten-person team."
   end-to-end (stubbed GitHub verified); the live GitHub call from
   this VM gets HTTP 403 (shared-egress rate limit, no token) and
   fails closed as designed. A `GITHUB_TOKEN` unlocks private repos.
-- **Connections hub** — see `docs/connections-hub.md`. Better than
-  the reference Mahdi sent: glassy 3D, shows what each connection
-  powers, and visibly one surface of the wider EchoMind. Only real
-  connectors (Gmail, Calendar) plus honestly-marked "soon" ones
-  (Drive, Docs, Sheets); Slack/Notion/Instagram omitted.
+- **Connections hub** — see `docs/connections-hub.md` and
+  `docs/home-restyle.md`. Better than the reference Mahdi sent: glassy
+  3D, shows what each connection powers, and visibly one surface of the
+  wider EchoMind. The home screen itself IS the hub now (EchoMind orb
+  at the centre, apps orbiting on spokes, "N apps connected" pill).
+  Real connectors: Gmail, Calendar, Drive, Docs, Sheets (Google OAuth,
+  Drive/Docs/Sheets via the `?scopes=` parameter), Bank (TrueLayer
+  Open Banking, read-only), Instagram (Instagram Login), YouTube
+  (youtube.readonly on the shared Google token) — see
+  `docs/connectors-bank-instagram-youtube.md`. Slack/Notion still have
+  no connector and are honestly marked "coming soon", never faked.

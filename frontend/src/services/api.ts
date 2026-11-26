@@ -1180,10 +1180,19 @@ export async function getGoogleConnectorStatus(): Promise<GoogleConnectorStatus>
   });
 }
 
+export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+export const GOOGLE_DOCS_SCOPE = "https://www.googleapis.com/auth/documents.readonly";
+export const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
+export const GOOGLE_GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+
 export async function startGoogleConnection(
   access: "read" | "write" = "read",
+  extraScopes: string[] = [],
 ): Promise<{ authorization_url: string }> {
-  return api<{ authorization_url: string }>(`/connectors/google/start?access=${access}`, {
+  const params = new URLSearchParams({ access });
+  if (extraScopes.length > 0) params.set("scopes", extraScopes.join(","));
+  return api<{ authorization_url: string }>(`/connectors/google/start?${params.toString()}`, {
     auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
@@ -1221,6 +1230,183 @@ export async function getUpcomingCalendar(limit = 5): Promise<CalendarEventSumma
     method: "GET",
     timeoutMs: CHAT_TIMEOUT_MS,
   });
+}
+
+// --- Instagram (Instagram API with Instagram Login, read-only) ---
+
+export type InstagramStatus = {
+  configured: boolean;
+  connected: boolean;
+  username: string | null;
+};
+
+export type InstagramProfile = {
+  id: string;
+  username: string;
+  account_type: string;
+  media_count: number;
+};
+
+export type InstagramMediaItem = {
+  id: string;
+  caption: string | null;
+  media_type: string;
+  media_url: string | null;
+  permalink: string | null;
+  timestamp: string;
+};
+
+export async function getInstagramStatus(): Promise<InstagramStatus> {
+  return api<InstagramStatus>("/connectors/instagram/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startInstagramConnection(): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>("/connectors/instagram/start", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getInstagramProfile(): Promise<InstagramProfile> {
+  return api<InstagramProfile>("/connectors/instagram/profile", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getInstagramMedia(limit = 10): Promise<InstagramMediaItem[]> {
+  return api<InstagramMediaItem[]>(`/connectors/instagram/media?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+// --- YouTube (Google OAuth, youtube.readonly, read-only) ---
+
+export type YouTubeStatus = {
+  configured: boolean;
+  connected: boolean;
+  scopes: string[];
+};
+
+export type YouTubeChannel = {
+  id: string;
+  title: string;
+  description: string;
+  subscribers: number;
+  video_count: number;
+  thumbnail_url: string | null;
+  uploads_playlist_id: string | null;
+};
+
+export type YouTubeVideo = {
+  id: string;
+  title: string;
+  published_at: string;
+  thumbnail_url: string | null;
+  url: string | null;
+};
+
+export async function getYouTubeStatus(): Promise<YouTubeStatus> {
+  return api<YouTubeStatus>("/connectors/youtube/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startYouTubeConnection(): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>("/connectors/youtube/start", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getYouTubeChannel(): Promise<YouTubeChannel> {
+  return api<YouTubeChannel>("/connectors/youtube/channel", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getYouTubeVideos(limit = 10): Promise<YouTubeVideo[]> {
+  return api<YouTubeVideo[]>(`/connectors/youtube/videos?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+// --- Bank (UK Open Banking via TrueLayer, read-only) ---
+
+export type BankStatus = {
+  configured: boolean;
+  connected: boolean;
+  provider: string;
+  environment: string;
+};
+
+export type BankAccount = {
+  id: string;
+  name: string;
+  type: string;
+  currency: string;
+  provider: string;
+  balance: number | null;
+};
+
+export type BankTransaction = {
+  id: string;
+  account_id: string;
+  amount: number;
+  currency: string;
+  description: string;
+  date: string;
+  category: string | null;
+};
+
+export async function getBankStatus(): Promise<BankStatus> {
+  return api<BankStatus>("/connectors/bank/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startBankConnection(): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>("/connectors/bank/start", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getBankAccounts(): Promise<BankAccount[]> {
+  return api<BankAccount[]>("/connectors/bank/accounts", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getBankTransactions(accountId: string, limit = 20): Promise<BankTransaction[]> {
+  return api<BankTransaction[]>(
+    `/connectors/bank/accounts/${encodeURIComponent(accountId)}/transactions?limit=${limit}`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
 }
 
 
@@ -1653,6 +1839,14 @@ export async function createProjectTask(
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
+  });
+}
+
+export async function listProjectTasks(projectId: string): Promise<DelegatedTask[]> {
+  return api<DelegatedTask[]>(`/projects/${encodeURIComponent(projectId)}/tasks`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
   });
 }
 

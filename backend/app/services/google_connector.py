@@ -203,7 +203,15 @@ def status(user_id: str) -> GoogleConnectorStatus:
     )
 
 
-def begin(user_id: str, access: GoogleAccessLevel) -> str:
+def begin(
+    user_id: str,
+    access: GoogleAccessLevel,
+    extra_scopes: tuple[str, ...] = (),
+) -> str:
+    """Start Google OAuth. ``extra_scopes`` lets a sibling connector
+    (YouTube) ride the same Google account and token: the granted scopes
+    are stored on the shared token, and the sibling checks for its own
+    scope before calling its API."""
     if not configured():
         raise ConnectorNotConfiguredError("Google connector is not configured")
     state = secrets.token_urlsafe(32)
@@ -224,7 +232,8 @@ def begin(user_id: str, access: GoogleAccessLevel) -> str:
         }
         _dump()
 
-    scopes = WRITE_SCOPES if access is GoogleAccessLevel.write else READ_SCOPES
+    base = WRITE_SCOPES if access is GoogleAccessLevel.write else READ_SCOPES
+    scopes = list(dict.fromkeys([*base, *extra_scopes]))
     query = urlencode(
         {
             "client_id": settings.GOOGLE_CLIENT_ID.strip(),
@@ -391,6 +400,25 @@ def _api_json(
         raise ConnectorUpstreamError("Google API is temporarily unavailable") from exc
     return payload if isinstance(payload, dict) else {}
 
+
+def access_token_for_scope(user_id: str, scope: str) -> str:
+    """Public wrapper for sibling connectors (YouTube): a scoped access
+    token from the shared Google token, refreshed when needed. Raises
+    the same Connector* errors as the rest of this module."""
+    return _access_token(user_id, scope)
+
+
+def api_json_for_scope(
+    user_id: str,
+    method: str,
+    url: str,
+    *,
+    scope: str,
+    body: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Public wrapper for sibling connectors (YouTube): an authenticated
+    Google API call against the shared token, scoped to ``scope``."""
+    return _api_json(user_id, method, url, required_scope=scope, body=body)
 
 
 def _gmail_summary(user_id: str, message_id: str, *, required_scope: str = GMAIL_READ) -> GmailMessageSummary:

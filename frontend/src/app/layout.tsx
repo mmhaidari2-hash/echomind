@@ -21,7 +21,7 @@ const vazirmatn = Vazirmatn({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#090d16",
+  themeColor: "#0b1020",
   colorScheme: "dark",
   viewportFit: "cover",
 };
