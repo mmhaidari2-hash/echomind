@@ -317,13 +317,17 @@ html[dir="rtl"] body {
 .echomind-living-orb {
   position: relative;
   border-radius: 9999px;
+  /* Deep molten-gold sphere like the home mockup and the app icon:
+     a tight specular top-left, a saturated amber core, and a dark
+     bronze rim — the old stack washed out pale on a real phone
+     because the bright layers were too wide and too opaque. */
   background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.95), transparent 24%),
-    radial-gradient(circle at 38% 30%, rgb(255 244 214 / 0.7), transparent 34%),
-    radial-gradient(circle at 68% 28%, rgb(242 194 104 / 0.6), transparent 44%),
-    radial-gradient(circle at 50% 58%, rgb(242 194 104 / 0.95), rgb(229 169 60 / 0.75) 52%, rgb(160 110 20 / 0.5) 76%, rgb(9 10 15 / 0.95) 100%);
+    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.9), transparent 14%),
+    radial-gradient(circle at 38% 30%, rgb(255 244 214 / 0.45), transparent 26%),
+    radial-gradient(circle at 68% 28%, rgb(242 194 104 / 0.45), transparent 36%),
+    radial-gradient(circle at 50% 56%, rgb(229 169 60 / 1) 0%, rgb(201 143 34 / 1) 42%, rgb(138 90 16 / 1) 68%, rgb(58 38 8 / 1) 86%, rgb(9 10 15 / 1) 100%);
   box-shadow:
-    inset 0 -26px 48px rgb(0 0 0 / 0.7),
+    inset 0 -26px 48px rgb(0 0 0 / 0.8),
     inset 0 14px 30px rgb(255 255 255 / 0.28),
     inset 0 0 0 1px rgb(255 255 255 / 0.12),
     0 0 0 1px rgb(229 169 60 / 0.16),
