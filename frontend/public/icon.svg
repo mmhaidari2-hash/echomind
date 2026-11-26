@@ -1,5 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="EchoMind">
-  <rect width="512" height="512" rx="96" fill="#090d16"/>
-  <circle cx="256" cy="256" r="120" fill="none" stroke="#7dd3fc" stroke-width="28"/>
-  <circle cx="256" cy="256" r="36" fill="#e8edf7"/>
+  <defs>
+    <radialGradient id="sphere" cx="38%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#F7D488"/>
+      <stop offset="38%" stop-color="#E5A93C"/>
+      <stop offset="72%" stop-color="#B97F1E"/>
+      <stop offset="100%" stop-color="#7A4E0B"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E5A93C" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#E5A93C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#090A0F"/>
+  <circle cx="256" cy="256" r="205" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="150" fill="url(#sphere)"/>
+  <ellipse cx="205" cy="172" rx="92" ry="54" transform="rotate(-20 205 172)" fill="#FFFFFF" opacity="0.28"/>
+  <circle cx="306" cy="128" r="16" fill="#FFFFFF" opacity="0.45"/>
 </svg>

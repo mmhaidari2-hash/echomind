@@ -34,7 +34,14 @@ def _now() -> datetime:
 def _user(user_id: str) -> dict[str, object]:
     return _state.setdefault(
         user_id,
-        {"nodes": {}, "edges": {}, "obligations": {}, "promises": {}},
+        {
+            "nodes": {},
+            "edges": {},
+            "obligations": {},
+            "promises": {},
+            "dismissed_detections": [],
+            "verifications": {},
+        },
     )
 
 
@@ -251,3 +258,58 @@ def snapshot(user_id: str) -> LifeSnapshot:
         obligations=list_obligations(user_id),
         promises=list_promises(user_id),
     )
+
+
+def recorded_evidence_ids(user_id: str) -> set[str]:
+    """Gmail message ids already attached to an obligation or promise."""
+    with _lock:
+        user = _user(user_id)
+        ids: set[str] = set()
+        for key in ("obligations", "promises"):
+            rows = user.get(key)
+            if not isinstance(rows, dict):
+                continue
+            for raw in dict(rows).values():
+                if not isinstance(raw, dict):
+                    continue
+                for value in raw.get("evidence_ids", []) or []:
+                    if isinstance(value, str) and value:
+                        ids.add(value)
+        return ids
+
+
+def dismissed_detection_ids(user_id: str) -> set[str]:
+    with _lock:
+        rows = _user(user_id).get("dismissed_detections", [])
+        return set(value for value in (rows or []) if isinstance(value, str))
+
+
+def dismiss_detection(user_id: str, proposal_id: str) -> None:
+    with _lock:
+        user = _user(user_id)
+        rows = [value for value in (user.get("dismissed_detections", []) or []) if isinstance(value, str)]
+        if proposal_id not in rows:
+            rows.append(proposal_id)
+        user["dismissed_detections"] = rows[-500:]
+        _dump()
+
+
+def record_verification(user_id: str, source_id: str, result: dict[str, object]) -> None:
+    """Persist an outcome verification so it survives restart (additive)."""
+    with _lock:
+        user = _user(user_id)
+        rows = user.get("verifications")
+        if not isinstance(rows, dict):
+            rows = {}
+        rows[source_id] = result
+        user["verifications"] = rows
+        _dump()
+
+
+def get_verification(user_id: str, source_id: str) -> dict[str, object] | None:
+    with _lock:
+        rows = _user(user_id).get("verifications")
+        if not isinstance(rows, dict):
+            return None
+        raw = rows.get(source_id)
+        return dict(raw) if isinstance(raw, dict) else None

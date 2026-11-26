@@ -90,12 +90,12 @@ export default function ContextualSuggestions({
   if (!suggestions.length) return null;
   return (
     <div className="mb-2 flex flex-wrap gap-2">
-      <p className="w-full text-[11px] uppercase tracking-[0.16em] text-slate-500">{t.contextTitle}</p>
+      <p className="w-full text-[11px] uppercase tracking-[0.16em] text-muted">{t.contextTitle}</p>
       {suggestions.map((item) => (
         <button
           key={item.id}
           type="button"
-          className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-200"
+          className="rounded-full border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-xs text-ink-soft"
           onClick={() => onPick(item)}
         >
           {item.label}

@@ -50,46 +50,46 @@ export default function TravelApprovalCard({
   };
 
   return (
-    <article className="w-full max-w-lg self-start rounded-[1.6rem] border border-sky-500/25 bg-navy/90 p-4 shadow-lift">
+    <article className="w-full max-w-lg self-start rounded-[1.6rem] border border-gold/40 bg-white/[0.03] p-4 shadow-lift">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/80">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/80">
           {t.approval}
         </p>
-        <span className="rounded-full border border-metal-line px-2.5 py-1 text-[11px] text-slate-300">
+        <span className="rounded-full border border-white/[0.09] px-2.5 py-1 text-[11px] text-ink-soft">
           {t.services[quote.service_type]}
         </span>
       </div>
 
-      <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-100">
+      <h3 className="mt-2 text-xl font-semibold tracking-tight text-ink">
         {quote.destination}
         {quote.origin ? (
-          <span className="ms-2 text-sm font-normal text-slate-400">
+          <span className="ms-2 text-sm font-normal text-muted">
             ← {quote.origin}
           </span>
         ) : null}
       </h3>
-      <p className="mt-1 text-sm text-slate-400">{quote.summary}</p>
+      <p className="mt-1 text-sm text-muted">{quote.summary}</p>
 
       <dl className="mt-4 grid gap-3">
         {quote.hotel ? (
-          <div className="rounded-2xl border border-metal-line bg-carbon/70 px-3 py-2.5">
-            <dt className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t.hotel}</dt>
-            <dd className="mt-1 text-sm text-slate-100">
+          <div className="rounded-2xl border border-white/[0.09] bg-white/[0.05] px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">{t.hotel}</dt>
+            <dd className="mt-1 text-sm text-ink">
               {quote.hotel.name}
-              <span className="ms-2 text-slate-400">
+              <span className="ms-2 text-muted">
                 {quote.hotel.nights} {t.nights}
               </span>
             </dd>
           </div>
         ) : null}
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-metal-line bg-carbon/70 px-3 py-2.5">
-            <dt className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t.arrival}</dt>
-            <dd className="mt-1 text-sm text-slate-100">{quote.estimated_arrival}</dd>
+          <div className="rounded-2xl border border-white/[0.09] bg-white/[0.05] px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">{t.arrival}</dt>
+            <dd className="mt-1 text-sm text-ink">{quote.estimated_arrival}</dd>
           </div>
-          <div className="rounded-2xl border border-metal-line bg-carbon/70 px-3 py-2.5">
-            <dt className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t.price}</dt>
-            <dd className="mt-1 text-sm font-semibold text-sky-200">
+          <div className="rounded-2xl border border-white/[0.09] bg-white/[0.05] px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">{t.price}</dt>
+            <dd className="mt-1 text-sm font-semibold text-gold">
               {money(quote.pricing.total, quote.pricing.currency)}
             </dd>
           </div>
@@ -98,7 +98,7 @@ export default function TravelApprovalCard({
 
       <button
         type="button"
-        className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl border border-sky-400/40 bg-sky-400/15 text-sm font-semibold text-sky-100 transition enabled:hover:bg-sky-400/25 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+        className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl border border-gold/40 bg-gold/10 text-sm font-semibold text-gold transition enabled:hover:bg-gold/25 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
         disabled={locked || busy}
         aria-describedby="echomind-travel-secure"
         onClick={() => {
@@ -107,11 +107,11 @@ export default function TravelApprovalCard({
       >
         {locked ? t.confirmed : busy ? t.confirming : t.confirm}
       </button>
-      <p id="echomind-travel-secure" className="mt-2 text-center text-[11px] text-slate-500">
+      <p id="echomind-travel-secure" className="mt-2 text-center text-[11px] text-muted">
         {t.secure}
       </p>
       {error ? (
-        <p role="alert" className="mt-2 text-center text-xs text-rose-300">
+        <p role="alert" className="mt-2 text-center text-xs text-red-300">
           {error}
         </p>
       ) : null}

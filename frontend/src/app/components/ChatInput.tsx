@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { copy } from "../lib/copy";
+import { getPhotoService } from "../../services/photos";
 import {
   detectTextDirection,
   localeDir,
@@ -25,6 +26,8 @@ import {
 export type ChatAttachment = {
   id: string;
   file: File;
+  /** Object URL for image thumbnails, revoked on remove/submit. */
+  previewUrl?: string;
 };
 
 type ChatInputProps = {
@@ -79,6 +82,35 @@ function IconPaperclip({ className }: { className?: string }) {
     >
       <path
         d="M8.5 12.5 15 6a3.2 3.2 0 1 1 4.5 4.5l-8.2 8.2a4.6 4.6 0 0 1-6.5-6.5l7.4-7.4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconPhoto({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-hidden
+    >
+      <rect
+        x="3.5"
+        y="5"
+        width="17"
+        height="14"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <circle cx="9" cy="10" r="1.6" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="m5 17 4-4 3.5 3.5L16 13l3 3"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"
@@ -195,6 +227,9 @@ export default function ChatInput({
 
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
+  /** Shown when a photo could not be added — e.g. permission denied.
+      Never claims access that was not granted. */
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
 
   const {
     listening,
@@ -213,13 +248,28 @@ export default function ChatInput({
   const resizeField = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
+    // One clean line only: the dock never grows, long text scrolls
+    // inside the field (mockups 1 & 3).
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 44)}px`;
   }, []);
 
   useEffect(() => {
     resizeField();
   }, [value, resizeField]);
+
+  /** Raycast-style command bar: ⌘K focuses the composer from anywhere
+      in the app (the chip next to the mic does the same on tap). */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        textareaRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     if (!attachOpen) return;
@@ -239,14 +289,83 @@ export default function ChatInput({
     onChange(next);
   }, [listening, transcript, onChange]);
 
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    const next = Array.from(list).map((file) => ({
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<boolean>("echomind-listening", { detail: listening }));
+  }, [listening]);
+
+  const addFilesList = (list: File[]) => {
+    if (!list.length) return;
+    const next = list.map((file) => ({
       id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
       file,
+      previewUrl: file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : undefined,
     }));
     setAttachments((prev) => [...prev, ...next].slice(0, 6));
     setAttachOpen(false);
+  };
+
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    addFilesList(Array.from(list));
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => {
+      const item = prev.find((entry) => entry.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((entry) => entry.id !== id);
+    });
+  };
+
+  /** Photo library — native Capacitor Camera on the phone, the hidden
+      file input on the web. A denied permission is reported honestly
+      instead of pretending the photo was attached. */
+  const pickPhotoFromLibrary = async () => {
+    setAttachOpen(false);
+    setPhotoNotice(null);
+    const service = await getPhotoService();
+    const result = await service.pickFromLibrary();
+    if (result.ok) {
+      addFilesList([result.file]);
+      return;
+    }
+    if (result.reason === "denied") {
+      setPhotoNotice(t.photoDenied);
+      return;
+    }
+    if (result.reason === "error") {
+      setPhotoNotice(t.photoError);
+      return;
+    }
+    if (result.reason === "web-fallback") {
+      fileRef.current?.click();
+    }
+    // "cancelled": the user closed the picker — nothing to say.
+  };
+
+  /** Camera capture — same shape as the library flow. */
+  const takePhoto = async () => {
+    setAttachOpen(false);
+    setPhotoNotice(null);
+    const service = await getPhotoService();
+    const result = await service.takePhoto();
+    if (result.ok) {
+      addFilesList([result.file]);
+      return;
+    }
+    if (result.reason === "denied") {
+      setPhotoNotice(t.photoDenied);
+      return;
+    }
+    if (result.reason === "error") {
+      setPhotoNotice(t.photoError);
+      return;
+    }
+    if (result.reason === "web-fallback") {
+      cameraRef.current?.click();
+    }
   };
 
   const toggleListening = () => {
@@ -265,8 +384,12 @@ export default function ChatInput({
       text: value.trim(),
       attachments: attachments.map((item) => item.file),
     });
+    for (const item of attachments) {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    }
     onChange("");
     setAttachments([]);
+    setPhotoNotice(null);
     speechAnchorRef.current = "";
     requestAnimationFrame(resizeField);
   };
@@ -277,7 +400,7 @@ export default function ChatInput({
         {leading}
         {notice ? (
           <p
-            className="mb-2 flex items-center justify-center gap-2 rounded-2xl border border-metal-line bg-navy/90 px-3 py-2 text-center text-xs text-slate-300 backdrop-blur-xl"
+            className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-ink-soft"
             role="status"
           >
             {listening ? <ListeningWave /> : null}
@@ -288,23 +411,35 @@ export default function ChatInput({
           </p>
         ) : null}
 
+        {photoNotice ? (
+          <p
+            className="echomind-glass mb-2 rounded-2xl px-3 py-2 text-center text-xs text-ink-soft"
+            role="status"
+          >
+            {photoNotice}
+          </p>
+        ) : null}
+
         {attachments.length > 0 ? (
           <ul className="mb-2 flex flex-wrap gap-2">
             {attachments.map((item) => (
               <li
                 key={item.id}
-                className="flex max-w-full items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-200 backdrop-blur-xl"
+                className="echomind-chip-glass flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-ink-soft"
               >
+                {item.previewUrl ? (
+                  <img
+                    src={item.previewUrl}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-full object-cover"
+                  />
+                ) : null}
                 <span className="truncate">{item.file.name}</span>
                 <button
                   type="button"
-                  className="rounded-full p-0.5 text-slate-400 hover:text-slate-100"
+                  className="rounded-full p-0.5 text-muted hover:text-ink"
                   aria-label="Remove attachment"
-                  onClick={() =>
-                    setAttachments((prev) =>
-                      prev.filter((entry) => entry.id !== item.id),
-                    )
-                  }
+                  onClick={() => removeAttachment(item.id)}
                 >
                   <IconClose className="h-3.5 w-3.5" />
                 </button>
@@ -313,39 +448,48 @@ export default function ChatInput({
           </ul>
         ) : null}
 
-        <div className="flex items-end gap-2 rounded-3xl border border-metal-line bg-navy/90 p-2 shadow-lift backdrop-blur-xl">
-          <div className="relative" ref={attachMenuRef}>
+        <div className="echomind-glass-blur flex min-h-[3.5rem] items-center gap-1 rounded-full px-2 py-1.5">
+          <div className="relative shrink-0" ref={attachMenuRef}>
             <button
               type="button"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950/50 text-slate-300 transition hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
               aria-label={t.attach}
               aria-expanded={attachOpen}
               disabled={disabled}
               onClick={() => setAttachOpen((open) => !open)}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40"
             >
               <IconPaperclip className="h-5 w-5" />
             </button>
             {attachOpen ? (
               <div
-                className="absolute bottom-[calc(100%+0.5rem)] start-0 z-40 min-w-[10.5rem] overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-xl backdrop-blur-xl"
+                className="echomind-glass-blur absolute bottom-[calc(100%+0.5rem)] start-0 z-40 min-w-[10.5rem] overflow-hidden rounded-2xl"
                 role="menu"
               >
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-slate-200 hover:bg-slate-800/80"
-                  onClick={() => cameraRef.current?.click()}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-ink-soft hover:bg-white/[0.06]"
+                  onClick={() => void pickPhotoFromLibrary()}
                 >
-                  <IconCamera className="h-4 w-4 text-sky-300" />
-                  {t.camera}
+                  <IconPhoto className="h-4 w-4 text-gold" />
+                  {t.photoLibrary}
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-slate-200 hover:bg-slate-800/80"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-ink-soft hover:bg-white/[0.06]"
+                  onClick={() => void takePhoto()}
+                >
+                  <IconCamera className="h-4 w-4 text-gold" />
+                  {t.takePhoto}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-ink-soft hover:bg-white/[0.06]"
                   onClick={() => fileRef.current?.click()}
                 >
-                  <IconPaperclip className="h-4 w-4 text-sky-300" />
+                  <IconPaperclip className="h-4 w-4 text-gold" />
                   {t.files}
                 </button>
               </div>
@@ -388,7 +532,7 @@ export default function ChatInput({
             value={value}
             disabled={disabled}
             placeholder={t.placeholder}
-            className={`max-h-32 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-2.5 text-[16px] leading-6 text-slate-100 placeholder:text-slate-500 focus:outline-none ${
+            className={`max-h-11 min-h-[2.75rem] flex-1 resize-none overflow-y-auto whitespace-nowrap bg-transparent px-1 py-2.5 text-[16px] leading-6 text-ink placeholder:text-muted focus:outline-none ${
               dir === "rtl" ? "font-fa" : ""
             }`}
             onChange={(event) => onChange(event.target.value)}
@@ -402,25 +546,23 @@ export default function ChatInput({
 
           <button
             type="button"
-            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
-              listening
-                ? "border-rose-400/50 bg-rose-500/20 text-rose-300"
-                : "border-slate-800 bg-slate-950/50 text-slate-300 hover:text-sky-200"
-            }`}
             aria-label={listening ? t.voiceStop : t.voiceStart}
             aria-pressed={listening}
             disabled={disabled}
             onClick={toggleListening}
+            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40 ${
+              listening ? "text-gold" : "text-muted hover:text-gold"
+            }`}
           >
             {listening ? (
-              <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-[1.15rem]" />
+              <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-full" />
             ) : null}
             <IconMic className={`relative h-5 w-5 ${listening ? "echomind-pulse" : ""}`} />
           </button>
 
           <button
             type="button"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-500/30 bg-sky-400/15 text-sky-200 transition enabled:hover:bg-sky-400/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gold transition hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label={t.send}
             disabled={!canSend}
             onClick={submit}

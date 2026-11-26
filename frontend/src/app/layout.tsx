@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Vazirmatn } from "next/font/google";
+import { JetBrains_Mono, Inter, Plus_Jakarta_Sans, Vazirmatn } from "next/font/google";
 
 import ClerkRoot from "./components/ClerkRoot";
 import InstallPrompt from "./components/InstallPrompt";
@@ -14,6 +14,24 @@ const inter = Inter({
   display: "swap",
 });
 
+/** Plus Jakarta Sans — the geometric sans display face of the Dark
+    Obsidian design. Clean, executive, never bookish. */
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
+
+/** JetBrains Mono — the mono face for technical labels, counts and
+    refs (developer-grade precision: tabular numbers, never
+    decorative). Next 14 has no Geist export, so JetBrains Mono is
+    the real top-tier mono available here. */
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
 const vazirmatn = Vazirmatn({
   subsets: ["arabic", "latin"],
   variable: "--font-vazirmatn",
@@ -21,7 +39,7 @@ const vazirmatn = Vazirmatn({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#090d16",
+  themeColor: "#090A0F",
   colorScheme: "dark",
   viewportFit: "cover",
 };
@@ -50,9 +68,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${vazirmatn.variable}`}
+      className={`${inter.variable} ${jakarta.variable} ${jetbrainsMono.variable} ${vazirmatn.variable}`}
     >
-      <body className="bg-canvas font-sans antialiased">
+      <body className="bg-obsidian font-sans antialiased">
         <ClerkRoot>
           {children}
           <NativeShell />

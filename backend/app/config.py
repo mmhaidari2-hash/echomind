@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = ""
     CONNECTOR_TOKEN_KEY: str = ""
+    INSTAGRAM_CLIENT_ID: str = ""
+    INSTAGRAM_CLIENT_SECRET: str = ""
+    INSTAGRAM_REDIRECT_URI: str = ""
+    TRUELAYER_CLIENT_ID: str = ""
+    TRUELAYER_CLIENT_SECRET: str = ""
+    TRUELAYER_REDIRECT_URI: str = ""
+    TRUELAYER_ENV: str = "sandbox"
     RATE_LIMIT_REQUESTS: int = 120
     RATE_LIMIT_WINDOW_SECONDS: int = 60
     TRAVEL_SIGNING_SECRET: str = "echomind-travel-dev"

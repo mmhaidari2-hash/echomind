@@ -6,7 +6,10 @@ import ActiveContextBar, { type ContextWorkflow } from "./ActiveContextBar";
 import Dashboard from "./Dashboard";
 import PreferencesCard from "./PreferencesCard";
 import LifeSummaryCard from "./LifeSummaryCard";
+import ConnectionsHub from "./ConnectionsHub";
 import GoogleConnectionsCard from "./GoogleConnectionsCard";
+import ProvidersPanel from "./ProvidersPanel";
+import HubStatus from "./HubStatus";
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import type {
@@ -89,8 +92,8 @@ export default function ContextDrawer({
   const tabClass = (id: ContextTab) =>
     `min-h-11 flex-1 rounded-full px-3 text-sm font-semibold transition ${
       tab === id
-        ? "bg-sky-400/15 text-sky-100"
-        : "text-slate-400 hover:text-slate-200"
+        ? "echomind-gold-btn"
+        : "text-muted hover:text-ink-soft"
     }`;
 
   return (
@@ -105,20 +108,22 @@ export default function ContextDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={t.contextOpen}
-        className="absolute inset-x-0 bottom-0 flex max-h-[88dvh] flex-col rounded-t-[1.75rem] border border-metal-line bg-carbon shadow-lift sm:inset-y-0 sm:start-auto sm:end-0 sm:max-h-none sm:w-[26rem] sm:rounded-none sm:border-y-0 sm:border-s"
+        className="echomind-glass-blur absolute inset-x-0 bottom-0 flex max-h-[88dvh] flex-col rounded-t-[1.75rem] shadow-lift sm:inset-y-0 sm:start-auto sm:end-0 sm:max-h-none sm:w-[26rem] sm:rounded-none sm:border-y-0 sm:border-s"
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-metal-line px-4 py-3">
-          <p className="text-sm font-semibold text-slate-100">{t.contextOpen}</p>
+        {/* Drag handle (mockup 2). */}
+        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/25 sm:hidden" />
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.09] px-4 py-3">
+          <p className="font-sans text-sm font-semibold text-ink">{t.contextOpen}</p>
           <button
             type="button"
-            className="min-h-11 rounded-full border border-metal-line px-3 text-xs font-semibold text-slate-300 hover:text-sky-200"
+            className="min-h-[44px] rounded-full border border-gold/60 px-4 text-xs font-bold text-gold transition hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
             onClick={onClose}
           >
             {t.contextClose}
           </button>
         </div>
         <div className="shrink-0 px-4 pt-3">
-          <div className="flex rounded-full border border-metal-line bg-navy p-0.5">
+          <div className="flex rounded-full border border-white/[0.09] bg-white/[0.03] p-0.5">
             <button type="button" className={tabClass("context")} onClick={() => setTab("context")}>
               {t.contextTab}
             </button>
@@ -127,7 +132,7 @@ export default function ContextDrawer({
             </button>
           </div>
         </div>
-        <div className="echomind-scroll min-h-0 flex-1 px-4 py-4">
+        <div className="echomind-scroll echomind-safe-bottom min-h-0 flex-1 px-4 py-4">
           {tab === "context" ? (
             <div className="flex flex-col gap-4">
               <ActiveContextBar
@@ -139,11 +144,15 @@ export default function ContextDrawer({
                 onClear={onClear}
               />
               <LifeSummaryCard locale={locale} snapshot={lifeSnapshot} onChanged={onLifeChanged} />
+              <ConnectionsHub locale={locale} snapshot={lifeSnapshot} />
               <GoogleConnectionsCard locale={locale} />
+              <ProvidersPanel locale={locale} />
+              <HubStatus locale={locale} />
               <PreferencesCard
                 locale={locale}
                 preferences={preferences}
                 tags={tagText}
+                lifeSnapshot={lifeSnapshot}
                 onSave={onSavePreferences}
               />
             </div>

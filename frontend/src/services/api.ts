@@ -50,6 +50,13 @@ export class ApiError extends Error {
   }
 }
 
+/** True when the backend answered 404 for a known endpoint — the
+    server is an older build (the branch is not merged yet). The UI
+    must say "needs the next app update", never "could not be read". */
+export function isEndpointMissing(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === "endpoint_missing" || error.status === 404);
+}
+
 const DEFAULT_BASE = "/api/v1";
 const CHAT_TIMEOUT_MS = 20_000;
 const HEALTH_TIMEOUT_MS = 2_500;
@@ -199,9 +206,17 @@ async function request<T>(
         typeof payload?.detail === "string"
           ? payload.detail
           : `Request failed (${response.status})`;
+      // 404 on a known endpoint means the backend is an older build
+      // that does not have it yet (the branch is not merged) — not a
+      // network failure and not the user's fault. The UI tells the
+      // user exactly that instead of "could not be read".
+      const code =
+        response.status === 404
+          ? "endpoint_missing"
+          : payload?.code ?? "http_error";
       throw new ApiError(detail, {
         status: response.status,
-        code: payload?.code ?? "http_error",
+        code,
         requestId: payload?.request_id ?? "",
       });
     }
@@ -1180,10 +1195,19 @@ export async function getGoogleConnectorStatus(): Promise<GoogleConnectorStatus>
   });
 }
 
+export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+export const GOOGLE_DOCS_SCOPE = "https://www.googleapis.com/auth/documents.readonly";
+export const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
+export const GOOGLE_GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+
 export async function startGoogleConnection(
   access: "read" | "write" = "read",
+  extraScopes: string[] = [],
 ): Promise<{ authorization_url: string }> {
-  return api<{ authorization_url: string }>(`/connectors/google/start?access=${access}`, {
+  const params = new URLSearchParams({ access });
+  if (extraScopes.length > 0) params.set("scopes", extraScopes.join(","));
+  return api<{ authorization_url: string }>(`/connectors/google/start?${params.toString()}`, {
     auth: "protected",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
@@ -1223,6 +1247,317 @@ export async function getUpcomingCalendar(limit = 5): Promise<CalendarEventSumma
   });
 }
 
+// --- Instagram (Instagram API with Instagram Login, read-only) ---
+
+export type InstagramStatus = {
+  configured: boolean;
+  connected: boolean;
+  username: string | null;
+};
+
+export type InstagramProfile = {
+  id: string;
+  username: string;
+  account_type: string;
+  media_count: number;
+};
+
+export type InstagramMediaItem = {
+  id: string;
+  caption: string | null;
+  media_type: string;
+  media_url: string | null;
+  permalink: string | null;
+  timestamp: string;
+};
+
+export async function getInstagramStatus(): Promise<InstagramStatus> {
+  return api<InstagramStatus>("/connectors/instagram/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startInstagramConnection(): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>("/connectors/instagram/start", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getInstagramProfile(): Promise<InstagramProfile> {
+  return api<InstagramProfile>("/connectors/instagram/profile", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getInstagramMedia(limit = 10): Promise<InstagramMediaItem[]> {
+  return api<InstagramMediaItem[]>(`/connectors/instagram/media?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+// --- YouTube (Google OAuth, youtube.readonly, read-only) ---
+
+export type YouTubeStatus = {
+  configured: boolean;
+  connected: boolean;
+  scopes: string[];
+};
+
+export type YouTubeChannel = {
+  id: string;
+  title: string;
+  description: string;
+  subscribers: number;
+  video_count: number;
+  thumbnail_url: string | null;
+  uploads_playlist_id: string | null;
+};
+
+export type YouTubeVideo = {
+  id: string;
+  title: string;
+  published_at: string;
+  thumbnail_url: string | null;
+  url: string | null;
+};
+
+export async function getYouTubeStatus(): Promise<YouTubeStatus> {
+  return api<YouTubeStatus>("/connectors/youtube/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startYouTubeConnection(): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>("/connectors/youtube/start", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getYouTubeChannel(): Promise<YouTubeChannel> {
+  return api<YouTubeChannel>("/connectors/youtube/channel", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getYouTubeVideos(limit = 10): Promise<YouTubeVideo[]> {
+  return api<YouTubeVideo[]>(`/connectors/youtube/videos?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+// --- Drive / Docs / Sheets (Google, read-only) ---
+// Each rides the shared Google token; the hub reads their state from
+// the per-scope Google status, and these helpers call the connectors
+// directly (search, read) when a surface needs file content.
+
+export type ConnectorStatus = {
+  configured: boolean;
+  connected: boolean;
+  scopes: string[];
+};
+
+export type DriveFileItem = {
+  id: string;
+  name: string;
+  mime_type: string;
+  modified_time: string;
+  web_view_link: string | null;
+};
+
+export type DriveFileRead = {
+  file: DriveFileItem;
+  content: string;
+  truncated: boolean;
+  total_chars: number;
+};
+
+export type SheetTabItem = {
+  title: string;
+  index: number;
+};
+
+export type SheetValues = {
+  spreadsheet: DriveFileItem;
+  sheet_title: string;
+  range: string;
+  values: string[][];
+  truncated: boolean;
+  total_rows: number;
+  total_cells: number;
+};
+
+export async function getDriveStatus(): Promise<ConnectorStatus> {
+  return api<ConnectorStatus>("/connectors/drive/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function searchDrive(q = "", limit = 10): Promise<DriveFileItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api<DriveFileItem[]>(`/connectors/drive/search?${params.toString()}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function readDriveFile(fileId: string): Promise<DriveFileRead> {
+  return api<DriveFileRead>(`/connectors/drive/files/${encodeURIComponent(fileId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getDocsStatus(): Promise<ConnectorStatus> {
+  return api<ConnectorStatus>("/connectors/docs/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function searchDocs(q = "", limit = 10): Promise<DriveFileItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api<DriveFileItem[]>(`/connectors/docs/search?${params.toString()}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function readDocument(documentId: string): Promise<DriveFileRead> {
+  return api<DriveFileRead>(`/connectors/docs/documents/${encodeURIComponent(documentId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getSheetsStatus(): Promise<ConnectorStatus> {
+  return api<ConnectorStatus>("/connectors/sheets/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function searchSheets(q = "", limit = 10): Promise<DriveFileItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api<DriveFileItem[]>(`/connectors/sheets/search?${params.toString()}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function listSheetTabs(spreadsheetId: string): Promise<SheetTabItem[]> {
+  return api<SheetTabItem[]>(
+    `/connectors/sheets/spreadsheets/${encodeURIComponent(spreadsheetId)}/tabs`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+export async function readSheetValues(
+  spreadsheetId: string,
+  range?: string,
+): Promise<SheetValues> {
+  const params = range ? `?${new URLSearchParams({ range }).toString()}` : "";
+  return api<SheetValues>(
+    `/connectors/sheets/spreadsheets/${encodeURIComponent(spreadsheetId)}${params}`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+// --- Bank (UK Open Banking via TrueLayer, read-only) ---
+
+export type BankStatus = {
+  configured: boolean;
+  connected: boolean;
+  provider: string;
+  environment: string;
+};
+
+export type BankAccount = {
+  id: string;
+  name: string;
+  type: string;
+  currency: string;
+  provider: string;
+  balance: number | null;
+};
+
+export type BankTransaction = {
+  id: string;
+  account_id: string;
+  amount: number;
+  currency: string;
+  description: string;
+  date: string;
+  category: string | null;
+};
+
+export async function getBankStatus(): Promise<BankStatus> {
+  return api<BankStatus>("/connectors/bank/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function startBankConnection(): Promise<{ authorization_url: string }> {
+  return api<{ authorization_url: string }>("/connectors/bank/start", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getBankAccounts(): Promise<BankAccount[]> {
+  return api<BankAccount[]>("/connectors/bank/accounts", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getBankTransactions(accountId: string, limit = 20): Promise<BankTransaction[]> {
+  return api<BankTransaction[]>(
+    `/connectors/bank/accounts/${encodeURIComponent(accountId)}/transactions?limit=${limit}`,
+    {
+      auth: "protected",
+      method: "GET",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
 
 export type OutcomeItem = {
   id: string;
@@ -1237,6 +1572,578 @@ export type OutcomeItem = {
 
 export async function getPendingOutcomes(): Promise<OutcomeItem[]> {
   return api<OutcomeItem[]>("/outcomes", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type DetectionProposal = {
+  id: string;
+  kind: "delay_repay" | "payment_due" | "refund_promised" | "renewal";
+  target: "obligation" | "promise";
+  title: string;
+  due_date?: string | null;
+  due_date_estimated: boolean;
+  counterparty?: string | null;
+  promise_text?: string | null;
+  reason: string;
+  confidence: "high" | "medium";
+  evidence_message_id: string;
+  evidence_subject: string;
+  evidence_sender: string;
+  status: "new" | "already_recorded" | "dismissed";
+  claim_url?: string | null;
+  notes?: string | null;
+};
+
+export type DetectionScanResult = {
+  scanned: number;
+  proposals: DetectionProposal[];
+  scanned_at: string;
+};
+
+export async function scanInboxForDeadlines(limit = 20): Promise<DetectionScanResult> {
+  return api<DetectionScanResult>(`/life/detect?limit=${limit}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function dismissDetectionProposal(
+  proposalId: string,
+): Promise<{ dismissed: boolean }> {
+  return api<{ dismissed: boolean }>(
+    `/life/detect/${encodeURIComponent(proposalId)}/dismiss`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+/* ---- World-best ten: new clients (Promise Chaser, Verifier, Claim Pack,
+   Case File, Renewal Guard, Travel/Calendar Guard, Morning Brief, Evidence) ---- */
+
+export type FollowupStep = {
+  id: string;
+  step: "check" | "verify" | "chase" | "escalate";
+  due_date?: string | null;
+  label: string;
+  detail: string;
+  state: "upcoming" | "due" | "overdue";
+};
+
+export type FollowupDraftResponse = {
+  promise_id: string;
+  step: FollowupStep["step"];
+  draft: { to: string; subject: string; body: string; to_missing: boolean };
+  authority_proposal: {
+    tool: string;
+    summary: string;
+    parameters: Record<string, unknown>;
+    evidence_ids?: string[];
+    idempotency_key?: string;
+  };
+};
+
+export async function getPromiseFollowups(promiseId: string): Promise<FollowupStep[]> {
+  return api<FollowupStep[]>(`/life/promises/${encodeURIComponent(promiseId)}/followups`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function draftPromiseFollowup(
+  promiseId: string,
+  step: FollowupStep["step"],
+  payload: { to?: string | null; locale: "en" | "fa" },
+): Promise<FollowupDraftResponse> {
+  return api<FollowupDraftResponse>(
+    `/life/promises/${encodeURIComponent(promiseId)}/followups/${encodeURIComponent(step)}/draft`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export type VerificationResult = {
+  source_id: string;
+  kind: string;
+  status: "verified" | "awaiting" | "failed";
+  evidence_message_id?: string | null;
+  matched_text?: string | null;
+  checked_at: string;
+  detail: string;
+};
+
+export async function verifyOutcome(
+  kind: "obligation" | "promise",
+  sourceId: string,
+): Promise<VerificationResult> {
+  return api<VerificationResult>("/outcomes/verify", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify({ kind, source_id: sourceId }),
+  });
+}
+
+export async function getStoredVerification(sourceId: string): Promise<VerificationResult> {
+  return api<VerificationResult>(`/outcomes/${encodeURIComponent(sourceId)}/verification`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type ClaimPack = {
+  eligible: boolean;
+  tier: string;
+  tier_label: string;
+  delay_minutes: number;
+  percent: number;
+  estimate_gbp: string;
+  currency: string;
+  guideline: string;
+  claim_deadline_days: number;
+  operator_id: string;
+  operator_name: string;
+  claim_url?: string | null;
+  claim_draft: string;
+  next_steps: string[];
+  filing_deadline?: string | null;
+  filing_deadline_estimated: boolean;
+  evidence_checklist: string[];
+  filing_obligation: Record<string, unknown>;
+};
+
+export async function getClaimPack(payload: Record<string, unknown>): Promise<ClaimPack> {
+  return api<ClaimPack>("/delay-repay/pack", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export type CaseFile = {
+  case_node: { id: string; kind: string; label: string };
+  pathway: string;
+  pathway_label: string;
+  recommended_remedy: string;
+  notice_draft: string;
+  deadlines: Array<{ label: string; date: string; kind: string }>;
+  obligations: LifeObligation[];
+  statute_refs: string[];
+  next_steps: string[];
+};
+
+export async function createCaseFile(payload: Record<string, unknown>): Promise<CaseFile> {
+  return api<CaseFile>("/consumer-rights/cases", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export type RenewalItem = {
+  obligation_id: string;
+  title: string;
+  renewal_date?: string | null;
+  decision_deadline?: string | null;
+  annual_cost_gbp?: number | null;
+  currency: string;
+  status: string;
+  actions: Record<string, string>;
+  calendar_blocker: Record<string, unknown>;
+};
+
+export async function getRenewals(): Promise<{
+  renewals: RenewalItem[];
+  total_annual_cost_gbp: number;
+}> {
+  return api<{ renewals: RenewalItem[]; total_annual_cost_gbp: number }>("/life/renewals", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type TripCheck = {
+  event_id: string;
+  summary: string;
+  start: string;
+  status: "confirmed" | "missing_booking" | "disruption";
+  evidence_message_id?: string | null;
+  detail: string;
+};
+
+export async function getTravelGuard(): Promise<{ trips: TripCheck[]; checked_events: number }> {
+  return api<{ trips: TripCheck[]; checked_events: number }>("/travel/guard", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type CalendarConflict = {
+  type: "overlap" | "travel_risk";
+  event_ids: string[];
+  titles: string[];
+  detail: string;
+};
+
+export async function getCalendarGuard(): Promise<{
+  conflicts: CalendarConflict[];
+  checked_events: number;
+}> {
+  return api<{ conflicts: CalendarConflict[]; checked_events: number }>("/calendar/guard", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type BriefItem = {
+  priority: number;
+  kind: string;
+  title: string;
+  reason: string;
+  due_date?: string | null;
+};
+
+export type MorningBrief = {
+  date: string;
+  locale: string;
+  items: BriefItem[];
+  counts: Record<string, number>;
+};
+
+export async function getMorningBrief(locale: "en" | "fa"): Promise<MorningBrief> {
+  return api<MorningBrief>(`/brief/today?locale=${locale}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type EvidencePack = {
+  generated_at: string;
+  items: Array<{
+    kind: string;
+    id: string;
+    title: string;
+    counterparty: string;
+    due_date?: string | null;
+    status: string;
+    completeness: number;
+    evidence: Array<{ message_id: string; subject: string; sender: string; date: string; available: boolean }>;
+  }>;
+  total: number;
+  complete: number;
+};
+
+export async function getEvidencePack(): Promise<EvidencePack> {
+  return api<EvidencePack>("/life/evidence-pack", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+/* ---- Persian understanding + voice + project delegation ---- */
+
+export type IntentResult = {
+  intent: string;
+  confidence: "high" | "medium" | "low";
+  language: "fa" | "en";
+  entities: Record<string, unknown>;
+  action: Record<string, unknown>;
+  due_date?: string | null;
+};
+
+export async function understandMessage(
+  text: string,
+  locale: "en" | "fa",
+): Promise<IntentResult> {
+  return api<IntentResult>("/chat/understand", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify({ text, locale }),
+  });
+}
+
+export type VoiceProvider = {
+  id: string;
+  configured: boolean;
+  implemented: boolean;
+  note: string;
+};
+
+export type VoiceReadiness = {
+  providers: VoiceProvider[];
+  selected: string;
+};
+
+export async function getVoiceReadiness(): Promise<VoiceReadiness> {
+  return api<VoiceReadiness>("/voice/readiness", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+async function requestBlob(base: string, path: string, body: string): Promise<Blob> {
+  const secureHeaders = await authorizationHeaders();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${base}${path}`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...secureHeaders },
+      body,
+    });
+    if (!response.ok) {
+      throw new ApiError(`Voice unavailable (${response.status})`, { status: response.status, code: "voice_unavailable" });
+    }
+    return await response.blob();
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("Could not reach EchoMind", { code: "network_error" });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function speakText(text: string, locale: "en" | "fa"): Promise<Blob> {
+  return withBase((base) => requestBlob(base, "/voice/speak", JSON.stringify({ text, locale })));
+}
+
+export type Project = {
+  id: string;
+  name: string;
+  kind: string;
+  identity?: string | null;
+  repo?: string | null;
+  branch?: string | null;
+  allowed_tools: string[];
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DelegatedTask = {
+  id: string;
+  project_id: string;
+  instruction: string;
+  language: string;
+  status: string;
+  plan: Array<{ tool: string; summary: string; status: string; evidence?: string | null }>;
+  result?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listProjects(): Promise<Project[]> {
+  return api<Project[]>("/projects", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function createProject(payload: {
+  name: string;
+  kind?: string;
+  identity?: string | null;
+  repo?: string | null;
+  branch?: string | null;
+  allowed_tools?: string[];
+  notes?: string | null;
+}): Promise<Project> {
+  return api<Project>("/projects", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createProjectTask(
+  projectId: string,
+  payload: { instruction: string; language: "en" | "fa"; idempotency_key?: string },
+): Promise<DelegatedTask> {
+  return api<DelegatedTask>(`/projects/${encodeURIComponent(projectId)}/tasks`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listProjectTasks(projectId: string): Promise<DelegatedTask[]> {
+  return api<DelegatedTask[]>(`/projects/${encodeURIComponent(projectId)}/tasks`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function getProjectTask(taskId: string): Promise<DelegatedTask> {
+  return api<DelegatedTask>(`/projects/tasks/${encodeURIComponent(taskId)}`, {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function confirmProjectTask(taskId: string): Promise<{ task: DelegatedTask; executed: boolean }> {
+  return api<{ task: DelegatedTask; executed: boolean }>(
+    `/projects/tasks/${encodeURIComponent(taskId)}/confirm`,
+    {
+      auth: "protected",
+      method: "POST",
+      timeoutMs: CHAT_TIMEOUT_MS,
+    },
+  );
+}
+
+export type ProviderSlot = {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  endpoint: string;
+  has_key: boolean;
+  has_endpoint: boolean;
+  is_active: boolean;
+  builtin: boolean;
+};
+
+export type ProviderTestResult = {
+  ok: boolean;
+  status: number | null;
+  detail: string;
+};
+
+export async function listProviders(): Promise<ProviderSlot[]> {
+  return api<ProviderSlot[]>("/providers", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function createProvider(payload: {
+  name?: string;
+  provider?: string;
+  model?: string;
+  endpoint?: string;
+  api_key?: string;
+}): Promise<ProviderSlot> {
+  return api<ProviderSlot>("/providers", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProvider(
+  slotId: string,
+  payload: { name?: string; model?: string; endpoint?: string; api_key?: string; clear_key?: boolean },
+): Promise<ProviderSlot> {
+  return api<ProviderSlot>(`/providers/${encodeURIComponent(slotId)}`, {
+    auth: "protected",
+    method: "PATCH",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProvider(slotId: string): Promise<{ deleted: boolean }> {
+  return api<{ deleted: boolean }>(`/providers/${encodeURIComponent(slotId)}`, {
+    auth: "protected",
+    method: "DELETE",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function activateProvider(slotId: string): Promise<ProviderSlot> {
+  return api<ProviderSlot>(`/providers/${encodeURIComponent(slotId)}/activate`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function testProvider(slotId: string): Promise<ProviderTestResult> {
+  return api<ProviderTestResult>(`/providers/${encodeURIComponent(slotId)}/test`, {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+/**
+ * Command hub — the generic, pluggable slot. For Mahdi it is
+ * MENTOR; for anyone else it stays empty until they plug in
+ * whatever hub they like. The hub is what actually runs the
+ * work EchoMind hands over, so EchoMind can be commanded
+ * hands-free by voice instead of opening the hub by hand.
+ */
+export type HubConnection = {
+  endpoint: string;
+  cookie_name: string;
+  has_session: boolean;
+  session_valid: boolean | null;
+  paused: boolean | null;
+  worker_state: "ready" | "paused" | "unknown" | "needs-sign-in" | "empty";
+  detail: string | null;
+};
+
+export type HubTaskStatus = {
+  task_id: string;
+  state: "queued" | "running" | "waiting-for-you" | "ready-to-merge" | "finished" | "unknown";
+  detail: string | null;
+  url: string;
+  paused: boolean | null;
+};
+
+export async function getHubStatus(): Promise<HubConnection> {
+  return api<HubConnection>("/mentor/status", {
+    auth: "protected",
+    method: "GET",
+    timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export async function saveHubSession(payload: {
+  endpoint?: string;
+  session_cookie?: string;
+  cookie_name?: string;
+  clear?: boolean;
+}): Promise<HubConnection> {
+  return api<HubConnection>("/mentor/session", {
+    auth: "protected",
+    method: "POST",
+    timeoutMs: CHAT_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getHubTaskStatus(taskId: string): Promise<HubTaskStatus> {
+  return api<HubTaskStatus>(`/mentor/tasks/${encodeURIComponent(taskId)}/status`, {
     auth: "protected",
     method: "GET",
     timeoutMs: CHAT_TIMEOUT_MS,

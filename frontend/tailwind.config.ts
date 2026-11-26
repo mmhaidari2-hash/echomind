@@ -1,5 +1,18 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * EchoMind palette — Dark Obsidian executive theme.
+ *
+ * Canvas #090A0F, translucent glass surfaces (white 4%, blur 20px,
+ * 1px white/9% hairline), warm Amber-Gold #E5A93C accents. Type is
+ * clean geometric sans: Plus Jakarta Sans first, Inter as fallback,
+ * Vazirmatn for Persian. JetBrains Mono stays for technical labels,
+ * counts and refs — tabular, precise, never decorative.
+ *
+ * The old warm tokens (canvas cream, bark, clay, honey, navy, carbon,
+ * metal) are gone on purpose: any class still using them fails loudly
+ * in the build instead of silently rendering the old theme.
+ */
 const config: Config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,22 +22,44 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#090d16",
-        carbon: "#070b12",
-        navy: "#0c1322",
-        metal: {
-          DEFAULT: "#8b93a1",
-          dim: "#3a4250",
-          line: "rgba(148, 163, 184, 0.28)",
+        obsidian: "#090A0F",
+        panel: "#10121A",
+        ink: {
+          DEFAULT: "#F4F5F7",
+          soft: "#C9CEDA",
+        },
+        muted: "#9AA1B0",
+        gold: {
+          DEFAULT: "#E5A93C",
+          light: "#F2C268",
+          deep: "#C98F22",
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: [
+          "var(--font-jakarta)",
+          "var(--font-inter)",
+          "system-ui",
+          "sans-serif",
+        ],
+        serif: [
+          "var(--font-jakarta)",
+          "var(--font-inter)",
+          "system-ui",
+          "sans-serif",
+        ],
         fa: ["var(--font-vazirmatn)", "Tahoma", "sans-serif"],
+        mono: [
+          "var(--font-jetbrains-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "monospace",
+        ],
       },
       boxShadow: {
-        lift: "0 10px 28px rgba(2, 6, 23, 0.45)",
-        cta: "0 8px 24px rgba(125, 211, 252, 0.08)",
+        lift: "0 18px 40px -20px rgba(0, 0, 0, 0.6)",
+        cta: "0 10px 24px -8px rgba(229, 169, 60, 0.45)",
       },
     },
   },
