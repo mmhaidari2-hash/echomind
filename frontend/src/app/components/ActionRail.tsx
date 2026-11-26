@@ -122,10 +122,10 @@ export default function ActionRail({
             <Reveal key={action.id} delay={index * 70}>
               <button
                 type="button"
-                className={`flex min-h-[5.75rem] w-full flex-col items-start gap-3 rounded-[1.4rem] px-4 py-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
+                className={`flex min-h-[5.75rem] w-full flex-col items-start gap-3 rounded-[1.4rem] px-4 py-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60 ${
                   selected
-                    ? "echomind-glass-strong echomind-tilt text-sky-100"
-                    : "echomind-glass echomind-tilt text-slate-100 hover:border-sky-300/40"
+                    ? "echomind-glass-strong echomind-tilt text-honey-deep"
+                    : "echomind-glass echomind-tilt text-bark hover:border-honey/50"
                 }`}
                 onClick={action.onClick}
               >
@@ -133,8 +133,8 @@ export default function ActionRail({
                   <RailIcon name={action.icon} />
                 </span>
                 <span>
-                  <span className="block text-lg font-semibold tracking-tight">{action.title}</span>
-                  <span className="mt-1 block text-sm leading-5 text-slate-400">{action.hint}</span>
+                  <span className="block font-serif text-lg font-semibold tracking-tight">{action.title}</span>
+                  <span className="mt-1 block text-sm leading-5 text-clay">{action.hint}</span>
                 </span>
               </button>
             </Reveal>
@@ -144,7 +144,7 @@ export default function ActionRail({
       <button
         type="button"
         className={`echomind-chip-glass min-h-11 justify-self-start rounded-full px-4 py-2 text-sm font-medium transition ${
-          active === "consumer_rights" ? "text-sky-100" : "text-slate-300 hover:text-sky-200"
+          active === "consumer_rights" ? "text-honey-deep" : "text-bark-soft hover:text-honey-deep"
         }`}
         onClick={onRights}
       >

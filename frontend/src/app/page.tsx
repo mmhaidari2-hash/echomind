@@ -632,7 +632,7 @@ export default function HomePage() {
               <EchoMark className="h-7 w-7" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-lg font-semibold tracking-tight text-slate-100">
+              <p className="truncate text-lg font-semibold tracking-tight text-bark">
                 {t.appName}
               </p>
               <p className="text-xs uppercase tracking-[0.18em] text-metal">
@@ -650,7 +650,7 @@ export default function HomePage() {
             >
               {t.contextTab}
               {workflow !== "idle" || documentLabel || memoryLabel ? (
-                <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-sky-300" />
+                <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-honey-light" />
               ) : null}
             </GlassPill>
             <AuthStatus />
@@ -659,7 +659,7 @@ export default function HomePage() {
               aria-live="polite"
               aria-label={online ? t.online : t.local}
               className={`h-2.5 w-2.5 shrink-0 rounded-full sm:hidden ${
-                online ? "bg-emerald-300" : "bg-amber-300"
+                online ? "bg-emerald-300" : "bg-honey"
               }`}
             />
             <div
@@ -669,14 +669,14 @@ export default function HomePage() {
             >
               <span
                 className={`rounded-full px-2.5 py-1.5 ${
-                  online ? "bg-emerald-400/15 text-emerald-300" : "text-slate-500"
+                  online ? "bg-emerald-600/15 text-emerald-700" : "text-clay"
                 }`}
               >
                 {t.online}
               </span>
               <span
                 className={`rounded-full px-2.5 py-1.5 ${
-                  !online ? "bg-amber-400/15 text-amber-200" : "text-slate-500"
+                  !online ? "bg-honey/15 text-honey-deep" : "text-clay"
                 }`}
               >
                 {t.local}
@@ -688,11 +688,11 @@ export default function HomePage() {
               aria-label={t.langToggle}
               onClick={() => setLocale((prev) => (prev === "en" ? "fa" : "en"))}
             >
-              <span className={locale === "en" ? "text-sky-300" : "text-slate-500"}>
+              <span className={locale === "en" ? "text-honey-deep" : "text-clay"}>
                 EN
               </span>
-              <span className="text-slate-600">/</span>
-              <span className={locale === "fa" ? "text-sky-300" : "text-slate-500"}>
+              <span className="text-clay">/</span>
+              <span className={locale === "fa" ? "text-honey-deep" : "text-clay"}>
                 فا
               </span>
             </GlassPill>
@@ -704,7 +704,7 @@ export default function HomePage() {
         <div
           role="status"
           aria-live="polite"
-          className="shrink-0 border-b border-amber-400/20 bg-amber-400/10 px-4 py-2.5 text-center text-sm text-amber-100"
+          className="shrink-0 border-b border-honey/30 bg-honey/10 px-4 py-2.5 text-center text-sm text-honey-deep"
         >
           {t.offlineBanner}
         </div>
@@ -713,10 +713,10 @@ export default function HomePage() {
       <main ref={mainRef} className="echomind-scroll px-4 pb-6 pt-6 sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
           <section className="relative space-y-1">
-            <h1 className="echomind-hero-title echomind-fade-up relative text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="echomind-hero-title echomind-fade-up relative font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
               {t.greeting}
             </h1>
-            <p className="echomind-fade-up relative max-w-xl text-sm leading-6 text-slate-300/90">
+            <p className="echomind-fade-up relative max-w-xl text-sm leading-6 text-bark-soft/90">
               {t.subtitle}
             </p>
           </section>
@@ -784,30 +784,30 @@ export default function HomePage() {
           ) : null}
           {surface === "travel" ? (
             <section className="echomind-glass rounded-[1.6rem] px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/80">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-honey-deep/80">
                 {travelText(locale).title}
               </p>
-              <p className="mt-1 text-sm text-slate-400">{travelText(locale).hint}</p>
+              <p className="mt-1 text-sm text-clay">{travelText(locale).hint}</p>
             </section>
           ) : null}
 
           {pendingAction ? (
-            <section className="rounded-[1.4rem] border border-amber-400/30 bg-amber-400/10 p-4" aria-live="polite">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+            <section className="rounded-[1.4rem] border border-honey/40 bg-honey/10 p-4" aria-live="polite">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-honey-deep">
                 {locale === "fa" ? "تأیید اقدام" : "Confirm action"}
               </p>
-              <p className="mt-1 text-sm text-slate-100">{pendingAction.summary}</p>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-sm text-bark">{pendingAction.summary}</p>
+              <p className="mt-1 text-xs text-clay">
                 {locale === "fa"
                   ? "تا وقتی تأیید نکنی، EchoMind این اقدام را اجرا نمی‌کند."
                   : "EchoMind will not execute this action until you confirm it."}
               </p>
-              {authorityError ? <p className="mt-2 text-xs text-rose-300">{authorityError}</p> : null}
+              {authorityError ? <p className="mt-2 text-xs text-red-700">{authorityError}</p> : null}
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
                   disabled={authorityBusy}
-                  className="min-h-11 rounded-full bg-amber-300 px-4 text-sm font-semibold text-slate-950 disabled:opacity-50"
+                  className="min-h-11 rounded-full bg-honey px-4 text-sm font-semibold text-bark disabled:opacity-50"
                   onClick={async () => {
                     setAuthorityBusy(true);
                     setAuthorityError(null);
@@ -834,7 +834,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   disabled={authorityBusy}
-                  className="min-h-11 rounded-full border border-slate-700 px-4 text-sm font-semibold text-slate-300 disabled:opacity-50"
+                  className="min-h-11 rounded-full border border-bark/15 px-4 text-sm font-semibold text-bark-soft disabled:opacity-50"
                   onClick={async () => {
                     setAuthorityBusy(true);
                     try {
@@ -853,7 +853,7 @@ export default function HomePage() {
               </div>
             </section>
           ) : authorityError ? (
-            <p role="alert" className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+            <p role="alert" className="rounded-2xl border border-red-700/30 bg-red-700/10 p-3 text-sm text-red-700">
               {authorityError}
             </p>
           ) : null}
@@ -924,7 +924,7 @@ export default function HomePage() {
                     key={message.id}
                     dir={dir}
                     className={`echomind-glass max-w-[85%] rounded-3xl px-4 py-3 text-base leading-7 ${
-                      isUser ? "self-end text-slate-100" : "self-start text-rose-100"
+                      isUser ? "self-end text-bark" : "self-start text-red-700"
                     }`}
                   >
                     {message.text}

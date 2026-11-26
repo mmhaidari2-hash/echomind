@@ -20,6 +20,11 @@ export const copy = {
     attach: "Attachment or camera",
     camera: "Camera",
     files: "Files",
+    photoLibrary: "Photo library",
+    takePhoto: "Take a photo",
+    photoDenied:
+      "EchoMind can't open your photos — photo access is turned off. Allow it in Settings → Apps → EchoMind → Permissions, then try again.",
+    photoError: "Couldn't read that photo. Try another one.",
     recording: "Listening… tap to stop",
     speechUnsupported: "Voice input is not supported in this browser.",
     micDenied: "Microphone permission was denied.",
@@ -76,6 +81,11 @@ export const copy = {
     attach: "پیوست یا دوربین",
     camera: "دوربین",
     files: "فایل",
+    photoLibrary: "گالری عکس",
+    takePhoto: "گرفتن عکس",
+    photoDenied:
+      "اکومایند نمی‌تواند به عکس‌های شما دسترسی داشته باشد — دسترسی به عکس خاموش است. در تنظیمات ← برنامه‌ها ← EchoMind ← دسترسی‌ها آن را روشن کنید و دوباره تلاش کنید.",
+    photoError: "خواندن آن عکس ممکن نشد. عکس دیگری را امتحان کنید.",
     recording: "در حال شنیدن… برای توقف بزنید",
     speechUnsupported: "ورودی صوتی در این مرورگر پشتیبانی نمی‌شود.",
     micDenied: "دسترسی به میکروفون رد شد.",

@@ -14,11 +14,13 @@ from app.api.endpoints import (
     delay_repay,
     detection,
     documents,
+    drive,
     evidence,
     followup,
     health,
     instagram,
     life,
+    mail,
     memory,
     notifications,
     outcomes,
@@ -30,6 +32,7 @@ from app.api.endpoints import (
     travel_guard,
     verification,
     voice,
+    watches,
     youtube,
 )
 
@@ -48,6 +51,9 @@ api_router.include_router(detection.router)
 api_router.include_router(consumer_rights.router)
 api_router.include_router(overdraft_shield.router)
 api_router.include_router(documents.router)
+api_router.include_router(drive.router)
+api_router.include_router(mail.router)
+api_router.include_router(watches.router)
 api_router.include_router(notifications.router)
 api_router.include_router(outcomes.router)
 api_router.include_router(memory.router)

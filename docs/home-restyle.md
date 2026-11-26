@@ -98,3 +98,13 @@ EchoMind engines stay visible — the product is not reduced to the hub.
   optional `?scopes=`)
 - `backend/tests/test_connectors.py` (new `?scopes=` test)
 - `docs/connectors-bank-instagram-youtube.md`
+
+## Warm redesign + all 8 apps (2026-11-26)
+
+The hub was restyled again in the warm editorial language (cream, dark
+brown, honey, Fraunces serif, framer-motion entrance, shadcn Button for
+the connect action) — see `docs/warm-redesign.md`. It also now shows all
+8 apps: Bank, Instagram and YouTube were missing from the orbit even
+though their connectors existed. The app list and status loading live in
+the shared `frontend/src/app/components/hubApps.ts`, so the home hub and
+the drawer hub can never drift apart again.

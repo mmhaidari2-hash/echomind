@@ -26,7 +26,7 @@ type ConsumerRightsWizardProps = {
 };
 
 const fieldClass =
-  "w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-[16px] text-slate-100 placeholder:text-slate-500 focus:border-violet-500/40 focus:outline-none focus:ring-2 focus:ring-violet-400/40";
+  "w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark placeholder:text-clay focus:border-honey/50 focus:outline-none focus:ring-2 focus:ring-honey/50";
 
 function money(value: string | number): string {
   const amount = typeof value === "number" ? value : Number(value);
@@ -113,16 +113,16 @@ export default function ConsumerRightsWizard({
   };
 
   return (
-    <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 shadow-[0_10px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl sm:p-5">
+    <section className="rounded-3xl border border-bark/10 bg-cream/85 p-4 shadow-[0_10px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-violet-300/80">{t.subtitle}</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-100">{t.title}</h2>
-          <p className="mt-1 text-xs text-slate-400">{t.bands}</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-honey-deep/80">{t.subtitle}</p>
+          <h2 className="mt-1 font-serif text-xl font-semibold text-bark">{t.title}</h2>
+          <p className="mt-1 text-xs text-clay">{t.bands}</p>
         </div>
         <button
           type="button"
-          className="rounded-full border border-slate-800 px-3 py-1 text-xs text-slate-400 hover:text-slate-100"
+          className="rounded-full border border-bark/10 px-3 py-1 text-xs text-clay hover:text-bark"
           onClick={onClose}
         >
           {t.close}
@@ -139,10 +139,10 @@ export default function ConsumerRightsWizard({
               key={label}
               className={`rounded-full border px-2 py-1.5 ${
                 active
-                  ? "border-violet-500/40 bg-violet-400/10 text-violet-200"
+                  ? "border-honey/40 bg-honey/10 text-honey-deep"
                   : done
-                    ? "border-slate-700 text-slate-300"
-                    : "border-slate-800 text-slate-500"
+                    ? "border-bark/15 text-bark-soft"
+                    : "border-bark/10 text-clay"
               }`}
             >
               {label}
@@ -153,11 +153,11 @@ export default function ConsumerRightsWizard({
 
       {step === 1 ? (
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.retailer}
             <input className={fieldClass} value={retailer} onChange={(e) => setRetailer(e.target.value)} />
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.retailerAddress}
             <input
               className={fieldClass}
@@ -165,11 +165,11 @@ export default function ConsumerRightsWizard({
               onChange={(e) => setRetailerAddress(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.item}
             <input className={fieldClass} value={item} onChange={(e) => setItem(e.target.value)} />
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.kind}
             <select className={fieldClass} value={kind} onChange={(e) => setKind(e.target.value as PurchaseKind)}>
               <option value="goods">{t.goods}</option>
@@ -178,7 +178,7 @@ export default function ConsumerRightsWizard({
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1.5 text-sm text-slate-300">
+            <label className="grid gap-1.5 text-sm text-bark-soft">
               {t.purchaseDate}
               <input
                 type="date"
@@ -187,7 +187,7 @@ export default function ConsumerRightsWizard({
                 onChange={(e) => setPurchaseDate(e.target.value)}
               />
             </label>
-            <label className="grid gap-1.5 text-sm text-slate-300">
+            <label className="grid gap-1.5 text-sm text-bark-soft">
               {t.deliveryDate}
               <input
                 type="date"
@@ -197,7 +197,7 @@ export default function ConsumerRightsWizard({
               />
             </label>
           </div>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.price}
             <input
               type="number"
@@ -208,13 +208,13 @@ export default function ConsumerRightsWizard({
               onChange={(e) => setPrice(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.consumer}
             <input className={fieldClass} value={consumer} onChange={(e) => setConsumer(e.target.value)} />
           </label>
           <button
             type="button"
-            className="mt-1 rounded-2xl border border-violet-500/30 bg-violet-400/15 px-4 py-3 text-sm font-semibold text-violet-100 disabled:opacity-40"
+            className="mt-1 rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-sm font-semibold text-honey-deep disabled:opacity-40"
             disabled={!canContinuePurchase}
             onClick={() => setStep(2)}
           >
@@ -225,11 +225,11 @@ export default function ConsumerRightsWizard({
 
       {step === 2 ? (
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.orderRef}
             <input className={fieldClass} value={orderRef} onChange={(e) => setOrderRef(e.target.value)} />
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.fault}
             <textarea
               rows={4}
@@ -238,7 +238,7 @@ export default function ConsumerRightsWizard({
               onChange={(e) => setFault(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.prior}
             <select className={fieldClass} value={prior} onChange={(e) => setPrior(e.target.value as PriorRemedy)}>
               <option value="none">{t.priorNone}</option>
@@ -247,7 +247,7 @@ export default function ConsumerRightsWizard({
               <option value="trader_refused">{t.priorRefused}</option>
             </select>
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.desired}
             <select className={fieldClass} value={desired} onChange={(e) => setDesired(e.target.value as DesiredRemedy)}>
               <option value="auto">{t.desiredAuto}</option>
@@ -257,12 +257,12 @@ export default function ConsumerRightsWizard({
               <option value="price_reduction">{t.desiredReduction}</option>
             </select>
           </label>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.proof}
             <input
               type="file"
               accept="image/*,application/pdf"
-              className="text-sm text-slate-400 file:me-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-slate-200"
+              className="text-sm text-clay file:me-3 file:rounded-full file:border-0 file:bg-bark/10 file:px-3 file:py-1.5 file:text-bark-soft"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 setProofName(file?.name ?? "");
@@ -278,20 +278,20 @@ export default function ConsumerRightsWizard({
                 });
               }}
             />
-            {proofName ? <span className="text-xs text-slate-500">{proofName}</span> : null}
+            {proofName ? <span className="text-xs text-clay">{proofName}</span> : null}
           </label>
-          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+          {error ? <p className="text-sm text-red-700">{error}</p> : null}
           <div className="mt-1 grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-2xl border border-slate-800 px-4 py-3 text-sm text-slate-300"
+              className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
               onClick={() => setStep(1)}
             >
               {t.back}
             </button>
             <button
               type="button"
-              className="rounded-2xl border border-violet-500/30 bg-violet-400/15 px-4 py-3 text-sm font-semibold text-violet-100 disabled:opacity-40"
+              className="rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-sm font-semibold text-honey-deep disabled:opacity-40"
               disabled={!canGenerate || busy}
               onClick={() => void generate()}
             >
@@ -303,7 +303,7 @@ export default function ConsumerRightsWizard({
 
       {step === 3 && result ? (
         <div className="grid gap-4">
-          <div className="rounded-2xl border border-violet-500/25 bg-violet-400/10 px-4 py-3 text-violet-100">
+          <div className="rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-honey-deep">
             <p className="text-xs uppercase tracking-[0.16em] opacity-80">{t.eligible}</p>
             <p className="mt-1 text-xl font-semibold">{result.pathway_label}</p>
             <p className="mt-1 text-sm opacity-90">
@@ -311,27 +311,27 @@ export default function ConsumerRightsWizard({
               {money(result.purchase_price)}
             </p>
           </div>
-          <p className="text-sm text-slate-200">{result.summary}</p>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-bark-soft">{result.summary}</p>
+          <p className="text-sm text-clay">
             {result.within_6_months ? t.burden : t.burdenYou}
           </p>
-          <p className="text-sm text-slate-400">
-            <span className="text-slate-500">{t.guideline}: </span>
+          <p className="text-sm text-clay">
+            <span className="text-clay">{t.guideline}: </span>
             {result.guideline}
           </p>
-          <ul className="space-y-1 text-xs text-slate-500">
+          <ul className="space-y-1 text-xs text-clay">
             {result.statute_refs.map((ref) => (
               <li key={ref}>{ref}</li>
             ))}
           </ul>
-          <ol className="space-y-1.5 ps-4 text-sm text-slate-300">
+          <ol className="space-y-1.5 ps-4 text-sm text-bark-soft">
             {result.next_steps.map((stepText) => (
               <li key={stepText} className="list-decimal">
                 {stepText}
               </li>
             ))}
           </ol>
-          <label className="grid gap-1.5 text-sm text-slate-300">
+          <label className="grid gap-1.5 text-sm text-bark-soft">
             {t.draft}
             <textarea
               readOnly
@@ -340,18 +340,18 @@ export default function ConsumerRightsWizard({
               value={result.notice_draft}
             />
           </label>
-          <p className="text-xs text-slate-500">{t.disclaimer}</p>
+          <p className="text-xs text-clay">{t.disclaimer}</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-2xl border border-slate-800 px-4 py-3 text-sm text-slate-200"
+              className="rounded-2xl border border-bark/10 px-4 py-3 text-sm text-bark-soft"
               onClick={() => void copyDraft()}
             >
               {copied ? t.copied : t.copyDraft}
             </button>
             <button
               type="button"
-              className="rounded-2xl border border-violet-500/30 bg-violet-400/15 px-4 py-3 text-sm font-semibold text-violet-100"
+              className="rounded-2xl border border-honey/40 bg-honey/10 px-4 py-3 text-sm font-semibold text-honey-deep"
               onClick={() => {
                 setResult(null);
                 setStep(1);

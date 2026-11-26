@@ -66,3 +66,13 @@ shape the existing GoogleConnectionsCard uses), not by a live run;
 say so honestly. Visual rendering was not screenshot-verified: the
 Playwright browser download was explicitly denied, so no screenshot
 exists (see the final report).
+
+## All 8 apps — the drawer hub fix (2026-11-26)
+
+The drawer hub used to show only 5 apps (Gmail, Calendar, Drive, Docs,
+Sheets) even though Bank, Instagram and YouTube connectors already
+existed. It now shows all 8, from the same shared model as the home hub
+(`frontend/src/app/components/hubApps.ts`), with the same real states
+from the status endpoints. Unconfigured ones say "needs setup" with the
+reason; if every status endpoint fails to answer, the hub says the
+status could not be read instead of guessing.

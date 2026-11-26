@@ -340,6 +340,46 @@ def scan_inbox(user_id: str, *, limit: int = 20, today: date | None = None) -> D
     )
 
 
+def scan_archive(user_id: str, query: str, *, limit: int = 20, today: date | None = None) -> DetectionScanResult:
+    """Run the detectors over the whole Gmail archive, not just the
+    last 30 days — the Shortwave gap.
+
+    ``query`` is Gmail search syntax (keywords, ``from:``, ``after:``,
+    ``has:attachment`` ...). An empty query scans the most recent mail.
+    The limit is capped at 50: every hit costs one detail call, and a
+    scan is a deliberate, owner-triggered action, not a background job.
+    Proposals are the same deterministic detections as the inbox scan,
+    with the same recorded/dismissed marking. There is no semantic
+    ranking here — that needs an LLM (see
+    docs/lindy-shortwave-claude-gaps.md).
+    """
+    from app.services.google_connector import search_gmail
+
+    as_of = today or date.today()
+    safe_limit = min(max(limit, 1), 50)
+    messages = search_gmail(user_id, query, safe_limit)
+    recorded = recorded_evidence_ids(user_id)
+    dismissed = dismissed_detection_ids(user_id)
+    proposals: list[DetectionProposal] = []
+    seen: set[tuple[str, DetectionKind]] = set()
+    for message in messages:
+        for proposal in detect_message(message, as_of):
+            key = (proposal.evidence_message_id, proposal.kind)
+            if key in seen:
+                continue
+            seen.add(key)
+            if proposal.id in dismissed:
+                proposal.status = DetectionStatus.dismissed
+            elif proposal.evidence_message_id in recorded:
+                proposal.status = DetectionStatus.already_recorded
+            proposals.append(proposal)
+    return DetectionScanResult(
+        scanned=len(messages),
+        proposals=proposals,
+        scanned_at=datetime.now(timezone.utc),
+    )
+
+
 def dismiss_proposal(user_id: str, proposal_id: str) -> None:
     from app.services.life import dismiss_detection
 

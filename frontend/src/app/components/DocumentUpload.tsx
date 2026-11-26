@@ -3,7 +3,9 @@
 import { useId, useRef, useState } from "react";
 
 import { dashText } from "../lib/dashboardCopy";
+import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
+import { getPhotoService } from "../../services/photos";
 import {
   ApiError,
   parseDocumentFile,
@@ -19,7 +21,7 @@ type DocumentUploadProps = {
 };
 
 const fieldClass =
-  "w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-[16px] text-slate-100 placeholder:text-slate-500 focus:border-sky-500/40 focus:outline-none focus:ring-2 focus:ring-sky-400/40";
+  "w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark placeholder:text-clay focus:border-honey/50 focus:outline-none focus:ring-2 focus:ring-honey/50";
 
 export default function DocumentUpload({
   locale,
@@ -28,6 +30,7 @@ export default function DocumentUpload({
   onTrack,
 }: DocumentUploadProps) {
   const t = dashText(locale);
+  const c = copy[locale];
   const fileId = useId();
   const cameraId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,6 +38,7 @@ export default function DocumentUpload({
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
   const [result, setResult] = useState<DocumentParseResponse | null>(null);
 
   const runParse = async (file: File) => {
@@ -55,23 +59,59 @@ export default function DocumentUpload({
     }
   };
 
+  /** Attach a photo from the library or the camera and scan it as a
+      document/receipt. Native Capacitor Camera on the phone; the
+      hidden file inputs on the web. A denied permission is reported
+      honestly — never claim access that was not granted. */
+  const pickPhoto = async (kind: "library" | "camera") => {
+    setPhotoNotice(null);
+    const service = await getPhotoService();
+    const result =
+      kind === "library" ? await service.pickFromLibrary() : await service.takePhoto();
+    if (result.ok) {
+      void runParse(result.file);
+      return;
+    }
+    if (result.reason === "denied") {
+      setPhotoNotice(c.photoDenied);
+      return;
+    }
+    if (result.reason === "error") {
+      setPhotoNotice(c.photoError);
+      return;
+    }
+    if (result.reason === "web-fallback") {
+      if (kind === "library") fileRef.current?.click();
+      else cameraRef.current?.click();
+    }
+    // "cancelled": the user closed the picker — nothing to say.
+  };
+
   return (
     <section className="rounded-[1.4rem] border border-metal-line bg-navy p-5 shadow-lift">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-sky-300/80">{t.scanTitle}</p>
-      <p className="mt-1 text-sm text-slate-400">{t.scanHint}</p>
+      <p className="text-[11px] uppercase tracking-[0.2em] text-honey-deep/80">{t.scanTitle}</p>
+      <p className="mt-1 text-sm text-clay">{t.scanHint}</p>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           type="button"
-          className="rounded-2xl border border-sky-500/30 bg-sky-400/10 px-3 py-2.5 text-sm font-semibold text-sky-100 disabled:opacity-40"
+          className="rounded-2xl border border-honey/40 bg-honey/10 px-3 py-2.5 text-sm font-semibold text-honey-deep disabled:opacity-40"
           disabled={busy}
-          onClick={() => cameraRef.current?.click()}
+          onClick={() => void pickPhoto("library")}
         >
-          {t.camera}
+          {c.photoLibrary}
         </button>
         <button
           type="button"
-          className="rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-sm font-semibold text-slate-200 disabled:opacity-40"
+          className="rounded-2xl border border-honey/40 bg-honey/10 px-3 py-2.5 text-sm font-semibold text-honey-deep disabled:opacity-40"
+          disabled={busy}
+          onClick={() => void pickPhoto("camera")}
+        >
+          {c.takePhoto}
+        </button>
+        <button
+          type="button"
+          className="col-span-2 rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-sm font-semibold text-bark-soft disabled:opacity-40"
           disabled={busy}
           onClick={() => fileRef.current?.click()}
         >
@@ -79,7 +119,13 @@ export default function DocumentUpload({
         </button>
       </div>
 
-      <label className="mt-3 grid gap-1.5 text-sm text-slate-300">
+      {photoNotice ? (
+        <p className="mt-3 text-sm text-bark-soft" role="status">
+          {photoNotice}
+        </p>
+      ) : null}
+
+      <label className="mt-3 grid gap-1.5 text-sm text-bark-soft">
         {t.hint}
         <textarea
           rows={2}
@@ -115,27 +161,27 @@ export default function DocumentUpload({
         }}
       />
 
-      {busy ? <p className="mt-3 text-sm text-slate-400">{t.parsing}</p> : null}
-      {error ? <p className="mt-3 text-sm text-rose-300">{error}</p> : null}
+      {busy ? <p className="mt-3 text-sm text-clay">{t.parsing}</p> : null}
+      {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
 
       {result ? (
-        <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t.extracted}</p>
-          <p className="mt-1 text-sm text-slate-100">{result.summary}</p>
+        <div className="mt-4 rounded-2xl border border-bark/10 bg-white/60 p-3">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-clay">{t.extracted}</p>
+          <p className="mt-1 text-sm text-bark">{result.summary}</p>
           {result.entities.amounts.length || result.entities.dates.length || result.entities.vendors.length ? (
-            <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-300">
+            <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-bark-soft">
               {result.entities.vendors.map((vendor) => (
-                <li key={vendor} className="rounded-full border border-slate-800 px-2 py-0.5">
+                <li key={vendor} className="rounded-full border border-bark/10 px-2 py-0.5">
                   {vendor}
                 </li>
               ))}
               {result.entities.amounts.map((amount) => (
-                <li key={`£${amount}`} className="rounded-full border border-slate-800 px-2 py-0.5">
+                <li key={`£${amount}`} className="rounded-full border border-bark/10 px-2 py-0.5">
                   £{amount}
                 </li>
               ))}
               {result.entities.dates.map((day) => (
-                <li key={day} className="rounded-full border border-slate-800 px-2 py-0.5">
+                <li key={day} className="rounded-full border border-bark/10 px-2 py-0.5">
                   {day}
                 </li>
               ))}
@@ -145,7 +191,7 @@ export default function DocumentUpload({
             {result.delay_repay ? (
               <button
                 type="button"
-                className="rounded-full border border-sky-500/30 bg-sky-400/10 px-3 py-1.5 text-xs font-semibold text-sky-200"
+                className="rounded-full border border-honey/40 bg-honey/10 px-3 py-1.5 text-xs font-semibold text-honey-deep"
                 onClick={() => onOpenPillar("delay_repay", result)}
               >
                 {t.fillDelay}
@@ -154,7 +200,7 @@ export default function DocumentUpload({
             {result.consumer_rights ? (
               <button
                 type="button"
-                className="rounded-full border border-violet-500/30 bg-violet-400/10 px-3 py-1.5 text-xs font-semibold text-violet-200"
+                className="rounded-full border border-honey/40 bg-honey/10 px-3 py-1.5 text-xs font-semibold text-honey-deep"
                 onClick={() => onOpenPillar("consumer_rights", result)}
               >
                 {t.fillRights}
@@ -163,7 +209,7 @@ export default function DocumentUpload({
             {result.overdraft_shield ? (
               <button
                 type="button"
-                className="rounded-full border border-emerald-500/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200"
+                className="rounded-full border border-emerald-600/30 bg-emerald-600/10 px-3 py-1.5 text-xs font-semibold text-emerald-800"
                 onClick={() => onOpenPillar("overdraft_shield", result)}
               >
                 {t.fillShield}
@@ -172,7 +218,7 @@ export default function DocumentUpload({
             {onTrack && (result.delay_repay || result.consumer_rights || result.overdraft_shield) ? (
               <button
                 type="button"
-                className="rounded-full border border-slate-800 px-3 py-1.5 text-xs text-slate-300"
+                className="rounded-full border border-bark/10 px-3 py-1.5 text-xs text-bark-soft"
                 onClick={() => onTrack(result)}
               >
                 {t.track}

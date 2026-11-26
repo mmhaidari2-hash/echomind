@@ -14,7 +14,7 @@ type PreferencesCardProps = {
 };
 
 const fieldClass =
-  "w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-[16px] text-slate-100";
+  "w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark";
 
 export default function PreferencesCard({
   locale,
@@ -57,47 +57,47 @@ export default function PreferencesCard({
   }, [preferences, tags]);
 
   return (
-    <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-sky-300/80">{t.profileTitle}</p>
-      <p className="mt-1 text-xs text-slate-400">{t.profileHint}</p>
+    <section className="rounded-3xl border border-bark/10 bg-cream/85 p-4">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-honey-deep/80">{t.profileTitle}</p>
+      <p className="mt-1 text-xs text-clay">{t.profileHint}</p>
       <div className="mt-3 grid gap-3">
-        <label className="grid gap-1.5 text-xs text-slate-400">
+        <label className="grid gap-1.5 text-xs text-clay">
           {t.displayName}
           <input className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {t.homeStation}
             <input className={fieldClass} value={home} onChange={(e) => setHome(e.target.value)} />
           </label>
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {t.workStation}
             <input className={fieldClass} value={work} onChange={(e) => setWork(e.target.value)} />
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {t.preferredOperator}
             <input className={fieldClass} value={operator} onChange={(e) => setOperator(e.target.value)} />
           </label>
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {t.preferredBank}
             <input className={fieldClass} value={bank} onChange={(e) => setBank(e.target.value)} />
           </label>
         </div>
-        <label className="grid gap-1.5 text-xs text-slate-400">
+        <label className="grid gap-1.5 text-xs text-clay">
           {t.preferredRetailer}
           <input className={fieldClass} value={retailer} onChange={(e) => setRetailer(e.target.value)} />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {locale === "fa" ? "زبان رابط" : "UI language"}
             <select className={fieldClass} value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value as "en" | "fa")}>
               <option value="en">English</option>
               <option value="fa">فارسی</option>
             </select>
           </label>
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {locale === "fa" ? "زبان فرمان" : "Command language"}
             <select className={fieldClass} value={commandLanguage} onChange={(e) => setCommandLanguage(e.target.value as "auto" | "en" | "fa")}>
               <option value="auto">Auto</option>
@@ -107,30 +107,30 @@ export default function PreferencesCard({
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {locale === "fa" ? "بازار اصلی" : "Home market"}
             <input className={fieldClass} value={homeMarket} onChange={(e) => setHomeMarket(e.target.value.toUpperCase())} />
           </label>
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {locale === "fa" ? "حوزه قانونی" : "Jurisdiction"}
             <input className={fieldClass} value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value.toUpperCase())} />
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {locale === "fa" ? "ارز" : "Currency"}
             <input className={fieldClass} maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
           </label>
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {locale === "fa" ? "زبان ارتباط بیرونی" : "External language"}
             <input className={fieldClass} value={externalLanguage} onChange={(e) => setExternalLanguage(e.target.value)} />
           </label>
         </div>
-        <label className="grid gap-1.5 text-xs text-slate-400">
+        <label className="grid gap-1.5 text-xs text-clay">
           {locale === "fa" ? "مقصد سفر فعلی" : "Current travel destination"}
           <input className={fieldClass} value={travelDestination} onChange={(e) => setTravelDestination(e.target.value)} />
         </label>
-        <label className="grid gap-1.5 text-xs text-slate-400">
+        <label className="grid gap-1.5 text-xs text-clay">
           {t.contextTags}
           <input
             className={fieldClass}
@@ -141,7 +141,7 @@ export default function PreferencesCard({
         </label>
         <button
           type="button"
-          className="rounded-2xl border border-sky-500/30 bg-sky-400/10 px-4 py-2.5 text-sm font-semibold text-sky-100"
+          className="rounded-2xl border border-honey/40 bg-honey/10 px-4 py-2.5 text-sm font-semibold text-honey-deep"
           disabled={saveState === "saving"}
           onClick={async () => {
             setSaveState("saving");
@@ -180,7 +180,7 @@ export default function PreferencesCard({
               : t.saveProfile}
         </button>
         {saveState === "error" ? (
-          <p role="alert" className="text-xs text-rose-300">
+          <p role="alert" className="text-xs text-red-700">
             {locale === "fa"
               ? "ذخیره نشد. ورود و اتصال امن را بررسی کن."
               : "Could not save. Check your secure sign-in and connection."}

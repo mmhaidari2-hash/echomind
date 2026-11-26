@@ -59,18 +59,18 @@ export default function ActiveContextBar({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-metal">
             {t.activeContext}
           </p>
-          <p className="mt-1 truncate text-base font-medium text-slate-100">
+          <p className="mt-1 truncate text-base font-medium text-bark">
             {workflowLabel}
             {documentLabel ? ` · ${documentLabel}` : ""}
           </p>
           {memoryLabel ? (
-            <p className="mt-0.5 truncate text-sm text-slate-400">{memoryLabel}</p>
+            <p className="mt-0.5 truncate text-sm text-clay">{memoryLabel}</p>
           ) : null}
         </div>
         {active ? (
           <button
             type="button"
-            className="min-h-11 shrink-0 rounded-full border border-metal-line px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-sky-400/40 hover:text-sky-200"
+            className="min-h-11 shrink-0 rounded-full border border-metal-line px-3 py-1.5 text-xs font-semibold text-bark-soft transition hover:border-honey/40 hover:text-honey-deep"
             onClick={onClear}
           >
             {t.contextClear}

@@ -94,15 +94,15 @@ function statusLabel(status: string, lang: Lang): string {
 function statusTone(status: string): string {
   switch (status) {
     case "done":
-      return "bg-emerald-400/15 text-emerald-300 border-emerald-300/30";
+      return "bg-emerald-600/15 text-emerald-700 border-emerald-600/30";
     case "running":
-      return "bg-sky-400/15 text-sky-300 border-sky-300/30";
+      return "bg-honey/10 text-honey-deep border-honey/40";
     case "failed":
-      return "bg-rose-400/15 text-rose-300 border-rose-300/30";
+      return "bg-rose-400/15 text-red-700 border-rose-300/30";
     case "needs_owner":
-      return "bg-amber-400/15 text-amber-300 border-amber-300/30";
+      return "bg-honey/15 text-honey-deep border-amber-300/30";
     default:
-      return "bg-amber-400/15 text-amber-300 border-amber-300/30";
+      return "bg-honey/15 text-honey-deep border-amber-300/30";
   }
 }
 
@@ -175,7 +175,7 @@ export default function DelegatedWork({
           <button
             type="button"
             onClick={() => void load()}
-            className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:text-slate-50"
+            className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-bark-soft transition hover:text-bark"
           >
             {STRINGS.refresh[lang]}
           </button>
@@ -183,17 +183,17 @@ export default function DelegatedWork({
       </Reveal>
 
       {error ? (
-        <p role="alert" className="mt-4 text-sm text-rose-300">
+        <p role="alert" className="mt-4 text-sm text-red-700">
           {error}
         </p>
       ) : null}
 
       {loading ? (
-        <p className="mt-4 text-sm text-slate-400">…</p>
+        <p className="mt-4 text-sm text-clay">…</p>
       ) : projects.length === 0 ? (
         <Reveal delay={80}>
           <GlassCard className="mt-4 p-4">
-            <p className="text-sm leading-relaxed text-slate-300">{STRINGS.noProjects[lang]}</p>
+            <p className="text-sm leading-relaxed text-bark-soft">{STRINGS.noProjects[lang]}</p>
             <button
               type="button"
               onClick={() =>
@@ -203,7 +203,7 @@ export default function DelegatedWork({
                     : "In my project, do this: ",
                 )
               }
-              className="mt-3 rounded-full bg-gradient-to-r from-sky-400 to-cyan-300 px-4 py-2 text-sm font-bold text-slate-950 transition"
+              className="mt-3 rounded-full bg-gradient-to-r from-honey to-honey-light px-4 py-2 text-sm font-bold text-bark transition"
             >
               {STRINGS.delegateTo[lang]}
             </button>
@@ -216,8 +216,8 @@ export default function DelegatedWork({
               <GlassCard className="p-4" strong>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="text-base font-bold text-slate-50">{project.name}</h3>
-                    <p className="text-xs text-slate-400">
+                    <h3 className="font-serif text-base font-semibold text-bark">{project.name}</h3>
+                    <p className="text-xs text-clay">
                       {[project.kind, project.repo, project.branch].filter(Boolean).join(" · ")}
                     </p>
                   </div>
@@ -230,14 +230,14 @@ export default function DelegatedWork({
                           : `In ${project.name}, do this: `,
                       )
                     }
-                    className="rounded-full bg-gradient-to-r from-sky-400 to-cyan-300 px-3.5 py-1.5 text-xs font-bold text-slate-950 transition"
+                    className="rounded-full bg-gradient-to-r from-honey to-honey-light px-3.5 py-1.5 text-xs font-bold text-bark transition"
                   >
                     {STRINGS.delegateTo[lang]}
                   </button>
                 </div>
 
                 {tasks.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-400">{STRINGS.noTasks[lang]}</p>
+                  <p className="mt-3 text-sm text-clay">{STRINGS.noTasks[lang]}</p>
                 ) : (
                   <ul className="mt-3 space-y-3">
                     {tasks.map((task) => {
@@ -249,7 +249,7 @@ export default function DelegatedWork({
                           className="echomind-glass rounded-2xl p-3"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold leading-snug text-slate-100">
+                            <p className="text-sm font-semibold leading-snug text-bark">
                               {task.instruction}
                             </p>
                             <span
@@ -258,19 +258,19 @@ export default function DelegatedWork({
                               {statusLabel(task.status, lang)}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs text-slate-400">
+                          <p className="mt-1 text-xs text-clay">
                             {STRINGS.steps[lang](doneSteps, task.plan.length)}
                           </p>
                           {task.status === "proposed" ? (
                             <div className="mt-2">
-                              <p className="text-xs text-amber-200/90">
+                              <p className="text-xs text-honey-deep/90">
                                 {STRINGS.needsConfirmation[lang]}
                               </p>
                               <button
                                 type="button"
                                 disabled={confirmingId === task.id}
                                 onClick={() => void handleConfirm(task.id)}
-                                className="mt-2 rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 px-4 py-2 text-sm font-bold text-amber-950 transition disabled:opacity-60"
+                                className="mt-2 rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 px-4 py-2 text-sm font-bold text-cream transition disabled:opacity-60"
                               >
                                 {confirmingId === task.id
                                   ? STRINGS.confirming[lang]
@@ -279,16 +279,16 @@ export default function DelegatedWork({
                             </div>
                           ) : null}
                           {task.result ? (
-                            <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                              <span className="font-semibold text-slate-100">
+                            <p className="mt-2 text-sm leading-relaxed text-bark-soft">
+                              <span className="font-semibold text-bark">
                                 {STRINGS.result[lang]}:{" "}
                               </span>
                               {task.result}
                             </p>
                           ) : null}
                           {evidenceSteps.length > 0 ? (
-                            <p className="mt-1 text-xs text-slate-400">
-                              <span className="font-semibold text-slate-300">
+                            <p className="mt-1 text-xs text-clay">
+                              <span className="font-semibold text-bark-soft">
                                 {STRINGS.evidence[lang]}:{" "}
                               </span>
                               {evidenceSteps
@@ -309,7 +309,7 @@ export default function DelegatedWork({
       )}
 
       {confirmError ? (
-        <p role="alert" className="mt-3 text-sm text-rose-300">
+        <p role="alert" className="mt-3 text-sm text-red-700">
           {confirmError}
         </p>
       ) : null}

@@ -12,6 +12,7 @@ import {
 
 import { copy } from "../lib/copy";
 import { GlassIconButton } from "./Glass";
+import { getPhotoService } from "../../services/photos";
 import {
   detectTextDirection,
   localeDir,
@@ -26,6 +27,8 @@ import {
 export type ChatAttachment = {
   id: string;
   file: File;
+  /** Object URL for image thumbnails, revoked on remove/submit. */
+  previewUrl?: string;
 };
 
 type ChatInputProps = {
@@ -80,6 +83,35 @@ function IconPaperclip({ className }: { className?: string }) {
     >
       <path
         d="M8.5 12.5 15 6a3.2 3.2 0 1 1 4.5 4.5l-8.2 8.2a4.6 4.6 0 0 1-6.5-6.5l7.4-7.4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconPhoto({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-hidden
+    >
+      <rect
+        x="3.5"
+        y="5"
+        width="17"
+        height="14"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <circle cx="9" cy="10" r="1.6" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="m5 17 4-4 3.5 3.5L16 13l3 3"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"
@@ -196,6 +228,9 @@ export default function ChatInput({
 
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
+  /** Shown when a photo could not be added — e.g. permission denied.
+      Never claims access that was not granted. */
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
 
   const {
     listening,
@@ -240,14 +275,79 @@ export default function ChatInput({
     onChange(next);
   }, [listening, transcript, onChange]);
 
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    const next = Array.from(list).map((file) => ({
+  const addFilesList = (list: File[]) => {
+    if (!list.length) return;
+    const next = list.map((file) => ({
       id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
       file,
+      previewUrl: file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : undefined,
     }));
     setAttachments((prev) => [...prev, ...next].slice(0, 6));
     setAttachOpen(false);
+  };
+
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    addFilesList(Array.from(list));
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => {
+      const item = prev.find((entry) => entry.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((entry) => entry.id !== id);
+    });
+  };
+
+  /** Photo library — native Capacitor Camera on the phone, the hidden
+      file input on the web. A denied permission is reported honestly
+      instead of pretending the photo was attached. */
+  const pickPhotoFromLibrary = async () => {
+    setAttachOpen(false);
+    setPhotoNotice(null);
+    const service = await getPhotoService();
+    const result = await service.pickFromLibrary();
+    if (result.ok) {
+      addFilesList([result.file]);
+      return;
+    }
+    if (result.reason === "denied") {
+      setPhotoNotice(t.photoDenied);
+      return;
+    }
+    if (result.reason === "error") {
+      setPhotoNotice(t.photoError);
+      return;
+    }
+    if (result.reason === "web-fallback") {
+      fileRef.current?.click();
+    }
+    // "cancelled": the user closed the picker — nothing to say.
+  };
+
+  /** Camera capture — same shape as the library flow. */
+  const takePhoto = async () => {
+    setAttachOpen(false);
+    setPhotoNotice(null);
+    const service = await getPhotoService();
+    const result = await service.takePhoto();
+    if (result.ok) {
+      addFilesList([result.file]);
+      return;
+    }
+    if (result.reason === "denied") {
+      setPhotoNotice(t.photoDenied);
+      return;
+    }
+    if (result.reason === "error") {
+      setPhotoNotice(t.photoError);
+      return;
+    }
+    if (result.reason === "web-fallback") {
+      cameraRef.current?.click();
+    }
   };
 
   const toggleListening = () => {
@@ -266,8 +366,12 @@ export default function ChatInput({
       text: value.trim(),
       attachments: attachments.map((item) => item.file),
     });
+    for (const item of attachments) {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    }
     onChange("");
     setAttachments([]);
+    setPhotoNotice(null);
     speechAnchorRef.current = "";
     requestAnimationFrame(resizeField);
   };
@@ -278,7 +382,7 @@ export default function ChatInput({
         {leading}
         {notice ? (
           <p
-            className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-slate-300"
+            className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-bark-soft"
             role="status"
           >
             {listening ? <ListeningWave /> : null}
@@ -289,23 +393,35 @@ export default function ChatInput({
           </p>
         ) : null}
 
+        {photoNotice ? (
+          <p
+            className="echomind-glass mb-2 rounded-2xl px-3 py-2 text-center text-xs text-bark-soft"
+            role="status"
+          >
+            {photoNotice}
+          </p>
+        ) : null}
+
         {attachments.length > 0 ? (
           <ul className="mb-2 flex flex-wrap gap-2">
             {attachments.map((item) => (
               <li
                 key={item.id}
-                className="echomind-chip-glass flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-slate-200"
+                className="echomind-chip-glass flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-bark-soft"
               >
+                {item.previewUrl ? (
+                  <img
+                    src={item.previewUrl}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-full object-cover"
+                  />
+                ) : null}
                 <span className="truncate">{item.file.name}</span>
                 <button
                   type="button"
-                  className="rounded-full p-0.5 text-slate-400 hover:text-slate-100"
+                  className="rounded-full p-0.5 text-clay hover:text-bark"
                   aria-label="Remove attachment"
-                  onClick={() =>
-                    setAttachments((prev) =>
-                      prev.filter((entry) => entry.id !== item.id),
-                    )
-                  }
+                  onClick={() => removeAttachment(item.id)}
                 >
                   <IconClose className="h-3.5 w-3.5" />
                 </button>
@@ -332,19 +448,28 @@ export default function ChatInput({
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-slate-200 hover:bg-slate-800/80"
-                  onClick={() => cameraRef.current?.click()}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-bark-soft hover:bg-bark/5"
+                  onClick={() => void pickPhotoFromLibrary()}
                 >
-                  <IconCamera className="h-4 w-4 text-sky-300" />
-                  {t.camera}
+                  <IconPhoto className="h-4 w-4 text-honey-deep" />
+                  {t.photoLibrary}
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-slate-200 hover:bg-slate-800/80"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-bark-soft hover:bg-bark/5"
+                  onClick={() => void takePhoto()}
+                >
+                  <IconCamera className="h-4 w-4 text-honey-deep" />
+                  {t.takePhoto}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm text-bark-soft hover:bg-bark/5"
                   onClick={() => fileRef.current?.click()}
                 >
-                  <IconPaperclip className="h-4 w-4 text-sky-300" />
+                  <IconPaperclip className="h-4 w-4 text-honey-deep" />
                   {t.files}
                 </button>
               </div>
@@ -387,7 +512,7 @@ export default function ChatInput({
             value={value}
             disabled={disabled}
             placeholder={t.placeholder}
-            className={`max-h-32 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-2.5 text-[16px] leading-6 text-slate-100 placeholder:text-slate-500 focus:outline-none ${
+            className={`max-h-32 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-2.5 text-[16px] leading-6 text-bark placeholder:text-clay focus:outline-none ${
               dir === "rtl" ? "font-fa" : ""
             }`}
             onChange={(event) => onChange(event.target.value)}
@@ -414,7 +539,7 @@ export default function ChatInput({
 
           <button
             type="button"
-            className="echomind-send-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+            className="echomind-send-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey/60"
             aria-label={t.send}
             disabled={!canSend}
             onClick={submit}

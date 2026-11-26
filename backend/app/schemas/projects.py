@@ -17,7 +17,17 @@ class ProjectCreate(BaseModel):
     identity: str | None = Field(default=None, max_length=80)
     repo: str | None = Field(default=None, max_length=160)
     branch: str | None = Field(default=None, max_length=80)
-    allowed_tools: list[str] = Field(default_factory=lambda: ["life.create_obligation", "github.latest_commit", "github.open_issues"])
+    allowed_tools: list[str] = Field(
+        default_factory=lambda: [
+            "life.create_obligation",
+            "github.latest_commit",
+            "github.open_issues",
+            "github.create_issue",
+            "github.read_file",
+            "github.open_pr",
+            "github.ci_status",
+        ]
+    )
     notes: str | None = Field(default=None, max_length=1000)
 
 
@@ -32,6 +42,10 @@ class TaskStep(BaseModel):
     summary: str
     status: str = "pending"
     evidence: str | None = None
+    # Parameters the planner extracted from the instruction (issue
+    # title, file path, PR branches). Shown to the owner with the plan
+    # so they can see exactly what will run before confirming.
+    params: dict[str, object] = Field(default_factory=dict)
 
 
 class TaskCreate(BaseModel):

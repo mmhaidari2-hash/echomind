@@ -41,9 +41,20 @@ Recognises the verbs it knows and turns the rest into an explicit
 capability.
 - "latest commit" / "آخرین کامیت" → `github.latest_commit`
 - "open issues" / "issue" → `github.open_issues`
+- "create an issue" / "ایشو بساز" (+ the title) → `github.create_issue`
+- "read the file" / "فایل ... رو بخون" (+ the path) → `github.read_file`
+- "open a pull request" / "پول ریکوئست" (+ head/base branches) → `github.open_pr`
+- "CI status" / "وضعیت CI" → `github.ci_status`
 - "remind" / "obligation" / "یادآوری" / "مهلت" → `life.create_obligation`
   (recorded in the Life Graph, tagged with the project name)
 - anything else → `owner` step (needs the owner)
+
+The four GitHub verbs were added in the Lindy/Shortwave/Claude gaps
+run (see `docs/lindy-shortwave-claude-gaps.md`). Write verbs
+(create issue, open PR) fail closed without a token: the planner
+still proposes the step, and confirmation runs it only when the
+backend has a `GITHUB_TOKEN` with `repo` scope; otherwise the step
+finishes as `needs_owner` with the exact reason.
 
 ### 4. Executor
 - **GitHub steps** call the public GitHub API with urllib (no new
@@ -95,7 +106,9 @@ capability.
   logic is verified with stubbed HTTP (tests pass); the live path
   from the deployed backend is UNVERIFIED here and needs CI or a
   token to confirm.
-- The planner knows three verbs. Everything else is `needs_owner`
+- The planner knows seven verbs (three read-only GitHub, four added
+  in the gaps run: create issue, read file, open PR, CI status).
+  Everything else is `needs_owner`
   by design — that is the safety boundary, not a bug, and the report
   says so instead of pretending.
 

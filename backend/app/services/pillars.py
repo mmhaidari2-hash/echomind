@@ -291,6 +291,37 @@ def _run_intent(
             [],
             extra={"task_id": done.id},
         )
+    if intent == "mail_search":
+        query = str(result.entities.get("query") or message).strip()
+        if not query:
+            return reply(
+                _copy(lang, "What should I search your email for?", "توی ایمیلت دنبال چی بگردم؟"),
+                [],
+            )
+        try:
+            hits = connector.search_gmail(user_id, query, 5)
+        except (connector.ConnectorNotConnectedError, connector.ConnectorNotConfiguredError):
+            return reply(
+                _copy(lang, "Connect Google first to search your email.", "برای جستجو تو ایمیلت اول گوگل را وصل کنید."),
+                [],
+            )
+        if not hits:
+            return reply(
+                _copy(lang, f"No emails matched '{query}'.", f"ایمیلی با «{query}» پیدا نشد."),
+                [],
+            )
+        steps = [
+            f"{hit.subject or '(no subject)'} — {hit.sender} · {hit.date}"
+            for hit in hits
+        ]
+        return reply(
+            _copy(
+                lang,
+                f"Found {len(hits)} email(s) for '{query}':",
+                f"برای «{query}» این {len(hits)} ایمیل را پیدا کردم:",
+            ),
+            steps,
+        )
     return None
 
 

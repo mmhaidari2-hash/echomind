@@ -6,9 +6,11 @@
  * A product landing page in the SAME frontend as the mobile app (not a
  * new top-level app): it presents what EchoMind is, its six
  * differentiators and how the Outcome Loop works, and links into the
- * real app at `/`. It uses only the shared design system
- * (../components/Glass + globals.css tokens) and Tailwind classes
- * already in the repo. No new dependencies.
+ * real app at `/`. Warm editorial design in the SparkFlow spirit:
+ * cream, dark brown, honey, Fraunces serif display type, big amber
+ * serif numerals, rounded cards, a waterfall feed. Real components:
+ * shadcn/ui Button + Card, framer-motion (MotionReveal) for the
+ * entrance and stagger — no hand-rolled imitations.
  *
  * Bilingual EN/FA: one inline dictionary, a locale toggle in the
  * header, persisted under `echomind.locale`. Persian sets lang/dir on
@@ -22,7 +24,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GlassCard, Orb3D, Reveal, SectionHeading, Waterfall } from "../components/Glass";
+import { GlassCard, MotionReveal, Orb3D, SectionHeading, Waterfall } from "../components/Glass";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 
 type Locale = "en" | "fa";
 
@@ -287,10 +291,10 @@ export default function SitePage() {
   const toggleLocale = () => setLocale(locale === "en" ? "fa" : "en");
 
   return (
-    <div className="echomind-site-scroll bg-canvas text-slate-100">
+    <div className="echomind-site-scroll bg-canvas text-bark">
       <div className="echomind-scene relative mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6">
         {/* Ambient depth layers */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-sky-500/10 via-violet-500/10 to-transparent blur-2xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-honey/10 via-honey/10 to-transparent blur-2xl" />
 
         {/* Header */}
         <header className="sticky top-0 z-20 -mx-4 bg-canvas/80 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
@@ -298,8 +302,8 @@ export default function SitePage() {
             <Link href="/" className="flex items-center gap-2 text-start">
               <span aria-hidden="true" className="echomind-orb-3d inline-block h-8 w-8 shrink-0" />
               <span className="leading-tight">
-                <span className="block text-base font-bold text-slate-50">EchoMind</span>
-                <span className="block text-[11px] text-slate-400">{t.brandTag}</span>
+                <span className="block font-serif text-base font-semibold text-bark">EchoMind</span>
+                <span className="block text-[11px] text-clay">{t.brandTag}</span>
               </span>
             </Link>
             <div className="flex items-center gap-2">
@@ -307,153 +311,147 @@ export default function SitePage() {
                 type="button"
                 onClick={toggleLocale}
                 aria-label={locale === "en" ? "Switch to Persian" : "Switch to English"}
-                className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-slate-100"
+                className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-bark"
               >
                 {locale === "en" ? "فارسی" : "English"}
               </button>
-              <Link
-                href="/"
-                className="rounded-full bg-sky-400 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-cta"
-              >
-                {t.openApp}
-              </Link>
+              <Button asChild size="sm">
+                <Link href="/">{t.openApp}</Link>
+              </Button>
             </div>
           </div>
         </header>
 
         {/* (1) Hero */}
         <section className="pt-10 text-center sm:pt-14">
-          <Reveal>
+          <MotionReveal>
             <div className="flex justify-center">
               <Orb3D size={180} className="echomind-depth-2" />
             </div>
-          </Reveal>
-          <Reveal delay={90}>
-            <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/80">
-              {t.heroEyebrow}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold leading-tight text-slate-50 sm:text-4xl">
+          </MotionReveal>
+          <MotionReveal delay={90}>
+            <p className="spark-eyebrow mt-6">{t.heroEyebrow}</p>
+            <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight text-bark sm:text-5xl">
               {t.heroTitleStart}
-              <span className="echomind-gradient-text">{t.heroTitleAccent}</span>
+              <span className="echomind-gradient-text font-serif italic">{t.heroTitleAccent}</span>
               {t.heroTitleEnd}
             </h1>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-400 sm:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-clay sm:text-base">
               {t.heroSubtitle}
             </p>
-          </Reveal>
-          <Reveal delay={180}>
+          </MotionReveal>
+          <MotionReveal delay={180}>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="/"
-                className="rounded-full bg-sky-400 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-cta"
-              >
-                {t.heroPrimary}
-              </Link>
-              <a
-                href="#how"
-                className="echomind-glass rounded-full px-5 py-2.5 text-sm font-semibold text-slate-100"
-              >
-                {t.heroSecondary}
-              </a>
+              <Button asChild>
+                <Link href="/">{t.heroPrimary}</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <a href="#how">{t.heroSecondary}</a>
+              </Button>
             </div>
-            <p className="mt-4 text-xs text-slate-500">{t.heroNote}</p>
-          </Reveal>
+            <p className="mt-4 text-xs text-clay">{t.heroNote}</p>
+          </MotionReveal>
         </section>
 
         {/* (2) Six differentiators */}
         <section className="mt-16" aria-label={t.diffTitle}>
-          <Reveal>
+          <MotionReveal>
             <SectionHeading eyebrow={t.diffEyebrow} title={t.diffTitle} subtitle={t.diffSubtitle} />
-          </Reveal>
+          </MotionReveal>
           <Waterfall className="mt-5">
             {t.differentiators.map((item, index) => (
-              <Reveal key={item.title} delay={(index % 3) * 90}>
-                <GlassCard tilt className="p-4 sm:p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/80">
-                    {String(index + 1).padStart(2, "0")}
-                  </p>
-                  <h3 className="mt-1 text-base font-bold text-slate-50">{item.title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-400">{item.body}</p>
-                </GlassCard>
-              </Reveal>
+              <MotionReveal key={item.title} delay={(index % 3) * 90}>
+                <Card className="echomind-tilt">
+                  <CardHeader>
+                    <p className="spark-num">{String(index + 1).padStart(2, "0")}</p>
+                    <CardTitle className="mt-1 font-serif">{item.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-sm leading-relaxed text-clay">
+                      {item.body}
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              </MotionReveal>
             ))}
           </Waterfall>
         </section>
 
         {/* (3) Outcome Loop */}
         <section id="how" className="mt-16 scroll-mt-20" aria-label={t.loopTitle}>
-          <Reveal>
+          <MotionReveal>
             <SectionHeading eyebrow={t.loopEyebrow} title={t.loopTitle} subtitle={t.loopSubtitle} />
-          </Reveal>
-          <Reveal delay={90}>
+          </MotionReveal>
+          <MotionReveal delay={90}>
             <GlassCard strong className="mt-5 p-4 sm:p-5">
               <ol className="flex flex-col gap-4 sm:flex-row sm:gap-3">
                 {t.loopSteps.map((step, index) => (
                   <li key={step.title} className="flex-1 text-start">
-                    <p className="flex items-center gap-2">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-400/20 text-xs font-bold text-sky-300">
-                        {index + 1}
-                      </span>
-                      <span className="text-sm font-bold text-slate-50">{step.title}</span>
+                    <p className="flex items-baseline gap-2">
+                      <span className="spark-num text-2xl">{index + 1}</span>
+                      <span className="font-serif text-sm font-semibold text-bark">{step.title}</span>
                     </p>
-                    <p className="mt-1.5 text-xs leading-relaxed text-slate-400 sm:ps-9">{step.body}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-clay sm:ps-9">{step.body}</p>
                     {index < t.loopSteps.length - 1 ? (
-                      <p aria-hidden="true" className="mt-3 text-center text-slate-600 sm:hidden">
+                      <p aria-hidden="true" className="mt-3 text-center text-clay sm:hidden">
                         ↓
                       </p>
                     ) : null}
                   </li>
                 ))}
               </ol>
-              <p className="mt-4 border-t border-metal-line pt-3 text-xs leading-relaxed text-slate-400">
+              <p className="mt-4 border-t border-metal-line pt-3 text-xs leading-relaxed text-clay">
                 {t.loopNote}
               </p>
             </GlassCard>
-          </Reveal>
+          </MotionReveal>
         </section>
 
         {/* (4) What it does for you — waterfall feed */}
         <section className="mt-16" aria-label={t.outcomesTitle}>
-          <Reveal>
+          <MotionReveal>
             <SectionHeading
               eyebrow={t.outcomesEyebrow}
               title={t.outcomesTitle}
               subtitle={t.outcomesSubtitle}
             />
-          </Reveal>
+          </MotionReveal>
           <Waterfall className="mt-5">
             {t.outcomes.map((item, index) => (
-              <Reveal key={item.title} delay={(index % 3) * 90}>
-                <GlassCard tilt className="p-4 sm:p-5">
-                  <p className="inline-block rounded-full bg-sky-400/15 px-2.5 py-1 text-[11px] font-semibold text-sky-300">
-                    {item.tag}
-                  </p>
-                  <h3 className="mt-2 text-base font-bold text-slate-50">{item.title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-400">{item.body}</p>
-                </GlassCard>
-              </Reveal>
+              <MotionReveal key={item.title} delay={(index % 3) * 90}>
+                <Card className="echomind-tilt">
+                  <CardHeader>
+                    <p className="inline-block self-start rounded-full bg-honey/10 px-2.5 py-1 text-[11px] font-semibold text-honey-deep">
+                      {item.tag}
+                    </p>
+                    <CardTitle className="mt-2 font-serif">{item.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-sm leading-relaxed text-clay">
+                      {item.body}
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              </MotionReveal>
             ))}
           </Waterfall>
         </section>
 
         {/* (5) Footer */}
         <footer className="mt-16">
-          <Reveal>
+          <MotionReveal>
             <GlassCard strong className="p-5 text-start sm:p-6">
-              <h2 className="text-lg font-bold text-slate-50">{t.footerTitle}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">{t.footerBody}</p>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">{t.footerStatus}</p>
+              <h2 className="font-serif text-lg font-semibold text-bark">{t.footerTitle}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-clay">{t.footerBody}</p>
+              <p className="mt-2 text-xs leading-relaxed text-clay">{t.footerStatus}</p>
               <div className="mt-4">
-                <Link
-                  href="/"
-                  className="inline-block rounded-full bg-sky-400 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-cta"
-                >
-                  {t.footerOpenApp}
-                </Link>
+                <Button asChild>
+                  <Link href="/">{t.footerOpenApp}</Link>
+                </Button>
               </div>
             </GlassCard>
-          </Reveal>
-          <p className="mt-6 text-center text-[11px] text-slate-600">EchoMind — UK-first personal AI assistant</p>
+          </MotionReveal>
+          <p className="mt-6 text-center font-serif text-[11px] text-clay">EchoMind — UK-first personal AI assistant</p>
         </footer>
       </div>
     </div>

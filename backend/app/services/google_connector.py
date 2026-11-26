@@ -428,6 +428,7 @@ def _gmail_summary(user_id: str, message_id: str, *, required_scope: str = GMAIL
             ("metadataHeaders", "Subject"),
             ("metadataHeaders", "From"),
             ("metadataHeaders", "Date"),
+            ("metadataHeaders", "Message-ID"),
         ]
     )
     detail = _api_json(
@@ -449,6 +450,7 @@ def _gmail_summary(user_id: str, message_id: str, *, required_scope: str = GMAIL
         sender=headers.get("from", ""),
         date=headers.get("date", ""),
         snippet=str(detail.get("snippet", ""))[:500],
+        message_id_header=headers.get("message-id") or None,
     )
 
 
@@ -515,6 +517,92 @@ def recent_gmail(user_id: str, limit: int = 10) -> list[GmailMessageSummary]:
     return rows
 
 
+def search_gmail(user_id: str, query: str, limit: int = 20) -> list[GmailMessageSummary]:
+    """Search the whole Gmail archive, Shortwave-style.
+
+    The query is Gmail's own search syntax (keywords, ``from:``,
+    ``subject:``, ``after:``/``before:``, ``has:attachment`` ...), so it
+    reaches years back — unlike ``recent_gmail``, which only looks at
+    the last 30 days. An empty query lists the most recent mail. The
+    limit is capped at 50: every hit costs one detail call. Ranking is
+    Gmail's own (recency/relevance); there is no semantic ranking
+    without an LLM — see docs/lindy-shortwave-claude-gaps.md.
+    """
+    safe_limit = min(max(limit, 1), 50)
+    params: dict[str, object] = {"maxResults": safe_limit}
+    clean = (query or "").strip()
+    if clean:
+        params["q"] = clean
+    listing = _api_json(
+        user_id,
+        "GET",
+        f"{GMAIL_ROOT}/users/me/messages?{urlencode(params)}",
+        required_scope=GMAIL_READ,
+    )
+    rows: list[GmailMessageSummary] = []
+    for ref in listing.get("messages", []) if isinstance(listing.get("messages"), list) else []:
+        if not isinstance(ref, dict) or not isinstance(ref.get("id"), str):
+            continue
+        rows.append(_gmail_summary(user_id, ref["id"], required_scope=GMAIL_READ))
+    return rows
+
+
+def gmail_thread(user_id: str, thread_id: str) -> list[dict[str, str]]:
+    """One thread's messages (From/To/Date/snippet), oldest first.
+
+    Used by the unanswered-mail detector: the last message tells
+    whether anyone replied to a sent email.
+    """
+    detail_query = urlencode(
+        [
+            ("format", "metadata"),
+            ("metadataHeaders", "From"),
+            ("metadataHeaders", "To"),
+            ("metadataHeaders", "Date"),
+        ]
+    )
+    payload = _api_json(
+        user_id,
+        "GET",
+        f"{GMAIL_ROOT}/users/me/threads/{thread_id}?{detail_query}",
+        required_scope=GMAIL_READ,
+    )
+    rows: list[dict[str, str]] = []
+    for item in payload.get("messages", []) if isinstance(payload.get("messages"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        headers: dict[str, str] = {}
+        inner = item.get("payload")
+        if isinstance(inner, dict) and isinstance(inner.get("headers"), list):
+            for header in inner["headers"]:
+                if isinstance(header, dict) and isinstance(header.get("name"), str):
+                    headers[header["name"].lower()] = str(header.get("value", ""))
+        rows.append(
+            {
+                "id": str(item.get("id", "")),
+                "from": headers.get("from", ""),
+                "to": headers.get("to", ""),
+                "date": headers.get("date", ""),
+                "snippet": str(item.get("snippet", ""))[:500],
+            }
+        )
+    return rows
+
+
+def gmail_profile_email(user_id: str) -> str:
+    """The owner's Gmail address, for telling sent mail from replies."""
+    payload = _api_json(
+        user_id,
+        "GET",
+        f"{GMAIL_ROOT}/users/me/profile",
+        required_scope=GMAIL_READ,
+    )
+    address = payload.get("emailAddress")
+    if not isinstance(address, str) or not address:
+        raise ConnectorUpstreamError("Gmail did not return a profile address")
+    return address
+
+
 def upcoming_calendar(user_id: str, limit: int = 10) -> list[CalendarEventSummary]:
     time_min = _now().isoformat().replace("+00:00", "Z")
     query = urlencode(
@@ -560,15 +648,54 @@ def send_gmail(user_id: str, payload: GmailSendRequest) -> dict[str, object]:
     message = EmailMessage()
     message["To"] = payload.to
     message["Subject"] = payload.subject
+    if payload.in_reply_to:
+        message["In-Reply-To"] = payload.in_reply_to
+        message["References"] = payload.in_reply_to
     message.set_content(payload.body)
     encoded = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii").rstrip("=")
+    body: dict[str, object] = {"raw": encoded}
+    if payload.thread_id:
+        body["threadId"] = payload.thread_id
     return _api_json(
         user_id,
         "POST",
         f"{GMAIL_ROOT}/users/me/messages/send",
         required_scope=GMAIL_SEND,
-        body={"raw": encoded},
+        body=body,
     )
+
+
+def reply_gmail(user_id: str, message_id: str, body_text: str, *, locale: str = "en") -> dict[str, object]:
+    """Reply in the same thread as ``message_id``.
+
+    The reply goes to the original sender, keeps the thread (threadId)
+    and sets In-Reply-To/References from the original Message-ID, so
+    the company sees the whole history. Returns the Gmail send result
+    plus the thread id. Raises the usual Connector* errors when Google
+    is not connected or the scope was not granted.
+    """
+    import re as _re
+
+    summary = _gmail_summary(user_id, message_id)
+    match = _re.search(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", summary.sender)
+    recipient = match.group(0) if match else ""
+    if not recipient:
+        raise ConnectorUpstreamError("The original message has no reply address")
+    subject = summary.subject or ""
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}" if subject else "Re: your email"
+    result = send_gmail(
+        user_id,
+        GmailSendRequest(
+            to=recipient,
+            subject=subject[:200],
+            body=body_text,
+            thread_id=summary.thread_id,
+            in_reply_to=summary.message_id_header,
+        ),
+    )
+    result["thread_id"] = summary.thread_id
+    return result
 
 
 def create_calendar_event(user_id: str, payload: CalendarEventCreate) -> dict[str, object]:

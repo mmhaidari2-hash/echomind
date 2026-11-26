@@ -1,5 +1,13 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * EchoMind warm palette — the SparkFlow language Mahdi chose:
+ * warm cream canvas, dark brown ink, amber/honey accents, elegant
+ * serif display type (Fraunces). The old dark-navy tokens are
+ * re-pointed at warm equivalents so existing class names keep
+ * working: canvas is now cream, navy is a warm sand card, metal is
+ * warm clay, carbon is deep brown.
+ */
 const config: Config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,22 +17,46 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#090d16",
-        carbon: "#070b12",
-        navy: "#0c1322",
+        canvas: "#F3EAD9",
+        cream: {
+          DEFAULT: "#FBF6EB",
+          card: "#FFFDF7",
+          deep: "#F0E4CB",
+        },
+        sand: "#EFE3CC",
+        bark: {
+          DEFAULT: "#2B1E12",
+          soft: "#3D2C1C",
+          faint: "#6B5638",
+        },
+        honey: {
+          DEFAULT: "#B7791F",
+          light: "#D9A45B",
+          deep: "#8A5A1B",
+          pale: "#F0DDBB",
+        },
+        clay: "#6E5B47",
+        carbon: "#2B1E12",
+        navy: "#F7EFDF",
         metal: {
-          DEFAULT: "#8b93a1",
-          dim: "#3a4250",
-          line: "rgba(148, 163, 184, 0.28)",
+          DEFAULT: "#6E5B47",
+          dim: "#A08B74",
+          line: "rgba(122, 90, 48, 0.22)",
         },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        serif: [
+          "var(--font-fraunces)",
+          "var(--font-vazirmatn)",
+          "Georgia",
+          "serif",
+        ],
         fa: ["var(--font-vazirmatn)", "Tahoma", "sans-serif"],
       },
       boxShadow: {
-        lift: "0 10px 28px rgba(2, 6, 23, 0.45)",
-        cta: "0 8px 24px rgba(125, 211, 252, 0.08)",
+        lift: "0 18px 40px -20px rgba(43, 29, 18, 0.35)",
+        cta: "0 10px 24px -8px rgba(43, 29, 18, 0.45)",
       },
     },
   },

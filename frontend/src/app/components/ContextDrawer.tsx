@@ -90,8 +90,8 @@ export default function ContextDrawer({
   const tabClass = (id: ContextTab) =>
     `min-h-11 flex-1 rounded-full px-3 text-sm font-semibold transition ${
       tab === id
-        ? "bg-sky-400/15 text-sky-100"
-        : "text-slate-400 hover:text-slate-200"
+        ? "bg-honey/10 text-honey-deep"
+        : "text-clay hover:text-bark-soft"
     }`;
 
   return (
@@ -109,10 +109,10 @@ export default function ContextDrawer({
         className="absolute inset-x-0 bottom-0 flex max-h-[88dvh] flex-col rounded-t-[1.75rem] border border-metal-line bg-carbon shadow-lift sm:inset-y-0 sm:start-auto sm:end-0 sm:max-h-none sm:w-[26rem] sm:rounded-none sm:border-y-0 sm:border-s"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-metal-line px-4 py-3">
-          <p className="text-sm font-semibold text-slate-100">{t.contextOpen}</p>
+          <p className="font-serif text-sm font-semibold text-bark">{t.contextOpen}</p>
           <button
             type="button"
-            className="min-h-11 rounded-full border border-metal-line px-3 text-xs font-semibold text-slate-300 hover:text-sky-200"
+            className="min-h-11 rounded-full border border-metal-line px-3 text-xs font-semibold text-bark-soft hover:text-honey-deep"
             onClick={onClose}
           >
             {t.contextClose}

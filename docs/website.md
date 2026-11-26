@@ -92,3 +92,11 @@ cd ~/workspace/echomind/.verify-fe && ./node_modules/.bin/tsc --noEmit
 
 `tsc --noEmit` must pass with no errors. Only after that, optionally
 `npm run build` (slow) to confirm the route builds.
+
+## Warm redesign (2026-11-26)
+
+The first glassy purple/blue design looked obviously AI-made. The page
+was redesigned in the warm editorial language — cream, dark brown,
+honey, Fraunces serif display, big amber numerals, shadcn/ui Card +
+Button, framer-motion entrances. All copy and all sections kept. See
+`docs/warm-redesign.md`. Visuals are not verified (no screenshots).

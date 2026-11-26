@@ -22,10 +22,10 @@ type DashboardProps = {
 };
 
 const SEVERITY: Record<AlertSeverity, string> = {
-  urgent: "border-rose-500/30 bg-rose-500/10 text-rose-100",
-  soon: "border-amber-500/30 bg-amber-400/10 text-amber-100",
-  watch: "border-sky-500/30 bg-sky-400/10 text-sky-100",
-  info: "border-slate-800 bg-slate-950/60 text-slate-200",
+  urgent: "border-red-700/30 bg-red-700/10 text-red-700",
+  soon: "border-amber-500/30 bg-honey/10 text-honey-deep",
+  watch: "border-honey/40 bg-honey/10 text-honey-deep",
+  info: "border-bark/10 bg-white/60 text-bark-soft",
 };
 
 export default function Dashboard({
@@ -46,7 +46,7 @@ export default function Dashboard({
     <div className="flex flex-col gap-4">
       {alerts.length > 0 ? (
         <section aria-label={t.alertsTitle}>
-          <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-slate-500">{t.alertsTitle}</p>
+          <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-clay">{t.alertsTitle}</p>
           <div className="flex snap-x gap-3 overflow-x-auto pb-1">
             {alerts.map((alert) => (
               <button
@@ -69,19 +69,19 @@ export default function Dashboard({
           </div>
         </section>
       ) : (
-        <p className="rounded-3xl border border-metal-line bg-navy/70 px-4 py-3 text-sm text-slate-400">
+        <p className="rounded-3xl border border-metal-line bg-navy/70 px-4 py-3 text-sm text-clay">
           {t.alertsEmpty}
         </p>
       )}
 
       {recs[0] ? (
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{t.recsTitle}</p>
-          <p className="mt-1 text-sm font-semibold text-slate-100">{recs[0].title}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-400">{recs[0].reason}</p>
+        <section className="rounded-3xl border border-bark/10 bg-cream/85 p-4">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-clay">{t.recsTitle}</p>
+          <p className="mt-1 text-sm font-semibold text-bark">{recs[0].title}</p>
+          <p className="mt-1 text-xs leading-5 text-clay">{recs[0].reason}</p>
           <button
             type="button"
-            className="mt-3 rounded-full border border-sky-500/30 bg-sky-400/10 px-3 py-1.5 text-xs font-semibold text-sky-200"
+            className="mt-3 rounded-full border border-honey/40 bg-honey/10 px-3 py-1.5 text-xs font-semibold text-honey-deep"
             onClick={() => onRecommendation(recs[0])}
           >
             {recs[0].action_label}
@@ -89,27 +89,27 @@ export default function Dashboard({
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300/80">{t.balanceTitle}</p>
+      <section className="rounded-3xl border border-bark/10 bg-cream/85 p-4">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-700/80">{t.balanceTitle}</p>
         <div className="mt-3 grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {t.balance}
             <input
               type="number"
               min={0}
               step={0.01}
-              className="w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-[16px] text-slate-100"
+              className="w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark"
               value={balance}
               onChange={(event) => onBalanceChange(event.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-xs text-slate-400">
+          <label className="grid gap-1.5 text-xs text-clay">
             {t.threshold}
             <input
               type="number"
               min={0}
               step={0.01}
-              className="w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-[16px] text-slate-100"
+              className="w-full rounded-2xl border border-bark/10 bg-white/70 px-3 py-2.5 text-[16px] text-bark"
               value={threshold}
               onChange={(event) => onThresholdChange(event.target.value)}
             />

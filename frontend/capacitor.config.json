@@ -2,10 +2,10 @@
   "appId": "com.echomind.assistant",
   "appName": "EchoMind Assistant",
   "webDir": "out",
-  "backgroundColor": "#090d16",
+  "backgroundColor": "#F3EAD9",
   "android": {
     "path": "android",
-    "backgroundColor": "#090d16",
+    "backgroundColor": "#F3EAD9",
     "allowMixedContent": true,
     "webContentsDebuggingEnabled": true,
     "buildOptions": {
@@ -22,17 +22,17 @@
     "SplashScreen": {
       "launchShowDuration": 400,
       "launchAutoHide": true,
-      "backgroundColor": "#090d16",
+      "backgroundColor": "#F3EAD9",
       "androidScaleType": "CENTER_CROP",
       "splashFullScreen": true,
       "splashImmersive": true
     },
     "StatusBar": {
       "style": "LIGHT",
-      "backgroundColor": "#090d16"
+      "backgroundColor": "#F3EAD9"
     },
     "LocalNotifications": {
-      "iconColor": "#7dd3fc"
+      "iconColor": "#B7791F"
     }
   }
 }

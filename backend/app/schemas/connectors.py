@@ -27,6 +27,9 @@ class GmailMessageSummary(BaseModel):
     sender: str = ""
     date: str = ""
     snippet: str = ""
+    # RFC Message-ID header, when Gmail returns it. A reply in the same
+    # thread needs it for In-Reply-To / References.
+    message_id_header: str | None = None
 
 
 class CalendarEventSummary(BaseModel):
@@ -42,6 +45,10 @@ class GmailSendRequest(BaseModel):
     to: str = Field(..., min_length=3, max_length=320)
     subject: str = Field(..., min_length=1, max_length=200)
     body: str = Field(..., min_length=1, max_length=10000)
+    # Reply in the same thread, Shortwave/Lindy-style: threadId keeps the
+    # message in the thread, in_reply_to is the original Message-ID header.
+    thread_id: str | None = Field(default=None, max_length=64)
+    in_reply_to: str | None = Field(default=None, max_length=320)
 
 
 class CalendarEventCreate(BaseModel):

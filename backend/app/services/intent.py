@@ -27,6 +27,13 @@ from app.services.persian import detect_language, normalize_fa, parse_money_gbp,
 # "برو تو پروژه ... اینو انجام بده" is a delegation, not a confirmation.
 _PATTERNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (
+        "mail_search",
+        ("search my email", "search my emails", "find emails", "find the email", "find an email",
+         "ایمیلم رو بگرد", "ایمیل‌هام رو بگرد", "ایمیل هام رو بگرد", "ایمیل رو پیدا کن", "ایمیلی رو پیدا کن",
+         "جستجو تو ایمیل", "توی ایمیلم بگرد"),
+        "mail_search",
+    ),
+    (
         "delegate",
         ("برو تو پروژه", "تو پروژه", "در پروژه", "in project", "go to project", "do this in project", "in the project"),
         "create_task",
@@ -95,6 +102,25 @@ _PROJECT_EN_RE = re.compile(r"project\s+([A-Za-z0-9][A-Za-z0-9_-]*)", re.IGNOREC
 _PROJECT_STOPWORDS = {"اینو", "این", "اونو", "اون", "رو", "را"}
 
 
+def _mail_search_entities(norm: str, original: str) -> dict[str, object]:
+    triggers = (
+        "search my emails for", "search my email for", "search my email", "search my emails",
+        "find emails about", "find the email about", "find an email about",
+        "find emails", "find the email", "find an email",
+        "ایمیلم رو بگرد", "ایمیل‌هام رو بگرد", "ایمیل هام رو بگرد", "توی ایمیلم بگرد",
+        "ایمیل رو پیدا کن", "ایمیلی رو پیدا کن", "جستجو تو ایمیل",
+    )
+    query = original.strip()
+    lowered = norm.lower()
+    for trigger in triggers:
+        idx = lowered.find(trigger)
+        if idx >= 0:
+            rest = (norm[:idx] + norm[idx + len(trigger):]).strip(" ،,.").strip()
+            query = rest or query
+            break
+    return {"query": query}
+
+
 def _delegate_entities(norm: str, original: str) -> dict[str, object]:
     match = _PROJECT_FA_RE.search(norm)
     if match:
@@ -145,6 +171,8 @@ def understand(text: str, locale: str = "en", today: date | None = None) -> Inte
                 entities: dict[str, object] = {}
                 if intent == "delegate":
                     entities = _delegate_entities(norm, text)
+                elif intent == "mail_search":
+                    entities = _mail_search_entities(norm, text)
                 elif intent == "obligation_add":
                     entities = _obligation_entities(norm, text, today)
                 elif intent == "brief":

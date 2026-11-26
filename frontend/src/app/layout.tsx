@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Vazirmatn } from "next/font/google";
+import { Fraunces, Inter, Vazirmatn } from "next/font/google";
 
 import ClerkRoot from "./components/ClerkRoot";
 import InstallPrompt from "./components/InstallPrompt";
@@ -14,6 +14,16 @@ const inter = Inter({
   display: "swap",
 });
 
+/** Fraunces — the serif display face of the warm editorial design
+    (SparkFlow language). Variable optical sizing, italic for accents. */
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+  axes: ["opsz", "SOFT", "WONK"],
+  style: ["normal", "italic"],
+});
+
 const vazirmatn = Vazirmatn({
   subsets: ["arabic", "latin"],
   variable: "--font-vazirmatn",
@@ -21,8 +31,8 @@ const vazirmatn = Vazirmatn({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#0b1020",
-  colorScheme: "dark",
+  themeColor: "#F3EAD9",
+  colorScheme: "light",
   viewportFit: "cover",
 };
 
@@ -50,7 +60,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${vazirmatn.variable}`}
+      className={`${inter.variable} ${fraunces.variable} ${vazirmatn.variable}`}
     >
       <body className="bg-canvas font-sans antialiased">
         <ClerkRoot>

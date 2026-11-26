@@ -13,18 +13,25 @@ with evidence. The three rules that make "can do what I can do" safe:
    step that cannot be verified is reported as not done, never as done.
 
 The planner is deterministic: it recognises the verbs it knows
-(check the latest commit, list open issues, remind me / add an
+(check the latest commit, list open issues, create an issue, read a
+file, open a pull request, check CI status, remind me / add an
 obligation) and turns everything else into an explicit `needs_owner`
-step that says what is missing. It never invents a capability.
+step that says what is missing. It never invents a capability. Steps
+that need parameters (issue title, file path, PR branches) carry them
+in `step.params`, extracted from the instruction — the owner sees them
+in the plan before confirming.
 
 GitHub steps call the public GitHub API with urllib (no new
 dependency, no token). Public repos work with no key. A private repo
 returns 404/403 and the step fails closed as "needs access" — the task
-does not pretend it saw the repo.
+does not pretend it saw the repo. Write steps (create issue, open PR)
+need a token with repo scope: without one GitHub returns 401/403 and
+the step fails closed as "needs access" instead of pretending it wrote.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -33,6 +40,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from app.schemas.life import ObligationCreate
@@ -95,13 +103,100 @@ def _save(user_id: str, task: DelegatedTask) -> None:
         _dump()
 
 
+_ISSUE_WORDS = ("create an issue", "open an issue", "new issue", "file an issue", "ایشو بساز", "ایجاد ایشو", "یک ایشو", "ایشو جدید")
+_READ_FILE_WORDS = ("read file", "read the file", "show me the file", "show the file", "فایل رو بخون", "فایل را بخون", "فایل رو نشون بده", "فایل را نشان بده")
+_PR_WORDS = ("open a pull request", "create a pull request", "new pull request", "pull request", "پول ریکوئست", "پی آر")
+_CI_WORDS = ("ci status", "build status", "check status", "latest build", "وضعیت بیلد", "وضعیت سی آی", "وضعیت سی‌آی", "چک ها", "چک‌ها", "آخرین بیلد")
+_BARE_FILENAMES = ("README", "LICENSE", "CHANGELOG", "CONTRIBUTING")
+
+
+def _after_keyword(instruction: str, keywords: tuple[str, ...]) -> str:
+    """Text after the first matching keyword, separators stripped."""
+    lowered = instruction.lower()
+    for keyword in keywords:
+        idx = lowered.find(keyword.lower())
+        if idx >= 0:
+            rest = instruction[idx + len(keyword):].strip()
+            return rest.lstrip(":—-–،, ").strip()
+    return ""
+
+
+def _extract_path(instruction: str) -> str:
+    quoted = re.search(r'"([^"]+)"', instruction) or re.search(r"'([^']+)'", instruction)
+    if quoted:
+        return quoted.group(1).strip()
+    match = re.search(r"([A-Za-z0-9_.\-/]+\.[A-Za-z0-9]{1,10})", instruction)
+    if match:
+        return match.group(1)
+    for bare in _BARE_FILENAMES:
+        if re.search(rf"\b{bare}\b", instruction, re.IGNORECASE):
+            return bare
+    return ""
+
+
+def _extract_pr_branches(instruction: str) -> tuple[str, str]:
+    match = re.search(
+        r"from\s+([A-Za-z0-9_.\-/]+)\s+(?:to|into)\s+([A-Za-z0-9_.\-/]+)",
+        instruction,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1), match.group(2)
+    match = re.search(r"از\s+(\S+)\s+به\s+(\S+)", instruction)
+    if match:
+        return match.group(1), match.group(2)
+    return "", ""
+
+
 def _plan(instruction: str) -> list[TaskStep]:
     text = instruction.lower()
     steps: list[TaskStep] = []
     if any(word in text for word in ("آخرین کامیت", "latest commit", "last commit", "آخرین تغییر")):
         steps.append(TaskStep(tool="github.latest_commit", summary="Check the latest commit on the project's repo"))
-    if any(word in text for word in ("issue", "ایشو", "مشکلات باز", "open issues")):
+    if any(word in text for word in ("issue", "ایشو", "مشکلات باز", "open issues")) and not any(
+        word in text for word in _ISSUE_WORDS
+    ):
         steps.append(TaskStep(tool="github.open_issues", summary="List the project's open issues"))
+    if any(word in text for word in _ISSUE_WORDS):
+        title = _after_keyword(instruction, _ISSUE_WORDS).strip("\"' ").strip()
+        steps.append(
+            TaskStep(
+                tool="github.create_issue",
+                summary=f"Create a GitHub issue{' — ' + title[:80] if title else ' (no title given yet)'}",
+                params={"title": title},
+            )
+        )
+    if any(word in text for word in _READ_FILE_WORDS) or (
+        "فایل" in text and any(word in text for word in ("بخون", "نشون", "نشان بده"))
+    ):
+        path = _extract_path(instruction)
+        steps.append(
+            TaskStep(
+                tool="github.read_file",
+                summary=f"Read the file {path}" if path else "Read a file (no path given yet)",
+                params={"path": path},
+            )
+        )
+    if any(word in text for word in _PR_WORDS):
+        head, base = _extract_pr_branches(instruction)
+        title = _after_keyword(instruction, _PR_WORDS)
+        title = re.sub(
+            r"from\s+[A-Za-z0-9_.\-/]+\s+(?:to|into)\s+[A-Za-z0-9_.\-/]+",
+            "",
+            title,
+            flags=re.IGNORECASE,
+        ).strip(" :—-–،,")
+        if not title and head and base:
+            title = f"Merge {head} into {base}"
+        steps.append(
+            TaskStep(
+                tool="github.open_pr",
+                summary=f"Open a pull request{' — ' + title[:80] if title else ' (branches not given yet)'}",
+                params={"title": title, "head": head, "base": base},
+            )
+        )
+    if any(word in text for word in _CI_WORDS):
+        steps.append(TaskStep(tool="github.ci_status", summary="Check the latest CI / workflow runs"))
     if any(word in text for word in ("یادآوری", "یادم بنداز", "مهلت", "remind", "deadline", "obligation")):
         steps.append(TaskStep(tool="life.create_obligation", summary="Record the obligation in the Life Graph, tagged to this project"))
     if not steps:
@@ -185,6 +280,43 @@ def _github_json(path: str, *, _urlopen=None) -> dict[str, object] | list[object
         raise RuntimeError("GitHub is unreachable") from exc
 
 
+def _github_write(
+    path: str, body: dict[str, object], *, _urlopen=None
+) -> dict[str, object]:
+    """POST a JSON body to the GitHub API. Same auth and fail-closed
+    mapping as _github_json, plus 422 (validation — e.g. a PR with no
+    differences, or an empty title) as a plain failure, never a guess."""
+    opener = _urlopen or urlopen
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "EchoMind"}
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = Request(
+        f"{_GITHUB_API}{path}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={**headers, "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with opener(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        if exc.code in {401, 403, 404}:
+            raise PermissionError(
+                f"GitHub returned HTTP {exc.code} — writing needs a token with repo scope"
+            ) from exc
+        if exc.code == 422:
+            raise RuntimeError(
+                "GitHub rejected the request (422) — check the title/branches (e.g. a pull request with no differences)"
+            ) from exc
+        raise RuntimeError(f"GitHub request failed (HTTP {exc.code})") from exc
+    except URLError as exc:
+        raise RuntimeError("GitHub is unreachable") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("GitHub returned an invalid response")
+    return payload
+
+
 def _run_step(user_id: str, project, step: TaskStep, instruction: str = "", *, _urlopen=None) -> TaskStep:
     if step.tool == "owner":
         # The "owner" step is a planner marker ("no tool matches"), not a
@@ -223,6 +355,118 @@ def _run_step(user_id: str, project, step: TaskStep, instruction: str = "", *, _
         titles = [str(item.get("title", ""))[:80] for item in issues if isinstance(item, dict)][:5]
         step.status = "done"
         step.evidence = f"{len(issues)} open issue(s) (first 5): " + ("; ".join(titles) if titles else "none")
+        return step
+    if step.tool == "github.create_issue":
+        if not project.repo:
+            step.status = "needs_owner"
+            step.evidence = f"Project {project.name} has no repo linked."
+            return step
+        title = str(step.params.get("title", "") or "").strip()
+        if not title:
+            step.status = "needs_owner"
+            step.evidence = "No issue title was given. Say what the issue is about, e.g. 'create an issue: login fails on Android'."
+            return step
+        payload = _github_write(
+            f"/repos/{project.repo}/issues",
+            {
+                "title": title[:200],
+                "body": f"Requested in EchoMind delegation in project {project.name}.\n\nInstruction: {instruction}",
+            },
+            _urlopen=_urlopen,
+        )
+        number = payload.get("number")
+        url = payload.get("html_url", "")
+        step.status = "done"
+        step.evidence = f"Issue #{number} created: {url}" if number else "Issue created on GitHub."
+        return step
+    if step.tool == "github.read_file":
+        if not project.repo:
+            step.status = "needs_owner"
+            step.evidence = f"Project {project.name} has no repo linked."
+            return step
+        path = str(step.params.get("path", "") or "").strip()
+        if not path:
+            step.status = "needs_owner"
+            step.evidence = "No file path was given. Say which file, e.g. 'read the file README.md'."
+            return step
+        payload = _github_json(
+            f"/repos/{project.repo}/contents/{quote(path, safe='/')}", _urlopen=_urlopen
+        )
+        if isinstance(payload, list):
+            step.status = "needs_owner"
+            step.evidence = f"'{path}' is a folder, not a file. Name one file inside it."
+            return step
+        if not isinstance(payload, dict) or payload.get("encoding") != "base64":
+            step.status = "failed"
+            step.evidence = f"GitHub did not return '{path}' as a file."
+            return step
+        try:
+            text = base64.b64decode(str(payload.get("content", ""))).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            step.status = "needs_owner"
+            step.evidence = f"'{path}' is not a text file, so it cannot be read here."
+            return step
+        sha = str(payload.get("sha", ""))[:7]
+        total = len(text)
+        shown = text[:4000]
+        step.status = "done"
+        step.evidence = (
+            f"File {path} (sha {sha}, {total} chars)"
+            + (" — truncated to 4,000 chars" if total > 4000 else "")
+            + f":\n{shown}"
+        )
+        return step
+    if step.tool == "github.open_pr":
+        if not project.repo:
+            step.status = "needs_owner"
+            step.evidence = f"Project {project.name} has no repo linked."
+            return step
+        title = str(step.params.get("title", "") or "").strip()
+        head = str(step.params.get("head", "") or "").strip()
+        base = str(step.params.get("base", "") or "").strip()
+        if not head or not base:
+            step.status = "needs_owner"
+            step.evidence = (
+                "A pull request needs both branches. Say them like "
+                "'open a pull request from feature-x into main'."
+            )
+            return step
+        payload = _github_write(
+            f"/repos/{project.repo}/pulls",
+            {
+                "title": (title or f"Merge {head} into {base}")[:200],
+                "head": head,
+                "base": base,
+                "body": f"Requested in EchoMind delegation in project {project.name}.\n\nInstruction: {instruction}",
+            },
+            _urlopen=_urlopen,
+        )
+        number = payload.get("number")
+        url = payload.get("html_url", "")
+        step.status = "done"
+        step.evidence = f"Pull request #{number} opened: {url}" if number else "Pull request opened on GitHub."
+        return step
+    if step.tool == "github.ci_status":
+        if not project.repo:
+            step.status = "needs_owner"
+            step.evidence = f"Project {project.name} has no repo linked."
+            return step
+        payload = _github_json(f"/repos/{project.repo}/actions/runs?per_page=5", _urlopen=_urlopen)
+        runs = payload.get("workflow_runs") if isinstance(payload, dict) else None
+        if not isinstance(runs, list) or not runs:
+            step.status = "done"
+            step.evidence = "No workflow runs yet on this repo."
+            return step
+        lines = []
+        for run in runs[:5]:
+            if not isinstance(run, dict):
+                continue
+            lines.append(
+                f"{run.get('name', 'run')} ({run.get('head_branch', '?')}) — "
+                f"{run.get('conclusion') or run.get('status', '?')}"
+            )
+        step.status = "done"
+        step.evidence = "Latest CI runs: " + "; ".join(lines)
         return step
     if step.tool == "life.create_obligation":
         title = f"[{project.name}] {instruction.strip()}"[:200] or f"[{project.name}] Delegated task"

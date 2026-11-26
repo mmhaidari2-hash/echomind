@@ -122,16 +122,16 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
     <section className="rounded-[1.4rem] border border-metal-line bg-navy p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/80">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-honey-deep/80">
             Google
           </p>
-          <p className="mt-1 text-sm font-semibold text-slate-100">Gmail + Calendar</p>
+          <p className="mt-1 text-sm font-semibold text-bark">Gmail + Calendar</p>
         </div>
         <span
           className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
             status?.connected
-              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-              : "border-slate-700 text-slate-400"
+              ? "border-emerald-400/30 bg-emerald-600/10 text-emerald-800"
+              : "border-bark/15 text-clay"
           }`}
         >
           {status?.connected
@@ -141,7 +141,7 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
       </div>
 
       {status && !status.configured ? (
-        <p className="mt-3 text-xs leading-5 text-amber-200">
+        <p className="mt-3 text-xs leading-5 text-honey-deep">
           {locale === "fa"
             ? "تنظیم OAuth گوگل روی سرور لازم است."
             : "Google OAuth setup is required on the server."}
@@ -152,7 +152,7 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
         <button
           type="button"
           disabled={busy}
-          className="mt-3 min-h-11 rounded-full bg-sky-300 px-4 text-sm font-semibold text-slate-950 disabled:opacity-50"
+          className="mt-3 min-h-11 rounded-full bg-honey-light px-4 text-sm font-semibold text-bark disabled:opacity-50"
           onClick={() => void connect("read")}
         >
           {locale === "fa" ? "اتصال Gmail و Calendar" : "Connect Gmail & Calendar"}
@@ -162,20 +162,20 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
       {status?.connected ? (
         <>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-2xl border border-slate-800 p-3">
-              <p className="text-lg font-semibold text-slate-100">{mail.length}</p>
-              <p className="text-[11px] text-slate-500">{locale === "fa" ? "ایمیل اخیر" : "Recent mail"}</p>
+            <div className="rounded-2xl border border-bark/10 p-3">
+              <p className="text-lg font-semibold text-bark">{mail.length}</p>
+              <p className="text-[11px] text-clay">{locale === "fa" ? "ایمیل اخیر" : "Recent mail"}</p>
             </div>
-            <div className="rounded-2xl border border-slate-800 p-3">
-              <p className="text-lg font-semibold text-slate-100">{calendar.length}</p>
-              <p className="text-[11px] text-slate-500">{locale === "fa" ? "رویداد آینده" : "Upcoming"}</p>
+            <div className="rounded-2xl border border-bark/10 p-3">
+              <p className="text-lg font-semibold text-bark">{calendar.length}</p>
+              <p className="text-[11px] text-clay">{locale === "fa" ? "رویداد آینده" : "Upcoming"}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               disabled={busy}
-              className="min-h-11 rounded-full border border-sky-500/30 px-4 text-xs font-semibold text-sky-100 disabled:opacity-50"
+              className="min-h-11 rounded-full border border-honey/40 px-4 text-xs font-semibold text-honey-deep disabled:opacity-50"
               onClick={() => void previewCleanup()}
             >
               {locale === "fa" ? "پیدا کردن ایمیل‌های غیرمهم" : "Find low-priority mail"}
@@ -183,7 +183,7 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
             <button
               type="button"
               disabled={busy}
-              className="min-h-11 rounded-full border border-slate-700 px-4 text-xs font-semibold text-slate-300 disabled:opacity-50"
+              className="min-h-11 rounded-full border border-bark/15 px-4 text-xs font-semibold text-bark-soft disabled:opacity-50"
               onClick={() => void connect("write")}
             >
               {locale === "fa" ? "فعال‌کردن اقدام‌های تأییدشده" : "Enable confirmed actions"}
@@ -191,24 +191,24 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
           </div>
 
           {cleanup ? (
-            <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-3">
-              <p className="text-xs font-semibold text-amber-100">
+            <div className="mt-3 rounded-2xl border border-honey/30 bg-honey/5 p-3">
+              <p className="text-xs font-semibold text-honey-deep">
                 {locale === "fa"
                   ? `${cleanup.candidates.length} ایمیل برای پاک‌سازی پیدا شد`
                   : `${cleanup.candidates.length} cleanup candidates`}
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-slate-500">
+              <p className="mt-1 text-[11px] leading-5 text-clay">
                 {locale === "fa"
                   ? "فقط Promotions / Social / Forums قدیمی، بدون Starred و Important. حذف دائمی نمی‌شوند؛ به Trash می‌روند."
                   : "Only older Promotions / Social / Forums, excluding Starred and Important. Nothing is permanently deleted; messages go to Trash."}
               </p>
               <div className="mt-2 max-h-48 space-y-2 overflow-auto">
                 {cleanup.candidates.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-slate-800 px-3 py-2">
-                    <p className="truncate text-xs font-medium text-slate-200">
+                  <div key={item.id} className="rounded-xl border border-bark/10 px-3 py-2">
+                    <p className="truncate text-xs font-medium text-bark-soft">
                       {item.subject || (locale === "fa" ? "بدون عنوان" : "No subject")}
                     </p>
-                    <p className="truncate text-[11px] text-slate-500">{item.sender}</p>
+                    <p className="truncate text-[11px] text-clay">{item.sender}</p>
                   </div>
                 ))}
               </div>
@@ -216,7 +216,7 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
                 <button
                   type="button"
                   disabled={busy}
-                  className="mt-3 min-h-11 rounded-full bg-amber-300 px-4 text-xs font-semibold text-slate-950 disabled:opacity-50"
+                  className="mt-3 min-h-11 rounded-full bg-honey px-4 text-xs font-semibold text-bark disabled:opacity-50"
                   onClick={() => void trashCleanup()}
                 >
                   {locale === "fa"
@@ -228,7 +228,7 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
           ) : null}
 
           {cleanupDone != null ? (
-            <p className="mt-3 text-xs text-emerald-300">
+            <p className="mt-3 text-xs text-emerald-700">
               {locale === "fa"
                 ? `${cleanupDone} ایمیل به Trash منتقل شد.`
                 : `${cleanupDone} messages moved to Trash.`}
@@ -237,7 +237,7 @@ export default function GoogleConnectionsCard({ locale }: { locale: Locale }) {
         </>
       ) : null}
 
-      {error ? <p role="alert" className="mt-3 text-xs text-rose-300">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 text-xs text-red-700">{error}</p> : null}
     </section>
   );
 }
