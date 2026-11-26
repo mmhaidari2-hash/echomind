@@ -17,7 +17,5 @@
     <circle cx="256" cy="256" r="150" fill="url(#sphere)"/>
     <ellipse cx="205" cy="172" rx="92" ry="54" transform="rotate(-20 205 172)" fill="#FFFFFF" opacity="0.28"/>
     <circle cx="306" cy="128" r="16" fill="#FFFFFF" opacity="0.45"/>
-    <ellipse cx="256" cy="256" rx="216" ry="62" transform="rotate(-12 256 256)" fill="none" stroke="#E5A93C" stroke-width="7"/>
-    <ellipse cx="256" cy="256" rx="216" ry="62" transform="rotate(-12 256 256)" fill="none" stroke="#F2C268" stroke-width="2" opacity="0.6"/>
   </g>
 </svg>
