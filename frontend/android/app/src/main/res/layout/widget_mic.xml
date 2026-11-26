@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen mic widget: the golden orb (the app's round launcher
+     icon) with a mic glyph centred on a dark scrim. The whole widget
+     is one tap target; the provider wires the click to the
+     echomind://assistant?listen=1 deep link. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_mic_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/widget_mic_orb"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/widget_mic_label"
+        android:scaleType="centerCrop"
+        android:src="@mipmap/ic_launcher_round" />
+
+    <ImageView
+        android:id="@+id/widget_mic_scrim"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center"
+        android:src="@drawable/widget_mic_scrim" />
+
+    <ImageView
+        android:id="@+id/widget_mic_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_gravity="center"
+        android:src="@drawable/ic_mic" />
+
+</FrameLayout>

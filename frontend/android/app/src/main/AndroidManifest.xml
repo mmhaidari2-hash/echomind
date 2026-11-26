@@ -47,7 +47,31 @@
                 <data android:scheme="echomind" android:host="oauth" />
             </intent-filter>
 
+            <!-- Home-screen widget + persistent notification: open the
+                 app and start voice input. Same scheme as the OAuth
+                 deep link above; MainActivity is singleTask, so a tap
+                 while the app is open brings it forward. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="echomind" android:host="assistant" />
+            </intent-filter>
+
         </activity>
+
+        <!-- Home-screen mic widget (MicWidgetProvider). -->
+        <receiver
+            android:name=".MicWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_mic_label">
+            <intent-filter>
+                <action android:name="android.intent.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/echomind_mic_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

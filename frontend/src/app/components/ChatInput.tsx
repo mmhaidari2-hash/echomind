@@ -224,6 +224,10 @@ export default function ChatInput({
   const cameraRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const speechAnchorRef = useRef("");
+  /** Live mirror of `listening`, so the widget/notification handler
+      below can tell whether a session is already running without
+      re-subscribing on every state change. */
+  const listeningRef = useRef(false);
 
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -288,6 +292,58 @@ export default function ChatInput({
     const next = [prefix, transcript].filter(Boolean).join(" ");
     onChange(next);
   }, [listening, transcript, onChange]);
+
+  useEffect(() => {
+    listeningRef.current = listening;
+  }, [listening]);
+
+  /** Home-screen widget / persistent notification / ?listen=1: start
+      listening without hunting for the mic button. The request
+      arrives as a window event when the app is already open, and as
+      a sessionStorage flag (set by NativeShell before this component
+      mounted) on a cold start from the widget — both funnel into the
+      same start path as the mic button, and the existing error
+      notice covers mic-denied / unsupported honestly. The flag is
+      consumed once and expires after 60s, so a stale request never
+      starts the mic on a later visit. */
+  useEffect(() => {
+    const FLAG = "echomind-listen-request";
+    const consumeFlag = (): boolean => {
+      try {
+        const raw = window.sessionStorage.getItem(FLAG);
+        if (!raw) return false;
+        window.sessionStorage.removeItem(FLAG);
+        return Date.now() - Number(raw) < 60_000;
+      } catch {
+        return false;
+      }
+    };
+    const consumeUrlParam = (): boolean => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("listen") !== "1") return false;
+        params.delete("listen");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const startIfRequested = () => {
+      if (listeningRef.current) return;
+      speechAnchorRef.current = textareaRef.current?.value ?? "";
+      startListening();
+    };
+    const onRequest = () => startIfRequested();
+    if (consumeFlag() || consumeUrlParam()) startIfRequested();
+    window.addEventListener(FLAG, onRequest);
+    return () => window.removeEventListener(FLAG, onRequest);
+  }, [startListening]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent<boolean>("echomind-listening", { detail: listening }));
