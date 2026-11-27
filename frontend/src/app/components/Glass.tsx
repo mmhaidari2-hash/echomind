@@ -278,7 +278,7 @@ export function CommandRow({
   );
 }
 
-export type OrbState = "idle" | "listening" | "thinking" | "executing";
+export type OrbState = "idle" | "listening" | "thinking" | "executing" | "recording";
 
 /** The living orb — a 3D volumetric sphere from layered radial
     shaders (no 3D library): specular highlight, molten gold core,
@@ -286,7 +286,10 @@ export type OrbState = "idle" | "listening" | "thinking" | "executing";
     it — the brand title sits above it. States animate on
     transform/opacity only, so the phone holds 60fps:
     idle = slow breathing, listening = gold ripple rings,
-    thinking = rotating golden core, executing = crisp pulse. */
+    thinking = rotating golden core, executing = crisp pulse,
+    recording = RED (round 4 hold-to-talk): the orb is red while the
+    user holds it or while a tap session is listening, so recording
+    is unmistakable and releasing back to gold is the stop signal. */
 export function LivingOrb({
   size = 180,
   state = "idle",

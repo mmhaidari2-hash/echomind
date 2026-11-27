@@ -35,14 +35,40 @@ hit the same dead end.
 ## Plugin behaviour (verified against the installed v7.0.1 sources)
 
 - `start({ partialResults: true, popup: false })` resolves as soon as
-  listening begins; results arrive as `partialResults` events (interim
-  results AND the final matches) and `listeningState` `started` /
-  `stopped` marks session ends.
+  the native `startListening()` call is INVOICED, **not** when listening
+  begins — with `partialResults: true` the plugin resolves the call
+  immediately after `startListening()` returns. Only the
+  `listeningState: "started"` event (from `onBeginningOfSpeech`) proves
+  the recognizer is alive. Results arrive as `partialResults` events
+  (interim results AND the final matches) and `listeningState`
+  `started` / `stopped` marks session ends.
+  > CORRECTION (round 4, 2026-11-27): the earlier wording here said
+  > start() "resolves as soon as listening begins". That is wrong and
+  > it is the root of the round-3 failure: on Mahdi's Samsung the
+  > start resolved while the service never called back (zombie bind),
+  > so the UI thought it was listening until the 8s watchdog fired.
+  > The hook now gates on the "started" event (4s started-gate) and
+  > reports a stall with a real reason instead of "unknown". See
+  > `docs/echomind-voice-round4.md`.
 - With partialResults on, a recognition error surfaces **only as a plain
   `stopped` event** (the start call was already resolved, so its
-  rejection is lost). The hook therefore treats a session that ends with
-  no text as "no speech", and stops after 3 empty sessions in a row
-  instead of restarting the recognizer forever (e.g. no network).
+  rejection is lost) — and in the zombie case it surfaces as NOTHING
+  at all: no onReady, no onBeginningOfSpeech, no onError. The hook
+  therefore treats a session that ends with no text as "no speech",
+  stops after 3 empty sessions in a row instead of restarting the
+  recognizer forever (e.g. no network), and treats a start that never
+  fires "started" as a stall.
+- The plugin's `stop()` NEVER resolves its PluginCall on the success
+  path (no `call.resolve()` in `stop()`), so callers must fire-and-
+  forget it — awaiting it hangs forever. `release()` must stop the
+  recognizer first, otherwise a zombied session stays hot and the
+  next start can hit ERROR_RECOGNIZER_BUSY.
+- `beginListening()` destroys and recreates the SpeechRecognizer on
+  EVERY start — the prime suspect for the zombie bind on Samsung.
+- `getSupportedLanguages()` broadcasts to the Google app
+  (`com.google.android.googlequicksearchbox`). If that app is
+  missing/disabled the broadcast never returns — always call it
+  behind a timeout (the service probe does, 5s).
 - `checkPermissions` / `requestPermissions` cover `RECORD_AUDIO`. A
   denial is reported as `not-allowed` (with the Settings path in the
   existing notice), never silently swallowed.

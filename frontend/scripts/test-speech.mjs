@@ -14,6 +14,10 @@
  *  - start rejecting with a network message -> network code;
  *  - restart on the same service registers listeners only once;
  *  - stop() ends the session, release() removes the listeners.
+ *  - round 4: probe() reports the on-device service (Google app
+ *    present/missing/timeout, languages) and is cached; stop() never
+ *    waits for the plugin's stop() (it never resolves); release()
+ *    stops the recognizer before removing the listeners.
  *
  * Usage (from the frontend verification copy):
  *   node scripts/test-speech.mjs
@@ -57,25 +61,34 @@ const { createNativeSpeech } = await import(join(outDir, "speech.js"));
 
 function stubPlugin(overrides = {}) {
   const listeners = { partialResults: [], listeningState: [] };
-  const calls = { start: [], stop: 0, removed: 0 };
+  const calls = { start: [], stop: 0, removed: 0, available: 0 };
   const state = {
     permission: "granted",
     requestResult: "granted",
     available: true,
     startError: null,
+    languages: ["fa-IR", "en-GB"],
+    languagesHang: false,
   };
   return {
     listeners,
     calls,
     state,
     plugin: {
-      available: async () => ({ available: state.available }),
+      available: async () => {
+        calls.available += 1;
+        return { available: state.available };
+      },
       checkPermissions: async () => ({
         speechRecognition: state.permission,
       }),
       requestPermissions: async () => ({
         speechRecognition: state.requestResult,
       }),
+      getSupportedLanguages: async () => {
+        if (state.languagesHang) return new Promise(() => {});
+        return { languages: state.languages };
+      },
       start: async (options) => {
         calls.start.push(options);
         if (state.startError) throw new Error(state.startError);
@@ -241,6 +254,94 @@ try {
     await speech.stop();
     assert.equal(stub.calls.stop, 1);
     await speech.release();
+    assert.equal(stub.calls.removed, 2);
+  }
+
+  // --- probe: service present, languages reported, cached ---------------------
+  {
+    const stub = stubPlugin();
+    const speech = createNativeSpeech({
+      loadPlugin: async () => stub.plugin,
+      probeTimeoutMs: 200,
+    });
+    const probe = await speech.probe();
+    assert.deepEqual(probe, {
+      available: true,
+      permission: "granted",
+      googleService: "ok",
+      languages: ["fa-IR", "en-GB"],
+    });
+    const again = await speech.probe();
+    assert.equal(again, probe);
+    assert.equal(stub.calls.available, 1);
+  }
+
+  // --- probe: no getSupportedLanguages -> unchecked ----------------------------
+  {
+    const stub = stubPlugin();
+    delete stub.plugin.getSupportedLanguages;
+    const speech = createNativeSpeech({
+      loadPlugin: async () => stub.plugin,
+      probeTimeoutMs: 200,
+    });
+    const probe = await speech.probe();
+    assert.equal(probe.googleService, "unchecked");
+    assert.deepEqual(probe.languages, []);
+  }
+
+  // --- probe: Google app broadcast hangs -> timeout ------------------------------
+  {
+    const stub = stubPlugin();
+    stub.state.languagesHang = true;
+    const speech = createNativeSpeech({
+      loadPlugin: async () => stub.plugin,
+      probeTimeoutMs: 50,
+    });
+    const probe = await speech.probe();
+    assert.equal(probe.googleService, "timeout");
+  }
+
+  // --- probe: plugin missing -> service-missing facts ------------------------------
+  {
+    const speech = createNativeSpeech({
+      loadPlugin: async () => null,
+      probeTimeoutMs: 200,
+    });
+    const probe = await speech.probe();
+    assert.deepEqual(probe, {
+      available: false,
+      permission: "denied",
+      googleService: "missing",
+      languages: [],
+    });
+  }
+
+  // --- stop() never waits for the plugin's stop() (it never resolves) --------------
+  {
+    const stub = stubPlugin();
+    stub.plugin.stop = () => new Promise(() => {});
+    const speech = createNativeSpeech({
+      loadPlugin: async () => stub.plugin,
+    });
+    const { cbs } = callbacks();
+    await speech.start("fa-IR", cbs);
+    const result = await Promise.race([
+      speech.stop().then(() => "returned"),
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 300)),
+    ]);
+    assert.equal(result, "returned");
+  }
+
+  // --- release() stops the recognizer before removing listeners ----------------------
+  {
+    const stub = stubPlugin();
+    const speech = createNativeSpeech({
+      loadPlugin: async () => stub.plugin,
+    });
+    const { cbs } = callbacks();
+    await speech.start("fa-IR", cbs);
+    await speech.release();
+    assert.equal(stub.calls.stop, 1);
     assert.equal(stub.calls.removed, 2);
   }
 

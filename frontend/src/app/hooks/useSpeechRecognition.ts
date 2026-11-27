@@ -9,6 +9,7 @@ import {
   loadNativeSpeechPlugin,
   type NativeSpeechCallbacks,
   type SpeechErrorCode,
+  type SpeechServiceProbe,
 } from "../../services/speech";
 
 export type { SpeechErrorCode } from "../../services/speech";
@@ -17,6 +18,13 @@ export const SPEECH_LANG: Record<Locale, "fa-IR" | "en-GB"> = {
   en: "en-GB",
   fa: "fa-IR",
 };
+
+/** A native start that never fires `listeningState: "started"` is a
+    stall, not "listening" — fail after this long. Shorter than the 8s
+    watchdog so a hung recognizer fails fast with a real reason. */
+const STARTED_GATE_MS = 4000;
+/** Backstop for a start that never resolves and never calls back. */
+const START_WATCHDOG_MS = 8000;
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -106,17 +114,37 @@ export function useSpeechRecognition({
   const stopRequestedRef = useRef(false);
   const finalsRef = useRef("");
   const langRef = useRef(lang);
+  /**
+   * Generation token — the fix for the round-3 race where the second
+   * tap could not stop a hung start. Every start/stop/release bumps
+   * it; every async continuation (start resolving, the started gate,
+   * the watchdog, the continuous restart) checks it and kills its own
+   * session when stale. A stop during a pending start therefore always
+   * wins: the late-resolving start is released instead of leaving a
+   * live session with no UI state.
+   */
+  const generationRef = useRef(0);
+  /** The one-time on-device service probe (see the mount effect). */
+  const serviceProbeRef = useRef<SpeechServiceProbe | null>(null);
+  /** Last partial text not yet committed as final (native only). */
+  const lastPartialRef = useRef("");
+  /** The current session's final text was already committed (by a
+      user stop or by the service's onFinal) — guards the double
+      commit when both fire for the same utterance. */
+  const committedRef = useRef(false);
 
   const [supported, setSupported] = useState(false);
   /** The availability probe has finished (so `supported === false`
       means "really unavailable", not "not checked yet"). */
   const [probed, setProbed] = useState(false);
+  /** Full on-device service probe: Google service present, languages. */
+  const [serviceProbe, setServiceProbe] = useState<SpeechServiceProbe | null>(null);
   const [listening, setListening] = useState(false);
   /** True between the tap and the recognizer actually starting (or
       failing). Without this the mic looks dead while the native
       start is still working — the user gets "Starting…" feedback
-      immediately, and the watchdog below turns a hung start into a
-      visible error instead of silence. */
+      immediately, and the gate/watchdog below turn a hung start into
+      a visible error instead of silence. */
   const [starting, setStarting] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -127,11 +155,21 @@ export function useSpeechRecognition({
   /** The start watchdog (see `start`): a recognizer start that never
       resolves and never calls back must fail visibly, not hang. */
   const startWatchdogRef = useRef(0);
+  /** The "started" gate (see `runNativeStart`): a native start that
+      resolves but never fires `listeningState: "started"` is a stall. */
+  const startedGateRef = useRef(0);
 
   const clearStartWatchdog = useCallback(() => {
     if (startWatchdogRef.current) {
       window.clearTimeout(startWatchdogRef.current);
       startWatchdogRef.current = 0;
+    }
+  }, []);
+
+  const clearStartedGate = useCallback(() => {
+    if (startedGateRef.current) {
+      window.clearTimeout(startedGateRef.current);
+      startedGateRef.current = 0;
     }
   }, []);
 
@@ -168,6 +206,28 @@ export function useSpeechRecognition({
     };
   }, []);
 
+  // Full service probe (native only, once, in the background): whether
+  // the Google recognition service answers, and which languages it
+  // reports. Used only to name the cause when a start stalls — never
+  // to block the mic. Runs on its own service instance and is never
+  // released (release stops the recognizer, which would kill a live
+  // session); it registers no listeners, so there is nothing to clean.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let cancelled = false;
+    const probeService = createNativeSpeech({
+      loadPlugin: loadNativeSpeechPlugin,
+    });
+    void probeService.probe().then((probe) => {
+      if (cancelled) return;
+      serviceProbeRef.current = probe;
+      setServiceProbe(probe);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     langRef.current = lang;
     if (!shouldListenRef.current) return;
@@ -191,10 +251,12 @@ export function useSpeechRecognition({
   }, [lang]);
 
   const release = useCallback(() => {
+    generationRef.current += 1;
     shouldListenRef.current = false;
     setListening(false);
     setStarting(false);
     clearStartWatchdog();
+    clearStartedGate();
     void nativeRef.current?.release().catch(() => undefined);
     nativeRef.current = null;
     const recognition = recognitionRef.current;
@@ -213,6 +275,34 @@ export function useSpeechRecognition({
         /* already stopped */
       }
     }
+  }, [clearStartWatchdog, clearStartedGate]);
+
+  /** Name the cause of a stalled start from the service probe. */
+  const stallError = useCallback((): SpeechErrorCode => {
+    const probe = serviceProbeRef.current;
+    if (!probe) return "stalled";
+    if (!probe.available) return "service-missing";
+    if (probe.googleService === "missing" || probe.googleService === "timeout") {
+      return "service-missing";
+    }
+    if (
+      probe.languages.length > 0 &&
+      !probe.languages.includes(langRef.current)
+    ) {
+      return "language-not-supported";
+    }
+    return "stalled";
+  }, []);
+
+  /** Commit the pending partial as final, once per session. */
+  const commitPendingText = useCallback(() => {
+    const text = lastPartialRef.current.trim();
+    if (!text || committedRef.current) return;
+    committedRef.current = true;
+    finalsRef.current = joinTranscript(finalsRef.current, text);
+    setTranscript(finalsRef.current);
+    setInterimTranscript("");
+    lastPartialRef.current = "";
   }, []);
 
   /** Web Speech path (web fallback). The dispatcher below owns the reset. */
@@ -308,31 +398,50 @@ export function useSpeechRecognition({
   /** Native path (Android): the device recognizer via the Capacitor
       plugin. The dispatcher below owns the reset. */
   const runNativeStart = useCallback(async () => {
+    const gen = generationRef.current;
     await nativeRef.current?.release().catch(() => undefined);
+    if (generationRef.current !== gen) return;
     const native = createNativeSpeech({ loadPlugin: loadNativeSpeechPlugin });
     nativeRef.current = native;
+    committedRef.current = false;
+    lastPartialRef.current = "";
     const callbacks: NativeSpeechCallbacks = {
       onStarted: () => {
+        if (generationRef.current !== gen) return;
         if (!shouldListenRef.current) return;
         setListening(true);
         setStarting(false);
         clearStartWatchdog();
+        clearStartedGate();
         setError(null);
       },
       // Like the web onresult, partials commit unconditionally: the
       // final text of an utterance arrives here too, and must survive
       // a user-requested stop (shouldListen is already false then).
+      // Stale generations are ignored so a late partial from a killed
+      // session cannot pollute the next one.
       onPartial: (text) => {
+        if (generationRef.current !== gen) return;
+        lastPartialRef.current = text;
         setInterimTranscript(text);
         setTranscript(joinTranscript(finalsRef.current, text));
       },
       onFinal: (text) => {
+        if (generationRef.current !== gen) return;
+        if (committedRef.current) {
+          lastPartialRef.current = "";
+          return;
+        }
+        committedRef.current = true;
         emptyNativeSessionsRef.current = 0;
         finalsRef.current = joinTranscript(finalsRef.current, text);
         setTranscript(finalsRef.current);
         setInterimTranscript("");
+        lastPartialRef.current = "";
       },
       onStopped: (hadText) => {
+        clearStartedGate();
+        if (generationRef.current !== gen) return;
         if (!shouldListenRef.current) return;
         // The plugin reports errors only as a plain stop, so a session
         // that ends with no text is "no speech". Three empty sessions
@@ -351,7 +460,15 @@ export function useSpeechRecognition({
         }
         // Continuous: restart the same session (listeners stay
         // registered). A failed restart ends listening with its code.
+        // A stop that landed while restarting wins: the restarted
+        // session is released instead of left live.
+        committedRef.current = false;
+        lastPartialRef.current = "";
         void native.start(langRef.current, callbacks).then((result) => {
+          if (generationRef.current !== gen) {
+            void native.release().catch(() => undefined);
+            return;
+          }
           if (result.ok) return;
           shouldListenRef.current = false;
           setListening(false);
@@ -360,7 +477,31 @@ export function useSpeechRecognition({
       },
     };
     const result = await native.start(langRef.current, callbacks);
-    if (result.ok) return;
+    if (generationRef.current !== gen) {
+      // A stop landed while the start was pending: the stop wins.
+      // Release the session the start just opened so nothing is left
+      // listening with no UI state.
+      await native.release().catch(() => undefined);
+      if (nativeRef.current === native) nativeRef.current = null;
+      return;
+    }
+    if (result.ok) {
+      // Started gate: a resolved start is NOT proof of listening —
+      // only `listeningState: "started"` is. If it never fires, the
+      // service is stalled (zombie bind) and the session is killed.
+      clearStartedGate();
+      startedGateRef.current = window.setTimeout(() => {
+        if (generationRef.current !== gen) return;
+        if (!shouldListenRef.current || listeningRef.current) return;
+        shouldListenRef.current = false;
+        setListening(false);
+        setStarting(false);
+        setError(stallError());
+        void native.release().catch(() => undefined);
+        if (nativeRef.current === native) nativeRef.current = null;
+      }, STARTED_GATE_MS);
+      return;
+    }
     nativeRef.current = null;
     await native.release().catch(() => undefined);
     if (result.code === "unsupported") {
@@ -372,7 +513,7 @@ export function useSpeechRecognition({
     shouldListenRef.current = false;
     setListening(false);
     setError(result.code);
-  }, [startWeb, clearStartWatchdog]);
+  }, [startWeb, clearStartWatchdog, clearStartedGate, stallError]);
 
   /** Native start. The hang watchdog lives in `start()` (one
       watchdog for both paths) — a native start that never resolves
@@ -389,10 +530,13 @@ export function useSpeechRecognition({
   /** One start path for every entry point (mic button, widget, Speak
       action): native on the phone, Web Speech on the web. */
   const start = useCallback(() => {
+    generationRef.current += 1;
     stopRequestedRef.current = false;
     shouldListenRef.current = true;
     emptyNativeSessionsRef.current = 0;
     finalsRef.current = "";
+    lastPartialRef.current = "";
+    committedRef.current = false;
     setTranscript("");
     setInterimTranscript("");
     setError(null);
@@ -401,39 +545,47 @@ export function useSpeechRecognition({
     // and never calls back — the plugin's start() hanging, or a web
     // recognizer that never fires onstart/onerror — would leave the
     // mic showing "Listening…" forever. After 8s with no start and
-    // no error, fail visibly instead. Cleared by onStarted/onstart,
-    // by onerror, and by stop/release.
+    // no error, fail visibly instead, naming the stall. Cleared by
+    // onStarted/onstart, by onerror, and by stop/release.
     clearStartWatchdog();
+    const gen = generationRef.current;
     startWatchdogRef.current = window.setTimeout(() => {
+      if (generationRef.current !== gen) return;
       if (shouldListenRef.current && !listeningRef.current) {
         shouldListenRef.current = false;
         setListening(false);
         setStarting(false);
-        setError("unknown");
+        setError(stallError());
         void nativeRef.current?.release().catch(() => undefined);
         nativeRef.current = null;
       }
-    }, 8000);
+    }, START_WATCHDOG_MS);
     if (isNativeApp()) {
       void startNative();
       return;
     }
     startWeb();
-  }, [startNative, startWeb, clearStartWatchdog]);
+  }, [startNative, startWeb, clearStartWatchdog, stallError]);
 
   const stop = useCallback(() => {
+    generationRef.current += 1;
     stopRequestedRef.current = true;
     shouldListenRef.current = false;
     setListening(false);
     setStarting(false);
     clearStartWatchdog();
+    clearStartedGate();
+    // Commit the pending partial now: a zombied session may never
+    // fire the "stopped" event that would commit it. The per-session
+    // committed flag keeps a late onFinal from duplicating it.
+    commitPendingText();
     void nativeRef.current?.stop().catch(() => undefined);
     try {
       recognitionRef.current?.stop();
     } catch {
       /* already stopped */
     }
-  }, []);
+  }, [clearStartWatchdog, clearStartedGate, commitPendingText]);
 
   const toggle = useCallback(() => {
     if (shouldListenRef.current || listening) stop();
@@ -445,6 +597,7 @@ export function useSpeechRecognition({
   return {
     supported,
     probed,
+    serviceProbe,
     listening,
     starting,
     transcript,

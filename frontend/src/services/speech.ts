@@ -1,30 +1,48 @@
 /**
  * Native speech recognition — the mic that works on the phone.
  *
- * VERIFIED PROBLEM: the in-app mic button, the home-screen widget and
- * the notification Speak action all funnel into `useSpeechRecognition`,
- * which uses only the Web Speech API (`window.SpeechRecognition` /
- * `webkitSpeechRecognition`). Android System WebView does NOT expose
- * SpeechRecognition — it is a Chrome-only API — so on Mahdi's phone the
- * mic showed "Voice input is not supported in this browser." and did
- * nothing. The failure was visible, not silent, but hands-free voice —
- * the core demand — was broken at the root.
+ * VERIFIED PROBLEM (round 3): the in-app mic button, the home-screen
+ * widget and the notification Speak action all funnel into
+ * `useSpeechRecognition`, which on native uses
+ * @capacitor-community/speech-recognition (Android's SpeechRecognizer,
+ * fa-IR, no popup). Android System WebView does NOT expose SpeechRecognition
+ * (a Chrome-only API), so the native plugin is the only listen path on
+ * the phone. RECORD_AUDIO was already in the Android manifest.
  *
- * FIX: on native, listen through @capacitor-community/speech-recognition
- * (Android's SpeechRecognizer, fa-IR, no popup so nothing interrupts
- * hands-free use). Web Speech stays the web fallback. RECORD_AUDIO was
- * already in the Android manifest.
+ * ROUND 4 DIAGNOSIS — why start() hangs forever on Mahdi's Samsung
+ * (verified against the installed @capacitor-community/speech-recognition
+ * v7.0.1 sources in .verify-overhaul/frontend/node_modules):
  *
- * Plugin behaviour, verified against the installed v7.0.1 sources:
- * - `start({ partialResults: true, popup: false })` resolves as soon as
- *   listening begins; results arrive as `partialResults` events (both
- *   interim results and the final matches) and `listeningState`
- *   `started` / `stopped` marks the session ends.
- * - with partialResults on, a recognition error surfaces only as a
- *   `stopped` event (the start call was already resolved, so its
- *   rejection is lost) — the caller must treat a session that ends
- *   with no text as "no speech", not as a crash.
- * - `checkPermissions` / `requestPermissions` cover RECORD_AUDIO.
+ * 1. `start()` resolves as soon as the native `startListening()` call is
+ *    INVOICED, not when listening begins. With `partialResults: true`
+ *    the plugin's `beginListening()` calls `call.resolve()` right after
+ *    `startListening()` returns. Only the `listeningState: "started"`
+ *    event (from `onBeginningOfSpeech`) proves the recognizer is alive.
+ *    Round 3 treated a resolved start as "listening" — a hung service
+ *    left the UI thinking it was listening until the 8s watchdog fired
+ *    the generic "Voice input failed. Try again."
+ * 2. Two silent-death paths where JS hears NOTHING: (a) `startListening()`
+ *    returns but the service never calls back — a zombie bind, no
+ *    onReady / onBeginningOfSpeech / onError; (b) `onError` fires after
+ *    the call was already resolved, so the reject is dropped and NO
+ *    "stopped" event is sent. Both end in the watchdog.
+ * 3. The plugin's `stop()` NEVER resolves its PluginCall on the success
+ *    path (no `call.resolve()` in `stop()`), so awaiting it hangs
+ *    forever. Callers must fire-and-forget it.
+ * 4. `beginListening()` destroys and recreates the SpeechRecognizer on
+ *    EVERY start — the prime suspect for the zombie bind on Samsung.
+ * 5. `getSupportedLanguages()` broadcasts to the Google app
+ *    (`com.google.android.googlequicksearchbox`). If that app is
+ *    missing/disabled the broadcast never returns and the promise hangs
+ *    — so the probe below always runs it behind a timeout.
+ * 6. `release()` used to only remove JS listeners and never stopped the
+ *    native recognizer. A zombied session stayed hot, so the next start
+ *    could hit ERROR_RECOGNIZER_BUSY and hang again. It now stops the
+ *    recognizer FIRST (fire-and-forget), then removes the listeners.
+ *
+ * The hook owns the "started" gate and the watchdog; this service only
+ * reports the facts (permission / availability / service probe) and
+ * translates plugin failures into codes.
  *
  * The real plugin is loaded lazily (dynamic import) so this module is
  * importable in a plain Node test: tests inject a stub plugin through
@@ -39,6 +57,8 @@ export type SpeechErrorCode =
   | "network"
   | "language-not-supported"
   | "aborted"
+  | "stalled"
+  | "service-missing"
   | "unknown";
 
 export type NativeSpeechPermissionState = "prompt" | "denied" | "granted";
@@ -52,6 +72,8 @@ export type NativeSpeechPlugin = {
   requestPermissions: () => Promise<{
     speechRecognition: NativeSpeechPermissionState;
   }>;
+  /** Broadcasts to the Google app; may hang forever if it is missing. */
+  getSupportedLanguages?: () => Promise<{ languages: string[] }>;
   start: (options: {
     language?: string;
     maxResults?: number;
@@ -85,8 +107,22 @@ export type NativeSpeechStartResult =
   | { ok: true }
   | { ok: false; code: SpeechErrorCode };
 
+/** One-time probe of the on-device recognition service. */
+export type SpeechServiceProbe = {
+  /** SpeechRecognizer.isRecognitionAvailable() on the device. */
+  available: boolean;
+  /** RECORD_AUDIO grant state at probe time (no request is made). */
+  permission: NativeSpeechPermissionState;
+  /** The Google recognition service behind getSupportedLanguages(). */
+  googleService: "ok" | "missing" | "timeout" | "unchecked";
+  /** Languages the service reports, when the call returned. */
+  languages: string[];
+};
+
 export type NativeSpeechDeps = {
   loadPlugin: () => Promise<NativeSpeechPlugin | null>;
+  /** Probe timeout for the Google-app broadcast. Default 5000 ms. */
+  probeTimeoutMs?: number;
 };
 
 function mapStartError(message: string): SpeechErrorCode {
@@ -99,15 +135,28 @@ function mapStartError(message: string): SpeechErrorCode {
   return "unknown";
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | "timeout"> {
+  return Promise.race([
+    p,
+    new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), ms),
+    ),
+  ]);
+}
+
 export function createNativeSpeech(deps: NativeSpeechDeps) {
-  let plugin: NativeSpeechPlugin | null = null;
+  let pluginPromise: Promise<NativeSpeechPlugin | null> | null = null;
   let listeners: Array<{ remove: () => Promise<void> }> = [];
   let lastText = "";
   let sessionHadText = false;
+  let probePromise: Promise<SpeechServiceProbe> | null = null;
+  let probeCache: SpeechServiceProbe | null = null;
 
   async function ensurePlugin(): Promise<NativeSpeechPlugin | null> {
-    if (!plugin) plugin = await deps.loadPlugin();
-    return plugin;
+    if (!pluginPromise) {
+      pluginPromise = deps.loadPlugin().catch(() => null);
+    }
+    return pluginPromise;
   }
 
   async function releaseListeners(): Promise<void> {
@@ -119,11 +168,68 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
   }
 
   /**
+   * Probe the on-device recognition service without asking for anything.
+   * Cached: the Google-app broadcast is slow and can hang, so it runs
+   * once per service behind a timeout and the result is reused.
+   */
+  async function probe(): Promise<SpeechServiceProbe> {
+    if (probeCache) return probeCache;
+    if (probePromise) return probePromise;
+    probePromise = (async () => {
+      const native = await ensurePlugin();
+      if (!native) {
+        probeCache = {
+          available: false,
+          permission: "denied",
+          googleService: "missing",
+          languages: [],
+        };
+        return probeCache;
+      }
+      let available = false;
+      try {
+        available = (await native.available()).available;
+      } catch {
+        available = false;
+      }
+      let permission: NativeSpeechPermissionState = "denied";
+      try {
+        permission = (await native.checkPermissions()).speechRecognition;
+      } catch {
+        permission = "denied";
+      }
+      let googleService: SpeechServiceProbe["googleService"] = "unchecked";
+      let languages: string[] = [];
+      if (typeof native.getSupportedLanguages === "function") {
+        const result = await withTimeout(
+          native.getSupportedLanguages().catch(() => null),
+          deps.probeTimeoutMs ?? 5000,
+        );
+        if (result === "timeout") {
+          googleService = "timeout";
+        } else if (result && Array.isArray(result.languages)) {
+          googleService = "ok";
+          languages = result.languages;
+        } else {
+          googleService = "missing";
+        }
+      }
+      probeCache = { available, permission, googleService, languages };
+      return probeCache;
+    })();
+    return probePromise;
+  }
+
+  /**
    * Start one native listening session. Safe to call again to restart
    * (listeners are registered once per service instance). Returns
-   * "unavailable" when there is no recognizer to fall back from — the
-   * caller then tries Web Speech, which reports "unsupported" in a
-   * WebView. Any other failure is reported with its own code.
+   * "unsupported" when there is no recognizer — the caller then tries
+   * Web Speech, which reports "unsupported" in a WebView. Any other
+   * failure is reported with its own code.
+   *
+   * NOTE: a resolved start does NOT mean listening began — only the
+   * `listeningState: "started"` event proves it. The hook gates on
+   * that event; a start that never fires it is a "stalled" error.
    */
   async function start(
     language: string,
@@ -195,16 +301,28 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
   }
 
   async function stop(): Promise<void> {
-    if (!plugin) return;
-    await plugin.stop().catch(() => undefined);
+    const native = await ensurePlugin();
+    if (!native) return;
+    // The plugin's stop() NEVER resolves its PluginCall on the success
+    // path — never await it, fire and forget. The "stopped" event (or
+    // the hook's own commit) settles the transcript.
+    void native.stop().catch(() => undefined);
   }
 
   async function release(): Promise<void> {
+    const native = await ensurePlugin();
+    if (native) {
+      // Stop the native recognizer FIRST (fire-and-forget — it never
+      // settles), otherwise a zombied session stays hot and the next
+      // start can hit ERROR_RECOGNIZER_BUSY.
+      void native.stop().catch(() => undefined);
+    }
+    lastText = "";
+    sessionHadText = false;
     await releaseListeners();
-    plugin = null;
   }
 
-  return { start, stop, release };
+  return { start, stop, release, probe };
 }
 
 /** The real plugin, loaded only on demand (never on the web). */

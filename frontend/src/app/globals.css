@@ -92,6 +92,24 @@ html[dir="rtl"] body {
   animation: echomind-mic-ring 1.4s ease-out infinite;
 }
 
+/* Red recording ring (round 4 hold-to-talk): the mic's expanding
+   ring turns red while recording, matching the red medallion. */
+.echomind-mic-ring-recording {
+  box-shadow: 0 0 0 2px rgb(220 38 38 / 0.9);
+  animation: echomind-mic-ring 1.2s ease-out infinite;
+}
+
+/* Composer placeholder (round 4): on a 360px phone the full
+   "Message EchoMind…" placeholder truncated even though the field
+   fit headless — device font rendering runs wider than the desktop
+   fallback. Shrink only the placeholder (not typed text) below
+   380px so the whole string fits. */
+@media (max-width: 380px) {
+  #echomind-composer::placeholder {
+    font-size: 14px;
+  }
+}
+
 .echomind-wave {
   display: inline-flex;
   align-items: flex-end;
@@ -202,12 +220,14 @@ html[dir="rtl"] body {
 
   .echomind-pulse,
   .echomind-mic-ring,
+  .echomind-mic-ring-recording,
   .echomind-wave span,
   .echomind-typing span {
     animation: none;
   }
 
-  .echomind-mic-ring {
+  .echomind-mic-ring,
+  .echomind-mic-ring-recording {
     opacity: 0.7;
   }
 
@@ -304,8 +324,9 @@ html[dir="rtl"] body {
    discs: radial surface gradient, specular inner rim, warm amber
    ambient glow. Physically embossed, never a flat line drawing.
    NOTE: no transform on :active — the orbit nodes are positioned
-   with translate(-50%, -50%), and a transform here would override
-   it and make the node jump. Brightness only. */
+   with calc() margins (round 4, no transforms at all, after the
+   mobile GPU mis-culled the translated nodes), and a transform here
+   would make a node jump. Brightness only. */
 .echomind-medallion {
   background:
     radial-gradient(circle at 32% 24%, rgb(255 255 255 / 0.22), transparent 42%),
@@ -347,6 +368,41 @@ html[dir="rtl"] body {
 
 .echomind-medallion-gold:active {
   filter: brightness(1.1);
+}
+
+/* Red recording medallion (round 4 hold-to-talk): the composer mic
+   turns RED while held or while a tap session is listening — the
+   same bevel treatment in recording red, white icon. */
+.echomind-medallion-recording {
+  background:
+    radial-gradient(circle at 32% 22%, rgb(255 255 255 / 0.5), transparent 40%),
+    radial-gradient(circle at 50% 58%, rgb(248 113 113 / 0.95), rgb(220 38 38 / 0.95) 48%, rgb(153 27 27 / 0.95) 78%, rgb(69 10 10 / 1) 100%);
+  border-top: 1px solid rgb(255 220 210 / 0.6);
+  border-left: 1px solid rgb(255 200 190 / 0.35);
+  border-right: 1px solid rgb(0 0 0 / 0.5);
+  border-bottom: 1px solid rgb(0 0 0 / 0.6);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -3px 8px rgb(0 0 0 / 0.35),
+    0 12px 26px -8px rgb(220 38 38 / 0.65),
+    0 0 24px -6px rgb(220 38 38 / 0.5);
+  color: #fff;
+}
+
+.echomind-medallion-recording:active {
+  filter: brightness(1.1);
+}
+
+/* Selected orbit node (round 4): a static gold ring, NO transform.
+   The old scale-110 was a compositing layer a mobile GPU mis-culled
+   while scrolling, so nodes vanished on the phone. */
+.echomind-node-selected {
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -3px 8px rgb(0 0 0 / 0.35),
+    0 0 0 2px rgb(229 169 60 / 0.95),
+    0 12px 26px -8px rgb(229 169 60 / 0.65),
+    0 0 24px -6px rgb(229 169 60 / 0.5);
 }
 
 /* Gold gradient text for headings and accents. */
@@ -413,7 +469,7 @@ html[dir="rtl"] body {
 /* The brand title sits ABOVE the orb, never stamped across it.       */
 /* States (data-state): idle = slow breathing; listening = gold       */
 /* ripple rings; thinking = rotating golden core; executing = crisp   */
-/* pulse.                                                             */
+/* pulse; recording = RED (round 4 hold-to-talk).                      */
 /* ------------------------------------------------------------------ */
 .echomind-living-orb {
   position: relative;
@@ -489,6 +545,31 @@ html[dir="rtl"] body {
 
 .echomind-living-orb[data-state="executing"] {
   animation: echomind-orb-execute 0.9s ease-in-out infinite;
+}
+
+/* Recording (round 4 hold-to-talk): the orb turns RED while the user
+   holds it or while a tap session is listening — unmistakable, and
+   releasing back to gold is the stop signal. Same red ripple as the
+   gold listening ripple, faster breathing. */
+.echomind-living-orb[data-state="recording"] {
+  background:
+    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.9), transparent 14%),
+    radial-gradient(circle at 38% 30%, rgb(255 214 200 / 0.45), transparent 26%),
+    radial-gradient(circle at 68% 28%, rgb(255 120 100 / 0.45), transparent 36%),
+    radial-gradient(circle at 50% 56%, rgb(239 68 68 / 1) 0%, rgb(220 38 38 / 1) 42%, rgb(153 27 27 / 1) 68%, rgb(69 10 10 / 1) 86%, rgb(9 10 15 / 1) 100%);
+  box-shadow:
+    inset 0 -26px 48px rgb(0 0 0 / 0.8),
+    inset 0 14px 30px rgb(255 255 255 / 0.28),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    0 0 0 1px rgb(239 68 68 / 0.25),
+    0 28px 80px -12px rgb(239 68 68 / 0.6),
+    0 0 110px -18px rgb(239 68 68 / 0.5);
+  animation: echomind-orb-breathe 1.4s ease-in-out infinite;
+}
+
+.echomind-living-orb[data-state="recording"]::after {
+  border-color: rgb(239 68 68 / 0.7);
+  animation: echomind-orb-ripple 1.2s ease-out infinite;
 }
 
 @keyframes echomind-orb-breathe {
@@ -684,7 +765,8 @@ html[dir="rtl"] body {
   .echomind-living-orb,
   .echomind-living-orb[data-state="listening"],
   .echomind-living-orb[data-state="thinking"],
-  .echomind-living-orb[data-state="executing"] {
+  .echomind-living-orb[data-state="executing"],
+  .echomind-living-orb[data-state="recording"] {
     animation: none;
   }
 

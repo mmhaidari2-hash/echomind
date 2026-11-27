@@ -26,12 +26,23 @@ export const copy = {
       "EchoMind can't open your photos — photo access is turned off. Allow it in Settings → Apps → EchoMind → Permissions, then try again.",
     photoError: "Couldn't read that photo. Try another one.",
     recording: "Listening… tap to stop",
+    recordingHold: "Recording — release to stop",
     speechUnsupported: "Voice input is not supported in this browser.",
-    micDenied: "Microphone permission was denied.",
+    micDenied:
+      "Microphone permission is off. Allow it in Settings → Apps → EchoMind → Permissions, then try again.",
     speechNoSpeech: "No speech detected. Tap the mic and try again.",
     speechNetwork: "Voice recognition needs a network connection.",
     speechAudio: "No microphone was found.",
     speechUnknown: "Voice input failed. Try again.",
+    /** Round 4: the recognizer started but never began listening
+        (zombie bind on the device) — name the stall, not a generic
+        failure. */
+    speechStalled:
+      "The phone's speech service didn't start. Try again — if it keeps failing, make sure the Google app is enabled.",
+    /** Round 4: no on-device recognizer AND no server transcription
+        yet (there is no /voice/transcribe endpoint) — say so plainly. */
+    speechServiceMissing:
+      "No speech recognizer on this phone, and server transcription isn't set up yet — please type for now.",
     emptyThread:
       "Your message stays on this device. Live replies connect in a later phase.",
     thinking: "EchoMind is thinking…",
@@ -62,8 +73,9 @@ export const copy = {
       "Providers arrive with the next app update — the server still runs the older version.",
     hubOutdated:
       "The hub arrives with the next app update — the server still runs the older version.",
-    orbListenHint: "Tap the orb to talk",
+    orbListenHint: "Hold the orb to talk",
     orbListening: "Listening… tap the orb to stop",
+    orbHoldStop: "Recording — release to stop",
     orbStarting: "Starting to listen…",
     delayWizard: "Open Delay Repay calculator",
     rightsWizard: "Open Consumer Rights notice",
@@ -161,12 +173,23 @@ export const copy = {
       "اکومایند نمی‌تواند به عکس‌های شما دسترسی داشته باشد — دسترسی به عکس خاموش است. در تنظیمات ← برنامه‌ها ← EchoMind ← دسترسی‌ها آن را روشن کنید و دوباره تلاش کنید.",
     photoError: "خواندن آن عکس ممکن نشد. عکس دیگری را امتحان کنید.",
     recording: "در حال شنیدن… برای توقف بزنید",
+    recordingHold: "در حال ضبط — برای توقف رها کنید",
     speechUnsupported: "ورودی صوتی در این مرورگر پشتیبانی نمی‌شود.",
-    micDenied: "دسترسی به میکروفون رد شد.",
+    micDenied:
+      "دسترسی به میکروفون خاموش است. در تنظیمات ← برنامه‌ها ← EchoMind ← دسترسی‌ها آن را روشن کنید و دوباره تلاش کنید.",
     speechNoSpeech: "صدایی شنیده نشد. دوباره روی میکروفون بزنید.",
     speechNetwork: "تشخیص گفتار به اتصال شبکه نیاز دارد.",
     speechAudio: "میکروفونی پیدا نشد.",
     speechUnknown: "ورودی صوتی ناموفق بود. دوباره تلاش کنید.",
+    /** Round 4: the recognizer started but never began listening
+        (zombie bind on the device) — name the stall, not a generic
+        failure. */
+    speechStalled:
+      "سرویس گفتار گوشی شروع نشد. دوباره تلاش کنید — اگر باز هم نشد، مطمئن شوید برنامهٔ Google فعال است.",
+    /** Round 4: no on-device recognizer AND no server transcription
+        yet (there is no /voice/transcribe endpoint) — say so plainly. */
+    speechServiceMissing:
+      "روی این گوشی تشخیص‌گفتار نیست و رونویسی سرور هم هنوز راه‌اندازی نشده — فعلاً تایپ کنید.",
     emptyThread:
       "پیام روی همین دستگاه می‌ماند. پاسخ زنده در فازهای بعدی وصل می‌شود.",
     thinking: "اکومایند در حال فکر کردن است…",
@@ -194,8 +217,9 @@ export const copy = {
       "ارائه‌دهندگان با به‌روزرسانی بعدی برنامه می‌آیند — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند.",
     hubOutdated:
       "هاب با به‌روزرسانی بعدی برنامه می‌آید — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند.",
-    orbListenHint: "برای صحبت روی دایره بزنید",
+    orbListenHint: "برای صحبت، دایره را نگه دارید",
     orbListening: "در حال شنیدن… برای توقف روی دایره بزنید",
+    orbHoldStop: "در حال ضبط — برای توقف رها کنید",
     orbStarting: "در حال شروع شنیدن…",
     delayWizard: "باز کردن محاسبه Delay Repay",
     rightsWizard: "باز کردن نامه حقوق مصرف‌کننده",
