@@ -29,6 +29,7 @@ import {
   type DelegatedTask,
   type Project,
 } from "@/services/api";
+import { taskNotifier } from "@/services/taskNotifications";
 
 type Lang = "en" | "fa";
 
@@ -135,6 +136,16 @@ export default function DelegatedWork({
         }),
       );
       setProjects(withTasks);
+      // Notification contract: announce any task that reached a terminal
+      // state since the last load (done / failed / needs_owner). First
+      // sight of an already-finished task is recorded silently, so
+      // opening the app never floods old finished tasks.
+      void taskNotifier
+        .check(
+          withTasks.flatMap((entry) => entry.tasks),
+          lang,
+        )
+        .catch(() => undefined);
     } catch {
       setError(STRINGS.loadFailed[lang]);
     } finally {
@@ -150,11 +161,14 @@ export default function DelegatedWork({
     setConfirmError(null);
     try {
       await confirmProjectTask(taskId);
-      await load();
     } catch {
       setConfirmError(STRINGS.confirmFailed[lang]);
     } finally {
       setConfirmingId(null);
+      // Refresh even when the confirm call itself failed: the server may
+      // have finished the task, and the list must show the true state
+      // (result + reason) instead of the stale one.
+      await load();
     }
   };
 

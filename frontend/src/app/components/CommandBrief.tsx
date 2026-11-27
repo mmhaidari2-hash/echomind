@@ -311,7 +311,13 @@ export default function CommandBrief({
   return (
     <section aria-label={STRINGS.eyebrow[locale]} className="w-full">
       <p className="echomind-meta text-gold">{STRINGS.eyebrow[locale]}</p>
-      <div className="mt-2">
+      {/* Fixed minimum height: the loading card is one short line
+          (~52px) and the loaded "all clear" card is ~120px, so
+          without this the whole hub below jumps down ~70px a moment
+          after mount and on every revalidation — part of the
+          whole-app jumping. 120px matches the measured loaded
+          height; real rows grow past it, which is real content. */}
+      <div className="mt-2 min-h-[120px]">
         {rows === null ? (
           <GlassCard className="p-4">
             <p className="text-sm text-muted">…</p>

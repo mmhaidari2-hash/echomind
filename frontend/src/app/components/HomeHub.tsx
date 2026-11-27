@@ -373,7 +373,14 @@ export default function HomeHub({
             <LivingOrb size={150} state={orbState} />
           </div>
 
-          {/* Orbiting apps — brand icons only, no labels. */}
+          {/* Orbiting apps — brand icons only, no labels. Plain
+              positioned buttons with NO transition and no hover
+              scale: a per-node animated transform is a compositing
+              layer per node, and that is what a mobile GPU mis-culls
+              while scrolling — the east / south-east nodes vanished
+              on the phone while the ring and spokes painted. The
+              selected node still reads as selected (stronger glass
+              + static scale-110); nothing animates. */}
           {HUB_APPS.map((app, index) => {
             const { x, y } = nodePosition(index);
             const state = states[app.id];
@@ -388,10 +395,10 @@ export default function HomeHub({
                 }}
                 aria-pressed={isSelected}
                 aria-label={`${app.label[lang]} — ${stateLabel(state, lang)}`}
-                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-ink transition ${
+                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-ink ${
                   isSelected
                     ? "echomind-glass-strong scale-110"
-                    : "echomind-glass hover:scale-105"
+                    : "echomind-glass"
                 }`}
                 style={{ left: `${x}%`, top: `${y}%` }}
               >

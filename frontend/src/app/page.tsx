@@ -275,7 +275,30 @@ export default function HomePage() {
     prevMessagesLength.current = messages.length;
     const main = mainRef.current;
     if (!main) return;
-    main.scrollTo({ top: main.scrollHeight, behavior: "smooth" });
+    // Instant, not smooth, and re-asserted after the frame settles.
+    // The previous version scrolled smooth to scrollHeight: on the
+    // phone that left the view on blank black space after sending —
+    // the smooth programmatic scroll inside this nested scroller
+    // leaves the Android WebView showing un-rasterised tiles at the
+    // bottom, and its target went stale while the reply arrived (the
+    // view stopped 36px short of the bottom in measurement). The
+    // reply replaces the pending bubble without changing the length,
+    // so re-assert after a frame and after 350ms, when the final
+    // height is known. Direct scrollTop assignment, no behavior flag:
+    // the CSS smooth behaviour is removed too (see globals.css).
+    const scrollToBottom = () => {
+      main.scrollTop = main.scrollHeight;
+    };
+    scrollToBottom();
+    let timer = 0;
+    const raf = window.requestAnimationFrame(() => {
+      scrollToBottom();
+      timer = window.setTimeout(scrollToBottom, 350);
+    });
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
   }, [messages.length]);
 
   useEffect(() => {

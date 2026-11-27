@@ -12,6 +12,7 @@ from app.services import google_connector as connector
 from app.services import projects as projects_service
 from app.services.briefing import today_brief
 from app.services.gemini import generate_with_memory
+from app.services.guidance import guidance_for_message
 from app.services.intent import understand
 from app.services.life import add_obligation
 from app.services.memory_engine import (
@@ -140,6 +141,24 @@ def classify_pillar(
     if tags & {"overdraft", "bank", "shield"}:
         return PillarId.overdraft_shield
     return PillarId.consumer_rights
+
+
+def intent_reply(
+    user_id: str,
+    message: str,
+    lang: str,
+    conversation_id: str,
+    metadata: ChatMetadata,
+) -> ChatResponse | None:
+    """The deterministic intent-layer reply for this message, or None.
+
+    Shared by POST /chat (via process_message) and POST /chat/stream, so
+    both paths agree on what a message means before any guidance or LLM
+    call runs.
+    """
+    pillar = classify_pillar(user_id, message, metadata, conversation_id)
+    pack = _PACKS[pillar][lang]
+    return _run_intent(user_id, message, lang, conversation_id, pillar, pack)
 
 
 def _copy(locale: str, en: str, fa: str) -> str:
@@ -342,6 +361,21 @@ def process_message(
     intent_reply = _run_intent(user_id, message, lang, conversation_id, pillar, pack)
     if intent_reply is not None:
         return intent_reply
+    # Always answer: if the message needs a connector that is missing, or
+    # needs the model while the Gemini key is missing, say so — naming the
+    # missing thing and the fix — instead of calling the LLM or returning
+    # the generic pack reply. Deterministic, no key needed.
+    guide = guidance_for_message(
+        user_id=user_id,
+        message=message,
+        lang=lang,
+        conversation_id=conversation_id,
+        pillar=pillar,
+    )
+    if guide is not None:
+        record_turn(user_id, conversation_id, "user", message, pillar.value)
+        record_turn(user_id, conversation_id, "assistant", guide.message, pillar.value)
+        return guide
     hints = [hint.strip() for hint in metadata.memory_hints if hint.strip()][:6]
     prompt = build_personalized_prompt(user_id, message, lang, hints, conversation_id)
     gemini = generate_with_memory(prompt)

@@ -84,11 +84,20 @@ def test_confirm_with_nothing_proposed_says_so() -> None:
     assert "منتظر تایید نیست" in reply.message
 
 
-def test_unknown_message_falls_through_to_the_pack() -> None:
+def test_unknown_message_gets_gemini_guidance_without_key(monkeypatch) -> None:
+    # Mahdi's always-answer rule: with no Gemini key, an open-ended
+    # message gets the missing-key guidance (naming the key and the two
+    # steps) instead of the generic pack reply. The pack fallback itself
+    # still exists for a configured model that returns nothing — see
+    # test_always_answer.py.
+    from app.services import guidance
+
+    monkeypatch.setattr(guidance.gemini, "is_configured", lambda: False)
     reply = _chat("user-a", "what is the meaning of life?")
-    assert reply.metadata.get("deterministic") is None
-    assert reply.engine == "placeholder"
-    assert reply.message  # the existing pillar pack message, unchanged
+    assert reply.engine == "guidance"
+    assert "Gemini" in reply.message
+    assert "aistudio.google.com/apikey" in reply.message
+    assert reply.message  # a real answer, never a blank
 
 
 def test_understand_endpoint_is_owner_scoped() -> None:
