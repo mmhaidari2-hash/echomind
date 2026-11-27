@@ -170,28 +170,45 @@ export default function HomePage() {
   const memory = useAssistantMemory();
   useAppViewport();
 
+  /** Round 5: a wizard renders inside main, below the fold — without
+      scrolling, opening one (e.g. tapping the "continue" suggestion
+      chip in the fixed footer) looks like nothing happened. Bring the
+      wizard into view once React has committed it (two frames). */
+  const scrollToSurface = () => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("echomind-surface")?.scrollIntoView();
+      });
+    });
+  };
+
   const openDelayWizard = () => {
     setActiveIntent("travel");
     setSurface("delay");
+    scrollToSurface();
   };
 
   const openRightsWizard = () => {
     setActiveIntent("rights");
     setSurface("rights");
+    scrollToSurface();
   };
 
   const openShieldWizard = () => {
     setActiveIntent("shield");
     setSurface("shield");
+    scrollToSurface();
   };
 
   const openScan = () => {
     setSurface("scan");
+    scrollToSurface();
   };
 
   const openTravel = () => {
     setActiveIntent("travel");
     setSurface("travel");
+    scrollToSurface();
   };
 
   const clearContext = () => {
@@ -210,6 +227,10 @@ export default function HomePage() {
       hub, not to the end of the feed. Only a newly added message
       (the owner sending, or the assistant answering) scrolls. */
   const prevMessagesLength = useRef(0);
+  /** Last message the scroll effect saw (round 5): the reply replaces
+      the pending bubble with the same id, so the effect compares
+      against this to notice the replacement. */
+  const prevLastRef = useRef<{ id: string; text: string; pending?: boolean } | null>(null);
   const persistReady = useRef(false);
   const t = copy[locale];
   const shellDir = localeDir(locale);
@@ -292,11 +313,28 @@ export default function HomePage() {
     // the page stays at the top: the old version scrolled to the
     // bottom on every mount, so opening the app showed the end of the
     // feed and the hero + hub were pushed above the viewport.
-    if (messages.length <= prevMessagesLength.current) {
-      prevMessagesLength.current = messages.length;
-      return;
-    }
+    // Round 5: the reply replaces the pending bubble with the SAME id
+    // and the SAME length, so the old length-only effect never fired
+    // for it — a reply arriving seconds later sat below the fold and
+    // the owner saw "no answer". Scroll when the pending bubble
+    // resolves into its answer too — but only for that replacement
+    // (same id, was pending): a restored thread carries fresh ids
+    // and mount has no previous last message, so neither scrolls.
+    const last = messages[messages.length - 1];
+    const prevLast = prevLastRef.current;
+    prevLastRef.current = last
+      ? { id: last.id, text: last.text, pending: last.pending }
+      : null;
+    const grew = messages.length > prevMessagesLength.current;
     prevMessagesLength.current = messages.length;
+    const replyLanded =
+      !grew &&
+      prevLast !== null &&
+      last !== undefined &&
+      last.id === prevLast.id &&
+      prevLast.pending === true &&
+      last.text !== prevLast.text;
+    if (!grew && !replyLanded) return;
     const main = mainRef.current;
     if (!main) return;
     // Instant, not smooth, and re-asserted after the frame settles.
@@ -305,11 +343,12 @@ export default function HomePage() {
     // the smooth programmatic scroll inside this nested scroller
     // leaves the Android WebView showing un-rasterised tiles at the
     // bottom, and its target went stale while the reply arrived (the
-    // view stopped 36px short of the bottom in measurement). The
-    // reply replaces the pending bubble without changing the length,
-    // so re-assert after a frame and after 350ms, when the final
-    // height is known. Direct scrollTop assignment, no behavior flag:
-    // the CSS smooth behaviour is removed too (see globals.css).
+    // view stopped 36px short of the bottom in measurement). So
+    // re-assert after a frame and after 350ms, when the final height
+    // is known — and the effect itself now re-runs when the pending
+    // bubble resolves (round 5, above), so a late reply re-scrolls
+    // too. Direct scrollTop assignment, no behavior flag: the CSS
+    // smooth behaviour is removed too (see globals.css).
     const scrollToBottom = () => {
       main.scrollTop = main.scrollHeight;
     };
@@ -323,7 +362,7 @@ export default function HomePage() {
       window.cancelAnimationFrame(raf);
       window.clearTimeout(timer);
     };
-  }, [messages.length]);
+  }, [messages]);
 
   useEffect(() => {
     if (!persistReady.current) {
@@ -795,6 +834,12 @@ export default function HomePage() {
               openRightsWizard();
             }}
           />
+
+          {/* Zero-height anchor at the top of the wizard surfaces
+              (round 5): scrollToSurface() brings an opened wizard
+              into view — without it, a wizard opened from the fixed
+              footer sits below the fold and the tap looks dead. */}
+          {surface !== "home" ? <div id="echomind-surface" aria-hidden className="scroll-mt-3" /> : null}
 
           {surface === "delay" ? (
             <DelayRepayWizard

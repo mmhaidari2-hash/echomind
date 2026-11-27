@@ -417,9 +417,20 @@ export default function HomeHub({
           spokes. Plain div, no entrance animation, no 3D perspective,
           no transforms, no scroll-linked rotation — every node is
           painted on first paint and stays painted while scrolling.
-          The tick ring is a static instrument dial. */}
+          The tick ring is a static instrument dial.
+          Round 5: the container is its own compositing layer
+          (translateZ(0)) so the compositor rasterizes the container
+          and all 8 nodes atomically. On Mahdi's phone the round-4
+          build still dropped exactly Drive/Docs/Sheets/Bank (the
+          right + bottom nodes) while the ring and spokes painted —
+          and the node buttons were already maximally plain (no
+          transform, no transition, no animation, no filter), with
+          correct geometry headlessly at 360/412px. The failure could
+          NOT be reproduced in staging, so this is a targeted
+          hardening for the Android WebView raster path, not a proven
+          fix: the phone test is still the gate. */}
       <div
-        className="relative mx-auto mt-2 aspect-square w-full max-w-[340px] overflow-visible"
+        className="relative mx-auto mt-2 aspect-square w-full max-w-[340px] overflow-visible [transform:translateZ(0)]"
         role="group"
         aria-label={STRINGS.hubLabel[lang]}
       >
@@ -516,7 +527,15 @@ export default function HomeHub({
               Mahdi's round-3 screenshots). Centring is now a calc()
               margin (56px node → 28px half) and the selected node
               reads as selected through a static gold ring
-              (.echomind-node-selected). Nothing animates. */}
+              (.echomind-node-selected). Nothing animates.
+              Round 5: the round-4 build STILL dropped Drive/Docs/
+              Sheets/Bank on Mahdi's phone (18:19 screenshots) even
+              though these buttons carry no transform, no transition,
+              no animation and no filter, and headless probes show
+              all 8 painted at 360/412px at every scroll position.
+              No further class can be removed from the buttons — the
+              remaining hardening is the translateZ(0) layer on the
+              orbit container above. Phone confirmation is the gate. */}
           {HUB_APPS.map((app, index) => {
             const { x, y } = nodePosition(index);
             const state = states[app.id];

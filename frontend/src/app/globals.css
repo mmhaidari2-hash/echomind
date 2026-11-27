@@ -370,13 +370,17 @@ html[dir="rtl"] body {
   filter: brightness(1.1);
 }
 
-/* Red recording medallion (round 4 hold-to-talk): the composer mic
-   turns RED while held or while a tap session is listening — the
-   same bevel treatment in recording red, white icon. */
+/* Red recording medallion (round 5 hold-to-talk): the composer mic
+   turns RED while held or while a tap session is listening — the same
+   red-from-inside treatment as the orb: a glowing red core under the
+   glass, not a repaint of the whole surface. The specular highlight
+   and the dark glass base stay, so it still reads as a glass
+   medallion with red light inside it. */
 .echomind-medallion-recording {
   background:
     radial-gradient(circle at 32% 22%, rgb(255 255 255 / 0.5), transparent 40%),
-    radial-gradient(circle at 50% 58%, rgb(248 113 113 / 0.95), rgb(220 38 38 / 0.95) 48%, rgb(153 27 27 / 0.95) 78%, rgb(69 10 10 / 1) 100%);
+    radial-gradient(circle at 50% 58%, rgb(255 92 74 / 0.95) 0%, rgb(220 38 38 / 0.85) 34%, rgb(153 27 27 / 0.5) 58%, transparent 74%),
+    linear-gradient(165deg, rgb(52 20 18 / 0.9), rgb(16 8 8 / 0.92));
   border-top: 1px solid rgb(255 220 210 / 0.6);
   border-left: 1px solid rgb(255 200 190 / 0.35);
   border-right: 1px solid rgb(0 0 0 / 0.5);
@@ -474,22 +478,26 @@ html[dir="rtl"] body {
 .echomind-living-orb {
   position: relative;
   border-radius: 9999px;
-  /* Deep molten-gold sphere like the home mockup and the app icon:
-     a tight specular top-left, a saturated amber core, and a dark
-     bronze rim — the old stack washed out pale on a real phone
-     because the bright layers were too wide and too opaque. */
+  /* Glass sphere (round 5): the orb is GLASS, not a solid gold ball.
+     The body is translucent — the dark obsidian shows through the
+     middle, darkening toward the rim — with a tight specular
+     top-left, a faint refracted highlight bottom-right, a soft warm
+     gold heart, and light pooling at the bottom (caustic). The bright
+     inset rim is the light bending around the sphere's edge. The old
+     opaque gold stack read as a flat glossy ball on the phone. */
   background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.9), transparent 14%),
-    radial-gradient(circle at 38% 30%, rgb(255 244 214 / 0.45), transparent 26%),
-    radial-gradient(circle at 68% 28%, rgb(242 194 104 / 0.45), transparent 36%),
-    radial-gradient(circle at 50% 56%, rgb(229 169 60 / 1) 0%, rgb(201 143 34 / 1) 42%, rgb(138 90 16 / 1) 68%, rgb(58 38 8 / 1) 86%, rgb(9 10 15 / 1) 100%);
+    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.95), transparent 12%),
+    radial-gradient(circle at 72% 78%, rgb(255 255 255 / 0.2), transparent 18%),
+    radial-gradient(circle at 50% 62%, rgb(242 194 104 / 0.5) 0%, rgb(229 169 60 / 0.28) 32%, transparent 62%),
+    radial-gradient(circle at 50% 88%, rgb(242 194 104 / 0.35), transparent 32%),
+    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.05) 0%, rgb(9 10 15 / 0.1) 55%, rgb(9 10 15 / 0.55) 82%, rgb(9 10 15 / 0.85) 100%);
   box-shadow:
-    inset 0 -26px 48px rgb(0 0 0 / 0.8),
-    inset 0 14px 30px rgb(255 255 255 / 0.28),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12),
-    0 0 0 1px rgb(229 169 60 / 0.16),
-    0 28px 80px -12px rgb(229 169 60 / 0.55),
-    0 0 110px -18px rgb(229 169 60 / 0.45);
+    inset 0 0 0 1.5px rgb(255 236 190 / 0.55),
+    inset 0 -22px 40px rgb(0 0 0 / 0.75),
+    inset 0 16px 28px rgb(255 255 255 / 0.16),
+    0 0 0 1px rgb(229 169 60 / 0.14),
+    0 28px 80px -12px rgb(229 169 60 / 0.5),
+    0 0 110px -18px rgb(229 169 60 / 0.4);
   animation: echomind-orb-breathe 4.5s ease-in-out infinite;
 }
 
@@ -547,20 +555,25 @@ html[dir="rtl"] body {
   animation: echomind-orb-execute 0.9s ease-in-out infinite;
 }
 
-/* Recording (round 4 hold-to-talk): the orb turns RED while the user
-   holds it or while a tap session is listening — unmistakable, and
-   releasing back to gold is the stop signal. Same red ripple as the
-   gold listening ripple, faster breathing. */
+/* Recording (round 5 hold-to-talk): the RED comes from INSIDE the
+   glass — a glowing red core under the same glass shell, not a
+   repaint of the whole surface. The specular highlight, the rim and
+   the glass body stay exactly as in idle, so the ball still reads as
+   glass; only the heart turns red and the glow goes red. Releasing
+   returns to gold immediately (the idle stack). The round-4 version
+   swapped the whole background to opaque red, which read as a flat
+   red ball on the phone. */
 .echomind-living-orb[data-state="recording"] {
   background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.9), transparent 14%),
-    radial-gradient(circle at 38% 30%, rgb(255 214 200 / 0.45), transparent 26%),
-    radial-gradient(circle at 68% 28%, rgb(255 120 100 / 0.45), transparent 36%),
-    radial-gradient(circle at 50% 56%, rgb(239 68 68 / 1) 0%, rgb(220 38 38 / 1) 42%, rgb(153 27 27 / 1) 68%, rgb(69 10 10 / 1) 86%, rgb(9 10 15 / 1) 100%);
+    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.95), transparent 12%),
+    radial-gradient(circle at 72% 78%, rgb(255 180 170 / 0.25), transparent 18%),
+    radial-gradient(circle at 50% 58%, rgb(255 92 74 / 0.98) 0%, rgb(230 48 44 / 0.9) 30%, rgb(180 30 30 / 0.55) 52%, transparent 70%),
+    radial-gradient(circle at 50% 88%, rgb(255 110 90 / 0.55), transparent 32%),
+    radial-gradient(circle at 50% 50%, rgb(40 6 6 / 0.15) 0%, rgb(9 10 15 / 0.25) 55%, rgb(9 10 15 / 0.6) 82%, rgb(9 10 15 / 0.9) 100%);
   box-shadow:
-    inset 0 -26px 48px rgb(0 0 0 / 0.8),
-    inset 0 14px 30px rgb(255 255 255 / 0.28),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    inset 0 0 0 1.5px rgb(255 150 135 / 0.6),
+    inset 0 -22px 40px rgb(0 0 0 / 0.75),
+    inset 0 16px 28px rgb(255 255 255 / 0.16),
     0 0 0 1px rgb(239 68 68 / 0.25),
     0 28px 80px -12px rgb(239 68 68 / 0.6),
     0 0 110px -18px rgb(239 68 68 / 0.5);

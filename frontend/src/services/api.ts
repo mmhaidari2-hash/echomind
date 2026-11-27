@@ -155,9 +155,15 @@ function isRetryable(error: unknown): boolean {
   // cause — the user would see "Could not reach EchoMind" instead of
   // the true "server is the older version". Base discovery does not
   // depend on this: resolveApiBase catches the health probe itself.
+  // No 502/503 either (round 5): a 502/503 means the server ANSWERED
+  // — it is up, just busy or unconfigured. Retrying the next base
+  // only masks that too: the mock-live probe showed stream 404 →
+  // sendChat 503 → retry to the same-origin base → HTML 404 → JSON
+  // parse error → "network_error", so the user saw "could not connect
+  // to the server" for a server that was reachable and answering 503.
+  // Only a failure to reach the base at all (network_error/timeout)
+  // is worth retrying elsewhere.
   return (
-    error.status === 502 ||
-    error.status === 503 ||
     error.code === "network_error" ||
     error.code === "timeout"
   );
