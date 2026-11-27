@@ -180,6 +180,12 @@ export default function HomePage() {
   };
 
   const mainRef = useRef<HTMLElement>(null);
+  /** Length of the thread the last time the scroll effect ran. The
+      home feed must NOT scroll on mount — neither for an empty thread
+      nor for a restored one: the owner opens the app to the hero +
+      hub, not to the end of the feed. Only a newly added message
+      (the owner sending, or the assistant answering) scrolls. */
+  const prevMessagesLength = useRef(0);
   const persistReady = useRef(false);
   const t = copy[locale];
   const shellDir = localeDir(locale);
@@ -192,7 +198,11 @@ export default function HomePage() {
     setBalance(storedBalance.amount);
     setThreshold(storedBalance.threshold);
     const storedThread = loadThread();
-    if (storedThread.length) setMessages(storedThread);
+    if (storedThread.length) {
+      setMessages(storedThread);
+      // A restored thread is not a new message — do not scroll for it.
+      prevMessagesLength.current = storedThread.length;
+    }
     const storedConvo = loadConversationId();
     if (storedConvo) setConversationId(storedConvo);
 
@@ -215,6 +225,8 @@ export default function HomePage() {
                 pillar: turn.pillar ?? undefined,
               })),
             );
+            // Remote restore is not a new message either.
+            prevMessagesLength.current = remote.turns.length;
           }
         }
       } catch {
@@ -252,6 +264,15 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    // Follow NEW messages only. On mount (empty or restored thread)
+    // the page stays at the top: the old version scrolled to the
+    // bottom on every mount, so opening the app showed the end of the
+    // feed and the hero + hub were pushed above the viewport.
+    if (messages.length <= prevMessagesLength.current) {
+      prevMessagesLength.current = messages.length;
+      return;
+    }
+    prevMessagesLength.current = messages.length;
     const main = mainRef.current;
     if (!main) return;
     main.scrollTo({ top: main.scrollHeight, behavior: "smooth" });
@@ -659,8 +680,8 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <main ref={mainRef} className="echomind-scroll px-4 pb-6 pt-6 sm:px-6">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+      <main ref={mainRef} className="echomind-scroll px-4 pb-10 pt-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           <section className="relative space-y-1 text-center" aria-label={t.greeting}>
             <h1 className="echomind-hero-title echomind-fade-up relative text-4xl font-bold tracking-tight sm:text-5xl">
               {t.appName}

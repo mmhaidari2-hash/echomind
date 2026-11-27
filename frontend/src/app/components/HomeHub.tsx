@@ -25,15 +25,25 @@
  * when idle, ripples while the mic listens, spins its golden core
  * while EchoMind thinks, and pulses crisply while an action runs.
  *
+ * The hub renders statically — no scroll-linked reveal
+ * (IntersectionObserver / whileInView) and no 3D pointer parallax on
+ * the orbit. Both used to gate the hub's visibility on scrolling, so
+ * a fast scroll (or the mount-time auto-scroll) could leave the pill
+ * or the top orbit nodes invisible while the ring and spokes were
+ * already painted. The orbit is plain positioned buttons in a plain
+ * div now: every node is painted on first paint and stays painted
+ * while scrolling. The only motion left on the hub is state-driven
+ * (orb states, the "so what?" crossfade on selection).
+ *
  * Dark Obsidian design (obsidian, dark glass, Amber-Gold),
- * framer-motion entrance, shadcn Button for the connect action.
+ * shadcn Button for the connect action.
  * Bilingual EN/FA; the orbit is symmetric so RTL needs no mirror.
  */
 
-import { useCallback, useEffect, useState, type PointerEvent } from "react";
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
+import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import { AnimatedCount, GlassCard, Kbd, LivingOrb, MotionReveal, Reveal, SpotlightCard, StatusDot, type OrbState } from "./Glass";
+import { AnimatedCount, GlassCard, Kbd, LivingOrb, SpotlightCard, StatusDot, type OrbState } from "./Glass";
 import { BrandIcon } from "./BrandIcons";
 import { Button } from "./ui/button";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
@@ -134,27 +144,11 @@ export default function HomeHub({
   const [connectError, setConnectError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
 
-  /* react-three-fiber pattern as CSS 3D — pointer parallax on the
-     orbit: the whole scene leans a few degrees toward the pointer
-     (mouse only), on springs. Reduced motion disables it. */
+  /* Reduced motion skips the "so what?" crossfade (plain swap). The
+     orbit itself has no pointer parallax: it is mouse-only, does
+     nothing on the phone, and its 3D perspective context is what a
+     mobile GPU can mis-cull while scrolling. */
   const reduceMotion = useReducedMotion();
-  const orbitRx = useMotionValue(0);
-  const orbitRy = useMotionValue(0);
-  const orbitSrx = useSpring(orbitRx, { stiffness: 140, damping: 20 });
-  const orbitSry = useSpring(orbitRy, { stiffness: 140, damping: 20 });
-  const handleOrbitMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (reduceMotion || e.pointerType !== "mouse") return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-    const rtl = document.documentElement.dir === "rtl";
-    orbitRx.set(-py * 4);
-    orbitRy.set((rtl ? -1 : 1) * px * 4);
-  };
-  const resetOrbit = () => {
-    orbitRx.set(0);
-    orbitRy.set(0);
-  };
 
   const load = useCallback(async () => {
     const { states: next, googleConfigured: configured } = await loadHubStatuses();
@@ -289,38 +283,35 @@ export default function HomeHub({
 
   return (
     <section aria-label={STRINGS.hubLabel[lang]} className="w-full">
-      {/* Live count pill — the only header the hub needs. */}
-      <Reveal>
-        <div className="flex justify-center">
-          <span className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-gold">
-            {loading ? (
-              "…"
-            ) : (
-              <>
-                <AnimatedCount value={connectedCount} />{" "}
-                {lang === "fa"
-                  ? "برنامه متصل"
-                  : connectedCount === 1
-                    ? "app connected"
-                    : "apps connected"}
-              </>
-            )}
-          </span>
-        </div>
-      </Reveal>
+      {/* Live count pill — the only header the hub needs. Rendered
+          statically: a scroll-linked reveal could leave it invisible
+          after a fast scroll. */}
+      <div className="flex justify-center">
+        <span className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-gold">
+          {loading ? (
+            "…"
+          ) : (
+            <>
+              <AnimatedCount value={connectedCount} />{" "}
+              {lang === "fa"
+                ? "برنامه متصل"
+                : connectedCount === 1
+                  ? "app connected"
+                  : "apps connected"}
+            </>
+          )}
+        </span>
+      </div>
 
       {/* The orbit: the living orb at the centre, apps around it on
-          spokes. Pointer parallax leans the scene toward the pointer
-          (r3f pattern, CSS 3D); the tick ring turns slowly like a dial. */}
-      <MotionReveal delay={80}>
-        <motion.div
-          className="relative mx-auto mt-2 aspect-square w-full max-w-[340px]"
-          role="group"
-          aria-label={STRINGS.hubLabel[lang]}
-          style={{ rotateX: orbitSrx, rotateY: orbitSry, transformPerspective: 900 }}
-          onPointerMove={handleOrbitMove}
-          onPointerLeave={resetOrbit}
-        >
+          spokes. Plain div, no entrance animation, no 3D perspective
+          — every node is painted on first paint and stays painted
+          while scrolling. The tick ring still turns slowly like a dial. */}
+      <div
+        className="relative mx-auto mt-2 aspect-square w-full max-w-[320px]"
+        role="group"
+        aria-label={STRINGS.hubLabel[lang]}
+      >
           <svg
             aria-hidden="true"
             viewBox="0 0 100 100"
@@ -423,17 +414,17 @@ export default function HomeHub({
               </button>
             );
           })}
-        </motion.div>
-      </MotionReveal>
+      </div>
 
       {/* "So what?" — the selected app, and its connect action.
           Dense command-row layout (Raycast): object id + status dot
           on top, one-line powers, one action. Aceternity spotlight
           follows the pointer; a magicui border beam travels around
           the border; switching apps crossfades the content
-          (framer-motion AnimatePresence, skipped on reduced motion). */}
-      <MotionReveal delay={140}>
-        <SpotlightCard className="mt-4 rounded-2xl">
+          (framer-motion AnimatePresence, skipped on reduced motion).
+          No scroll-linked reveal: the card is always painted. */}
+      <div>
+        <SpotlightCard className="mt-3 rounded-2xl">
           <GlassCard className="p-4" strong dense beam>
             {reduceMotion ? (
               <SoWhatContent />
@@ -452,11 +443,12 @@ export default function HomeHub({
             )}
           </GlassCard>
         </SpotlightCard>
-      </MotionReveal>
+      </div>
 
-      {/* Honest "coming soon": no connector exists, so no orbit node. */}
-      <Reveal delay={180}>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+      {/* Honest "coming soon": no connector exists, so no orbit node.
+          Rendered statically, like the rest of the hub. */}
+      <div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="echomind-meta text-muted">
             {STRINGS.comingSoon[lang]}
           </span>
@@ -471,7 +463,7 @@ export default function HomeHub({
             </span>
           ))}
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }
