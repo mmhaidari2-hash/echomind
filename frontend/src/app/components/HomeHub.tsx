@@ -40,12 +40,15 @@
  * Bilingual EN/FA; the orbit is symmetric so RTL needs no mirror.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useMotionValue, useReducedMotion } from "framer-motion";
+
+import { Browser } from "@capacitor/browser";
 
 import { AnimatedCount, GlassCard, Kbd, LivingOrb, SpotlightCard, StatusDot, type OrbState } from "./Glass";
 import { BrandIcon } from "./BrandIcons";
 import { Button } from "./ui/button";
+import { LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   HUB_APPS,
@@ -79,6 +82,11 @@ const STRINGS = {
   signInFirst: {
     en: "Sign in to EchoMind first, then connect your apps from here.",
     fa: "اول وارد اکومایند شوید، بعد برنامه‌هایتان را از همین‌جا وصل کنید.",
+  },
+  orbTap: { en: "Tap the orb to talk", fa: "برای صحبت روی دایره بزنید" },
+  orbStop: {
+    en: "Listening… tap the orb to stop",
+    fa: "در حال شنیدن… برای توقف روی دایره بزنید",
   },
 } as const;
 
@@ -171,6 +179,48 @@ export default function HomeHub({
     return () => window.removeEventListener("echomind-listening", onListening);
   }, []);
 
+  /* Scroll-linked orbit rotation (round 3): as the hub scrolls
+     through the viewport, the tick ring turns with it (up to 120°)
+     — the rewarding scroll choreography, driven by the user's own
+     scroll, not a timer. The ring is decorative only, so rotating it
+     never detaches a spoke from a node. */
+  const sectionRef = useRef<HTMLElement>(null);
+  const ringRotate = useMotionValue(0);
+  useEffect(() => {
+    const section = sectionRef.current;
+    const scroller = section?.closest(".echomind-scroll") as HTMLElement | null;
+    if (!scroller || !section) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const rect = section.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const progress = Math.min(
+        1,
+        Math.max(0, (scrollerRect.bottom - rect.top) / (scrollerRect.height + rect.height)),
+      );
+      ringRotate.set(progress * 120);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [ringRotate]);
+
+  /** The orb IS a microphone (round 3): tapping it starts native
+      listening through the same request the composer mic, the widget
+      and the Speak action use; tapping again while listening stops
+      it. Before this the orb was an aria-hidden div with no handler
+      at all — the big golden "talk" button did nothing. */
+  const handleOrbTap = useCallback(() => {
+    window.dispatchEvent(new Event(listening ? LISTEN_STOP_REQUEST : LISTEN_REQUEST));
+  }, [listening]);
+
   const orbState: OrbState = listening
     ? "listening"
     : executing
@@ -189,7 +239,9 @@ export default function HomeHub({
     setConnectError(null);
     try {
       const { authorization_url } = await startHubAppConnection(app);
-      window.open(authorization_url, "_blank", "noopener");
+      // Capacitor Browser (in-app tab), not window.open: opening the
+      // OAuth page in the WebView itself would navigate the app away.
+      await Browser.open({ url: authorization_url });
       // Statuses refresh when the user returns; also re-check after a
       // short delay in case the OAuth tab completed quickly.
       window.setTimeout(() => void load(), 30_000);
@@ -244,7 +296,7 @@ export default function HomeHub({
       <p className="echomind-meta mt-3 text-gold">
         {STRINGS.whatItPowers[lang]}
       </p>
-      <p className="mt-1 text-sm leading-relaxed text-ink-soft">{selected.powers[lang]}</p>
+      <p className="mt-1 w-full min-w-0 text-sm leading-relaxed text-ink-soft [overflow-wrap:break-word]">{selected.powers[lang]}</p>
       {selectedState === "needs_setup" && selected.setupNote ? (
         <p className="mt-2 text-sm leading-relaxed text-gold">
           {selected.setupNote[lang]}
@@ -282,7 +334,7 @@ export default function HomeHub({
   );
 
   return (
-    <section aria-label={STRINGS.hubLabel[lang]} className="w-full">
+    <section ref={sectionRef} aria-label={STRINGS.hubLabel[lang]} className="w-full overflow-visible">
       {/* Live count pill — the only header the hub needs. Rendered
           statically: a scroll-linked reveal could leave it invisible
           after a fast scroll. */}
@@ -308,19 +360,20 @@ export default function HomeHub({
           — every node is painted on first paint and stays painted
           while scrolling. The tick ring still turns slowly like a dial. */}
       <div
-        className="relative mx-auto mt-2 aspect-square w-full max-w-[320px]"
+        className="relative mx-auto mt-2 aspect-square w-full max-w-[340px] overflow-visible"
         role="group"
         aria-label={STRINGS.hubLabel[lang]}
       >
           <svg
             aria-hidden="true"
             viewBox="0 0 100 100"
-            className="absolute inset-0 h-full w-full"
+            className="absolute inset-0 h-full w-full overflow-visible"
           >
             {/* Precision tick ring (Linear-style instrument dial): 24
                 ticks around the orbit, so the hub reads as an
-                instrument, not a decoration. It turns slowly. */}
-            <g className="echomind-orb-ring-spin">
+                instrument, not a decoration. It turns with the
+                user's scroll (see ringRotate above). */}
+            <motion.g style={{ rotate: ringRotate, transformBox: "fill-box", transformOrigin: "center" }}>
               {Array.from({ length: 24 }, (_, i) => {
                 const a = (i * 15 * Math.PI) / 180;
                 const r1 = ORBIT_RADIUS + 2.5;
@@ -337,7 +390,7 @@ export default function HomeHub({
                   />
                 );
               })}
-            </g>
+            </motion.g>
             <circle
               cx="50"
               cy="50"
@@ -367,19 +420,29 @@ export default function HomeHub({
             })}
           </svg>
 
-          {/* Centre: the living orb. No text stamped across it — the
-              brand title sits above it in the hero. */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          {/* Centre: the living orb — a real button (round 3). Tapping
+              it starts native listening, like the composer mic. No
+              text stamped across it — the brand title sits above it
+              in the hero. */}
+          <button
+            type="button"
+            onClick={handleOrbTap}
+            aria-label={listening ? STRINGS.orbStop[lang] : STRINGS.orbTap[lang]}
+            aria-pressed={listening}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-gold/70 focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian active:brightness-110"
+          >
             <LivingOrb size={150} state={orbState} />
-          </div>
+          </button>
 
-          {/* Orbiting apps — brand icons only, no labels. Plain
+          {/* Orbiting apps — brand icons only, no labels. Raised
+              beveled medallions (round 3), not flat glass circles:
+              radial surface gradient, specular rim, amber glow. Plain
               positioned buttons with NO transition and no hover
               scale: a per-node animated transform is a compositing
               layer per node, and that is what a mobile GPU mis-culls
               while scrolling — the east / south-east nodes vanished
               on the phone while the ring and spokes painted. The
-              selected node still reads as selected (stronger glass
+              selected node still reads as selected (gold medallion
               + static scale-110); nothing animates. */}
           {HUB_APPS.map((app, index) => {
             const { x, y } = nodePosition(index);
@@ -395,10 +458,10 @@ export default function HomeHub({
                 }}
                 aria-pressed={isSelected}
                 aria-label={`${app.label[lang]} — ${stateLabel(state, lang)}`}
-                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-ink ${
+                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full ${
                   isSelected
-                    ? "echomind-glass-strong scale-110"
-                    : "echomind-glass"
+                    ? "echomind-medallion-gold scale-110"
+                    : "echomind-medallion"
                 }`}
                 style={{ left: `${x}%`, top: `${y}%` }}
               >
@@ -422,6 +485,17 @@ export default function HomeHub({
             );
           })}
       </div>
+
+      {/* The orb is a microphone: a one-line teacher when idle, the
+          listening state while recording. */}
+      <p
+        role="status"
+        className={`mt-1 text-center text-[11px] font-semibold ${
+          listening ? "text-gold" : "text-muted"
+        }`}
+      >
+        {listening ? STRINGS.orbStop[lang] : STRINGS.orbTap[lang]}
+      </p>
 
       {/* "So what?" — the selected app, and its connect action.
           Dense command-row layout (Raycast): object id + status dot

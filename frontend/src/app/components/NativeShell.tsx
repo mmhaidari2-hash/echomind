@@ -16,12 +16,9 @@ import { isNativeApp } from "../lib/native";
     composer mounts after this shell runs, and consumes the flag). */
 export const LISTEN_REQUEST = "echomind-listen-request";
 
-/** Fixed id of the persistent voice notification, so re-scheduling
-    on every boot replaces it instead of stacking duplicates. */
-const VOICE_NOTIFICATION_ID = 1;
-
-/** Channel of the persistent voice notification. */
-const VOICE_CHANNEL_ID = "echomind-voice";
+/** Window event that asks the chat composer to stop listening (the
+    golden orb, tapped again while listening). */
+export const LISTEN_STOP_REQUEST = "echomind-listen-stop-request";
 
 /** Ask the app to start voice input, through both channels. */
 function requestListen() {
@@ -51,57 +48,40 @@ async function handleOpenUrl(url: string) {
   }
 }
 
-/** True when the ongoing Speak notification is currently posted. */
-async function isVoiceNotificationPosted(): Promise<boolean> {
-  try {
-    const delivered = await LocalNotifications.getDeliveredNotifications();
-    return delivered.notifications.some(
-      (item) => item.id === VOICE_NOTIFICATION_ID,
-    );
-  } catch {
-    return false;
-  }
-}
-
-/** Persistent voice notification: an ongoing EchoMind notification
-    with a Speak action, so Mahdi can talk hands-free (train, bus,
-    ship) without opening the app first. Built on the
-    LocalNotifications plugin already in the app — no new dependency,
-    no foreground service. `ongoing: true` means it cannot be swiped
-    away; tapping Speak launches the app and the retained action event
-    starts listening.
+/** Persistent voice notification — who owns it (round 3).
  *
- * Lock-screen truth, verified against the installed plugin (v7.0.4):
- * - the channel importance here is 3, which IS Android DEFAULT (the
- *   old comment wrongly called it Low). DEFAULT + PUBLIC visibility is
- *   already the level that shows on the lock screen — there is no
- *   importance left to raise, and HIGH would add a heads-up + sound.
- * - the plugin hardcodes every notification it posts to
- *   VISIBILITY_PRIVATE (LocalNotificationManager.java), so the card
- *   shows on the lock screen redacted, whatever the channel says.
- *   No JS API can set it PUBLIC; that is a plugin limit, not an app
- *   bug. If nothing shows on the lock screen at all, the phone-side
- *   setting is the cause (Settings → Lock screen → Notifications).
- * - the badge "1" on the home-screen icon IS this notification (one
- *   active notification). It is left alone until Mahdi answers the
- *   badge question.
+ * The notification itself is posted from native code now
+ * (SpeakNotification.java, called from MainActivity.onResume), NOT
+ * from this file's LocalNotifications plugin. Reason, verified
+ * against the installed plugin (v7.0.4): the plugin hardcodes every
+ * notification it posts to VISIBILITY_PRIVATE, so the card shows on
+ * the lock screen redacted at best — and on Mahdi's phone it showed
+ * nothing at all. No JS API can set it PUBLIC; that is a plugin
+ * limit, not an app bug. The native post sets VISIBILITY_PUBLIC on
+ * the notification itself (and PUBLIC on the channel), so the full
+ * "EchoMind — Tap Speak to talk" card shows on the lock screen.
+ * Same id (1) and channel (echomind-voice) as before, so the
+ * home-screen badge "1" is unchanged and an old PRIVATE card is
+ * replaced, not duplicated. The Java post runs on every resume, so
+ * it self-heals after a reboot, a force-stop, or a permission
+ * granted later in Settings.
  *
- * Self-heal: on every app open (and on resume from background) this
- * checks whether the notification is actually posted and re-posts it
- * only when missing — after a reboot the plugin's restore receiver
- * re-posts it, but a force-stop, a permission granted later, or a
- * dismissal leaves it gone until the app opens again. Re-scheduling
- * the same id replaces the visible one and, with onlyAlertOnce (set
- * by the plugin), does not re-ping; skipping the post when it is
- * already there is cheaper and provably silent. */
-async function ensureVoiceNotification() {
-  // Permission gate: on Android 13+ the POST_NOTIFICATIONS runtime
-  // permission decides whether anything can be posted at all. The old
-  // code requested it and ignored the answer, then scheduled blindly —
-  // schedule() rejects when notifications are disabled, and the
-  // rejection was swallowed, so a denied permission looked exactly
-  // like a posted notification. If it is denied, stop: only the owner
-  // can allow it (Settings → Apps → EchoMind → Notifications).
+ * What stays in JS: the POST_NOTIFICATIONS permission gate. On
+ * Android 13+ the runtime permission decides whether anything can
+ * be posted at all — the native post is silently dropped without
+ * it, and only the owner can allow it (Settings → Apps → EchoMind
+ * → Notifications). The old code requested it and ignored the
+ * answer, then scheduled blindly; the rejection was swallowed, so
+ * a denied permission looked exactly like a posted notification.
+ * This gate requests once when the answer is still "prompt" and
+ * stops there when denied.
+ *
+ * Lock-screen truth: even a PUBLIC notification is hidden when the
+ * phone itself disables lock-screen notifications (Settings →
+ * Lock screen → Notifications) or when a lock-screen mode hides
+ * notification content. If the card still shows nothing after this
+ * build, that phone setting is the remaining cause. */
+async function ensureSpeakPermission() {
   let permission = await LocalNotifications.checkPermissions().catch(
     () => undefined,
   );
@@ -110,53 +90,9 @@ async function ensureVoiceNotification() {
       () => undefined,
     );
   }
-  if (permission?.display !== "granted") return;
-
-  if (await isVoiceNotificationPosted()) return;
-
-  const fa = (() => {
-    try {
-      return window.localStorage.getItem("echomind.locale") === "fa";
-    } catch {
-      return false;
-    }
-  })();
-  const speak = fa ? "صحبت کن" : "Speak";
-  const body = fa
-    ? "برای صحبت با اکومایند، «صحبت کن» را بزنید"
-    : "Tap Speak to talk to EchoMind";
-
-  await LocalNotifications.createChannel({
-    id: VOICE_CHANNEL_ID,
-    name: "EchoMind voice",
-    description: fa
-      ? "میانبر صوتی همیشگی اکومایند"
-      : "EchoMind always-on voice shortcut",
-    // DEFAULT (3): visible in the shade and on the lock screen, no
-    // heads-up. No sound file is set, so the channel stays silent.
-    importance: 3,
-    // PUBLIC at channel level; the plugin still forces the posted
-    // notification itself to PRIVATE (see the note above).
-    visibility: 1,
-  }).catch(() => undefined);
-
-  await LocalNotifications.registerActionTypes({
-    types: [{ id: "echomind-speak", actions: [{ id: "speak", title: speak }] }],
-  }).catch(() => undefined);
-
-  await LocalNotifications.schedule({
-    notifications: [
-      {
-        id: VOICE_NOTIFICATION_ID,
-        title: "EchoMind",
-        body,
-        channelId: VOICE_CHANNEL_ID,
-        ongoing: true,
-        autoCancel: false,
-        actionTypeId: "echomind-speak",
-      },
-    ],
-  }).catch(() => undefined);
+  // Granted or denied: the native side posts (or drops) the card.
+  // Nothing more JS can do here — and nothing to re-check on resume,
+  // MainActivity handles that natively.
 }
 
 export default function NativeShell() {
@@ -166,8 +102,6 @@ export default function NativeShell() {
     }
 
     let removeUrlListener: (() => Promise<void>) | undefined;
-    let removeActionListener: (() => Promise<void>) | undefined;
-    let removeResumeListener: (() => Promise<void>) | undefined;
 
     const boot = async () => {
       await StatusBar.setStyle({ style: Style.Light }).catch(() => undefined);
@@ -178,31 +112,16 @@ export default function NativeShell() {
       });
       removeUrlListener = () => urlHandle.remove();
 
-      const actionHandle = await LocalNotifications.addListener(
-        "localNotificationActionPerformed",
-        ({ actionId }) => {
-          if (actionId === "speak") requestListen();
-        },
-      );
-      removeActionListener = () => actionHandle.remove();
-
-      // Self-heal on resume too: returning from background after a
-      // reboot, a force-stop, or a permission granted in Settings is
-      // an app open in every sense that matters — re-post the Speak
-      // notification if it is missing. ensureVoiceNotification is a
-      // no-op when it is already posted.
-      const resumeHandle = await App.addListener("resume", () => {
-        void ensureVoiceNotification();
-      });
-      removeResumeListener = () => resumeHandle.remove();
-
       // Cold start from the widget / notification: the launch URL is
       // delivered here because the listener above only fires for
       // links opened while the app is already running.
       const launch = await App.getLaunchUrl().catch(() => undefined);
       if (launch?.url) await handleOpenUrl(launch.url);
 
-      await ensureVoiceNotification();
+      // Permission gate only — the persistent Speak notification
+      // itself is posted natively (SpeakNotification.java); the
+      // LocalNotifications plugin can only post it PRIVATE.
+      await ensureSpeakPermission();
 
       await SplashScreen.hide().catch(() => undefined);
     };
@@ -211,8 +130,6 @@ export default function NativeShell() {
 
     return () => {
       void removeUrlListener?.();
-      void removeActionListener?.();
-      void removeResumeListener?.();
     };
   }, []);
 

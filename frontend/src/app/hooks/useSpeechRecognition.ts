@@ -108,25 +108,60 @@ export function useSpeechRecognition({
   const langRef = useRef(lang);
 
   const [supported, setSupported] = useState(false);
+  /** The availability probe has finished (so `supported === false`
+      means "really unavailable", not "not checked yet"). */
+  const [probed, setProbed] = useState(false);
   const [listening, setListening] = useState(false);
+  /** True between the tap and the recognizer actually starting (or
+      failing). Without this the mic looks dead while the native
+      start is still working — the user gets "Starting…" feedback
+      immediately, and the watchdog below turns a hung start into a
+      visible error instead of silence. */
+  const [starting, setStarting] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [error, setError] = useState<SpeechErrorCode | null>(null);
 
+  /** Live mirror of `listening` for the start watchdog. */
+  const listeningRef = useRef(false);
+  /** The start watchdog (see `start`): a recognizer start that never
+      resolves and never calls back must fail visibly, not hang. */
+  const startWatchdogRef = useRef(0);
+
+  const clearStartWatchdog = useCallback(() => {
+    if (startWatchdogRef.current) {
+      window.clearTimeout(startWatchdogRef.current);
+      startWatchdogRef.current = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    listeningRef.current = listening;
+  }, [listening]);
+
   useEffect(() => {
     if (getSpeechRecognitionCtor()) {
       setSupported(true);
+      setProbed(true);
       return;
     }
-    if (!isNativeApp()) return;
+    if (!isNativeApp()) {
+      setProbed(true);
+      return;
+    }
     // No Web Speech here — probe the native recognizer instead.
     let cancelled = false;
     void loadNativeSpeechPlugin().then(async (plugin) => {
-      if (cancelled || !plugin) return;
-      const { available } = await plugin
-        .available()
-        .catch(() => ({ available: false }));
-      if (!cancelled && available) setSupported(true);
+      if (cancelled) return;
+      try {
+        if (!plugin) return;
+        const { available } = await plugin
+          .available()
+          .catch(() => ({ available: false }));
+        if (!cancelled && available) setSupported(true);
+      } finally {
+        if (!cancelled) setProbed(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -158,6 +193,8 @@ export function useSpeechRecognition({
   const release = useCallback(() => {
     shouldListenRef.current = false;
     setListening(false);
+    setStarting(false);
+    clearStartWatchdog();
     void nativeRef.current?.release().catch(() => undefined);
     nativeRef.current = null;
     const recognition = recognitionRef.current;
@@ -184,6 +221,7 @@ export function useSpeechRecognition({
     if (!Ctor) {
       setError("unsupported");
       setListening(false);
+      setStarting(false);
       return;
     }
 
@@ -211,6 +249,8 @@ export function useSpeechRecognition({
     recognition.onstart = () => {
       if (!shouldListenRef.current) return;
       setListening(true);
+      setStarting(false);
+      clearStartWatchdog();
       setError(null);
     };
 
@@ -221,6 +261,8 @@ export function useSpeechRecognition({
       }
       shouldListenRef.current = false;
       setListening(false);
+      setStarting(false);
+      clearStartWatchdog();
       setError(code);
     };
 
@@ -258,12 +300,14 @@ export function useSpeechRecognition({
       setError("unknown");
       shouldListenRef.current = false;
       setListening(false);
+      setStarting(false);
+      clearStartWatchdog();
     }
-  }, [continuous]);
+  }, [continuous, clearStartWatchdog]);
 
   /** Native path (Android): the device recognizer via the Capacitor
       plugin. The dispatcher below owns the reset. */
-  const startNative = useCallback(async () => {
+  const runNativeStart = useCallback(async () => {
     await nativeRef.current?.release().catch(() => undefined);
     const native = createNativeSpeech({ loadPlugin: loadNativeSpeechPlugin });
     nativeRef.current = native;
@@ -271,6 +315,8 @@ export function useSpeechRecognition({
       onStarted: () => {
         if (!shouldListenRef.current) return;
         setListening(true);
+        setStarting(false);
+        clearStartWatchdog();
         setError(null);
       },
       // Like the web onresult, partials commit unconditionally: the
@@ -326,7 +372,19 @@ export function useSpeechRecognition({
     shouldListenRef.current = false;
     setListening(false);
     setError(result.code);
-  }, [startWeb]);
+  }, [startWeb, clearStartWatchdog]);
+
+  /** Native start. The hang watchdog lives in `start()` (one
+      watchdog for both paths) — a native start that never resolves
+      and never calls back is caught there. */
+  const startNative = useCallback(async () => {
+    setStarting(true);
+    try {
+      await runNativeStart();
+    } finally {
+      setStarting(false);
+    }
+  }, [runNativeStart]);
 
   /** One start path for every entry point (mic button, widget, Speak
       action): native on the phone, Web Speech on the web. */
@@ -338,17 +396,37 @@ export function useSpeechRecognition({
     setTranscript("");
     setInterimTranscript("");
     setError(null);
+    setStarting(true);
+    // Watchdog (both paths): a recognizer start that never resolves
+    // and never calls back — the plugin's start() hanging, or a web
+    // recognizer that never fires onstart/onerror — would leave the
+    // mic showing "Listening…" forever. After 8s with no start and
+    // no error, fail visibly instead. Cleared by onStarted/onstart,
+    // by onerror, and by stop/release.
+    clearStartWatchdog();
+    startWatchdogRef.current = window.setTimeout(() => {
+      if (shouldListenRef.current && !listeningRef.current) {
+        shouldListenRef.current = false;
+        setListening(false);
+        setStarting(false);
+        setError("unknown");
+        void nativeRef.current?.release().catch(() => undefined);
+        nativeRef.current = null;
+      }
+    }, 8000);
     if (isNativeApp()) {
       void startNative();
       return;
     }
     startWeb();
-  }, [startNative, startWeb]);
+  }, [startNative, startWeb, clearStartWatchdog]);
 
   const stop = useCallback(() => {
     stopRequestedRef.current = true;
     shouldListenRef.current = false;
     setListening(false);
+    setStarting(false);
+    clearStartWatchdog();
     void nativeRef.current?.stop().catch(() => undefined);
     try {
       recognitionRef.current?.stop();
@@ -366,7 +444,9 @@ export function useSpeechRecognition({
 
   return {
     supported,
+    probed,
     listening,
+    starting,
     transcript,
     interimTranscript,
     error,

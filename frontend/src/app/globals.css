@@ -62,6 +62,17 @@ html[dir="rtl"] body {
   touch-action: pan-y;
 }
 
+/* No visible scrollbar on the app scroller: the app is a touch
+   surface, and a pale scrollbar track at the edge reads as a broken
+   pill (the Samsung edge panel already occupies that edge). */
+.echomind-scroll {
+  scrollbar-width: none;
+}
+
+.echomind-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* Bottom safe area: drawers/modals get env(safe-area-inset-bottom)
    + 64px so the lowest input is never hidden behind the Android/iOS
    system navigation bar. 64px, not 24px: on an Android WebView
@@ -254,6 +265,88 @@ html[dir="rtl"] body {
   backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-highlight), var(--glass-shadow);
+}
+
+/* Beveled glassmorphism — the tactile card surface (round 3): a
+   frosted obsidian-amber gradient, real bevels (specular top/left
+   highlight, dark bottom/right edge, inner top rim glow) and a deep
+   soft shadow, so cards read as raised physical objects, not flat
+   boxes with 1px wireframes. Applied to GlassCard and the main
+   surfaces; small chips keep the flat glass. */
+.echomind-glass-bevel {
+  background: linear-gradient(165deg, rgb(36 33 28 / 0.72), rgb(14 13 12 / 0.86));
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid rgb(255 224 150 / 0.28);
+  border-left: 1px solid rgb(255 224 150 / 0.16);
+  border-right: 1px solid rgb(255 255 255 / 0.07);
+  border-bottom: 1px solid rgb(0 0 0 / 0.7);
+  box-shadow:
+    inset 0 1px 1px rgb(255 238 190 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 18px 40px -18px rgb(0 0 0 / 0.65),
+    0 2px 10px -2px rgb(0 0 0 / 0.5);
+}
+
+/* Strong bevel — featured cards: the same bevel with a deeper
+   shadow, so the selected app card and project cards sit one layer
+   above the rest. Defined after .echomind-glass-bevel so it wins. */
+.echomind-glass-bevel-strong {
+  box-shadow:
+    inset 0 1px 1px rgb(255 238 190 / 0.26),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4),
+    0 26px 56px -20px rgb(0 0 0 / 0.75),
+    0 4px 16px -4px rgb(0 0 0 / 0.55),
+    0 0 30px -12px rgb(229 169 60 / 0.35);
+}
+
+/* Beveled 3D medallion — app/action icons as raised glass-metal
+   discs: radial surface gradient, specular inner rim, warm amber
+   ambient glow. Physically embossed, never a flat line drawing.
+   NOTE: no transform on :active — the orbit nodes are positioned
+   with translate(-50%, -50%), and a transform here would override
+   it and make the node jump. Brightness only. */
+.echomind-medallion {
+  background:
+    radial-gradient(circle at 32% 24%, rgb(255 255 255 / 0.22), transparent 42%),
+    radial-gradient(circle at 50% 55%, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.02) 55%, transparent 75%),
+    linear-gradient(165deg, rgb(52 48 42 / 0.9), rgb(16 15 13 / 0.92));
+  border-top: 1px solid rgb(255 224 150 / 0.32);
+  border-left: 1px solid rgb(255 224 150 / 0.18);
+  border-right: 1px solid rgb(0 0 0 / 0.55);
+  border-bottom: 1px solid rgb(0 0 0 / 0.65);
+  box-shadow:
+    inset 0 1px 1px rgb(255 238 190 / 0.28),
+    inset 0 -2px 4px rgb(0 0 0 / 0.5),
+    0 10px 22px -8px rgb(0 0 0 / 0.7),
+    0 0 18px -6px rgb(229 169 60 / 0.35);
+  color: #f4f5f7;
+}
+
+.echomind-medallion:active {
+  filter: brightness(1.18);
+}
+
+/* Gold medallion — the primary round action (send, selected node):
+   the same bevel treatment in molten gold. */
+.echomind-medallion-gold {
+  background:
+    radial-gradient(circle at 32% 22%, rgb(255 255 255 / 0.5), transparent 40%),
+    radial-gradient(circle at 50% 58%, rgb(242 194 104 / 0.95), rgb(229 169 60 / 0.9) 48%, rgb(160 110 20 / 0.95) 78%, rgb(58 38 8 / 1) 100%);
+  border-top: 1px solid rgb(255 240 200 / 0.6);
+  border-left: 1px solid rgb(255 224 150 / 0.35);
+  border-right: 1px solid rgb(0 0 0 / 0.5);
+  border-bottom: 1px solid rgb(0 0 0 / 0.6);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -3px 8px rgb(0 0 0 / 0.35),
+    0 12px 26px -8px rgb(229 169 60 / 0.65),
+    0 0 24px -6px rgb(229 169 60 / 0.5);
+  color: #090a0f;
+}
+
+.echomind-medallion-gold:active {
+  filter: brightness(1.1);
 }
 
 /* Gold gradient text for headings and accents. */
@@ -503,9 +596,16 @@ html[dir="rtl"] body {
   margin-bottom: 0.75rem;
 }
 
+/* Reveal — VISIBLE BY DEFAULT. The old base (opacity 0 until an
+   IntersectionObserver fired) is what left whole sections black on
+   the phone: a fast scroll, or an observer that never fired inside
+   the nested scroller, showed a black void with a half-clipped pill
+   instead of content. Nothing in this app may gate visibility on
+   scroll position; motion may only move content that is already
+   painted. The .is-visible hook stays for compatibility. */
 .echomind-reveal {
-  opacity: 0;
-  transform: translateY(18px);
+  opacity: 1;
+  transform: translateY(0);
   transition:
     opacity 0.6s ease,
     transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
@@ -520,15 +620,19 @@ html[dir="rtl"] body {
 /* Cascade reveal — spring-physics stagger, 40ms per item, triggered
    once on mount / tab switch (see Cascade in components/Glass.tsx).
    The CSS class is the no-JS fallback; framer-motion drives the
-   animated path. */
+   animated path. The fallback never hides content (see .echomind-
+   reveal above): it starts visible and only rises a few pixels. */
 .echomind-cascade-item {
-  opacity: 0;
-  transform: translateY(14px);
-  animation: echomind-cascade-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
+  transform: translateY(0);
+  animation: echomind-cascade-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--cascade-index, 0) * 40ms);
 }
 
 @keyframes echomind-cascade-in {
+  from {
+    transform: translateY(8px);
+  }
   to {
     opacity: 1;
     transform: translateY(0);

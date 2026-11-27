@@ -52,6 +52,8 @@ import {
   getGmailCleanupPreview,
   getMemoryProfile,
   getLifeSnapshot,
+  isAuthError,
+  isEndpointMissing,
   parseDocumentFile,
   proposeAction,
   confirmAction,
@@ -116,6 +118,28 @@ async function pingHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Always-answer (round 3): map any chat failure to a visible
+    assistant reply in the user's language that names the cause —
+    never silence, never a blank space, never a raw "Request failed
+    (404)". A 404 means the live server is the older build without
+    the stream endpoint; a 401 means sign-in; a timeout means the
+    server was too slow; a network error means the device is
+    offline. */
+function answerForError(error: unknown, locale: Locale): string {
+  const t = copy[locale];
+  if (error instanceof ApiError) {
+    if (isAuthError(error)) return t.answerSignIn;
+    if (isEndpointMissing(error)) return t.answerServerOld;
+    if (error.status === 503) return t.answerServerBusy;
+    if (error.code === "timeout") return t.answerTimeout;
+    if (error.code === "network_error") return t.answerOffline;
+    return t.answerFailed;
+  }
+  if (error instanceof DOMException && error.name === "AbortError") return t.answerTimeout;
+  if (error instanceof TypeError) return t.answerOffline;
+  return t.answerFailed;
 }
 
 export default function HomePage() {
@@ -495,10 +519,11 @@ export default function HomePage() {
           ),
         );
       } catch (error) {
-        const detail = error instanceof ApiError ? error.message : t.sendFailed;
         setMessages((prev) =>
           prev.map((item) =>
-            item.id === assistantId ? { id: assistantId, role: "error", text: detail } : item,
+            item.id === assistantId
+              ? { id: assistantId, role: "assistant", text: answerForError(error, locale) }
+              : item,
           ),
         );
       } finally {
@@ -535,10 +560,11 @@ export default function HomePage() {
           ),
         );
       } catch (error) {
-        const detail = error instanceof ApiError ? error.message : t.sendFailed;
         setMessages((prev) =>
           prev.map((item) =>
-            item.id === pendingId ? { id: pendingId, role: "error", text: detail } : item,
+            item.id === pendingId
+              ? { id: pendingId, role: "assistant", text: answerForError(error, locale) }
+              : item,
           ),
         );
       } finally {
@@ -595,9 +621,10 @@ export default function HomePage() {
           ),
         );
       } catch (streamError) {
-        if (!(streamError instanceof ApiError) || streamError.status !== 503) {
-          throw streamError;
-        }
+        // Any stream failure falls back to POST /chat, which the
+        // live server answers. The old code only fell back on 503,
+        // so a 404 (the older server has no /chat/stream) left the
+        // user with a raw error and no answer.
         const reply = await sendChat(chatPayload);
         setConversationId(reply.conversation_id);
         setMessages((prev) =>
@@ -616,12 +643,13 @@ export default function HomePage() {
         );
       }
     } catch (error) {
-      const detail =
-        error instanceof ApiError ? error.message : t.sendFailed;
+      // Always answer: even when both paths fail, the user gets a
+      // visible assistant reply naming the cause — never silence,
+      // never a blank space after their message.
       setMessages((prev) =>
         prev.map((item) =>
           item.id === pendingId
-            ? { id: pendingId, role: "error", text: detail }
+            ? { id: pendingId, role: "assistant", text: answerForError(error, locale) }
             : item,
         ),
       );
@@ -654,41 +682,57 @@ export default function HomePage() {
     >
       <AuroraBackground />
       <header className="echomind-glass-header z-20 shrink-0 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-2">
-          <GlassPill
-            className="relative"
-            aria-label={t.contextOpen}
-            aria-expanded={contextOpen}
-            onClick={() => setContextOpen(true)}
-          >
-            {t.contextTab}
-            {workflow !== "idle" || documentLabel || memoryLabel ? (
-              <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-gold-light" />
-            ) : null}
-          </GlassPill>
-          <div className="flex min-w-0 items-center gap-2">
-            <AuthStatus />
-            <span
-              role="status"
-              aria-live="polite"
-              aria-label={online ? t.online : t.local}
-              className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                online ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" : "bg-gold"
-              }`}
-            />
+        {/* Mockup top bar, two rows on a 360px phone: the wordmark +
+            AI ASSISTANT badge and the status pills on row one, the
+            Context pill and sign-in on row two. One row cannot fit
+            all six controls at 360px without clipping. */}
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-lg font-bold tracking-tight text-ink">
+                {t.appName}
+              </p>
+              <span className="echomind-chip-glass shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-gold">
+                AI Assistant
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                role="status"
+                aria-live="polite"
+                aria-label={online ? t.online : t.local}
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                  online ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" : "bg-gold"
+                }`}
+              />
+              <GlassPill
+                className="gap-1"
+                aria-label={t.langToggle}
+                onClick={() => setLocale((prev) => (prev === "en" ? "fa" : "en"))}
+              >
+                <span className={locale === "en" ? "text-gold" : "text-muted"}>
+                  EN
+                </span>
+                <span className="text-muted">/</span>
+                <span className={locale === "fa" ? "text-gold" : "text-muted"}>
+                  فا
+                </span>
+              </GlassPill>
+            </div>
+          </div>
+          <div className="flex w-full items-center justify-between gap-2">
             <GlassPill
-              className="gap-1"
-              aria-label={t.langToggle}
-              onClick={() => setLocale((prev) => (prev === "en" ? "fa" : "en"))}
+              className="relative"
+              aria-label={t.contextOpen}
+              aria-expanded={contextOpen}
+              onClick={() => setContextOpen(true)}
             >
-              <span className={locale === "en" ? "text-gold" : "text-muted"}>
-                EN
-              </span>
-              <span className="text-muted">/</span>
-              <span className={locale === "fa" ? "text-gold" : "text-muted"}>
-                فا
-              </span>
+              {t.contextTab}
+              {workflow !== "idle" || documentLabel || memoryLabel ? (
+                <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-gold-light" />
+              ) : null}
             </GlassPill>
+            <AuthStatus />
           </div>
         </div>
       </header>
@@ -703,23 +747,30 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <main ref={mainRef} className="echomind-scroll px-4 pb-10 pt-3 sm:px-6">
+      <main ref={mainRef} className="echomind-scroll px-4 pb-[calc(env(safe-area-inset-bottom,24px)+88px)] pt-3 sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-          <section className="relative space-y-1 text-center" aria-label={t.greeting}>
-            <h1 className="echomind-hero-title echomind-fade-up relative text-4xl font-bold tracking-tight sm:text-5xl">
-              {t.appName}
-            </h1>
-            <p className="echomind-fade-up relative mx-auto max-w-xl text-sm leading-6 text-muted">
+          {/* First screen (mockup): the wordmark lives in the header
+              now, so the hero is the subtitle + the golden orb,
+              centred in the viewport with a clear gap below the top
+              bar — never pushed down or half-clipped behind the
+              composer. A deterministic 100dvh block (viewport −
+              header − composer), content centred, so there is no
+              dead black void above the orb and no black intermediate
+              state while scrolling. */}
+          <section
+            className="relative flex min-h-[calc(var(--app-height,100dvh)-13rem)] flex-col items-center justify-center gap-4 pt-2"
+            aria-label={t.greeting}
+          >
+            <p className="echomind-fade-up relative mx-auto max-w-xl text-center text-sm leading-6 text-muted">
               {t.subtitle}
             </p>
+            <HomeHub lang={locale} thinking={sending} executing={authorityBusy || pendingAction !== null} />
           </section>
 
-          {/* The home screen IS the hub: EchoMind at the centre, the
-              owner's apps orbiting it, and below it what EchoMind is
-              doing for him — the delegated work. The engines stay
-              visible further down (ActionRail waterfall). */}
+          {/* Cards cascade below the orb like the Apple site: the
+              suggested next step, then what EchoMind is doing for
+              the owner, then the engines. */}
           <CommandBrief locale={locale} onOpenPillar={(pillar) => openParsedPillar(pillar)} />
-          <HomeHub lang={locale} thinking={sending} executing={authorityBusy || pendingAction !== null} />
           <DelegatedWork lang={locale} onDelegateDraft={handleDelegateDraft} />
 
           <ActionRail
@@ -917,7 +968,7 @@ export default function HomePage() {
                   <article
                     key={message.id}
                     dir={dir}
-                    className={`echomind-glass max-w-[85%] rounded-3xl px-4 py-3 text-base leading-7 ${
+                    className={`relative echomind-glass max-w-[85%] rounded-3xl px-4 py-3 text-base leading-7 ${
                       isUser ? "self-end text-ink" : "self-start text-red-300"
                     }`}
                   >

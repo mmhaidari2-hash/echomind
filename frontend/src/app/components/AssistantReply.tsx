@@ -127,7 +127,7 @@ export default function AssistantReply({
 
   if (pending) {
     return (
-      <article className="max-w-[85%] self-start rounded-3xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm text-ink-soft">
+      <article className="relative max-w-[85%] self-start rounded-3xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm text-ink-soft">
         <span className="flex items-center gap-2">
           <span className="echomind-typing" aria-hidden>
             <span />
@@ -141,7 +141,7 @@ export default function AssistantReply({
   }
 
   return (
-    <article className="max-w-[90%] self-start rounded-3xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm leading-6 text-ink-soft">
+    <article className="relative max-w-[90%] self-start rounded-3xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm leading-6 text-ink-soft">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span
           className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${PILLAR_TONE[pillar]}`}

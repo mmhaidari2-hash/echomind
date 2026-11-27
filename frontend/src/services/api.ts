@@ -57,6 +57,15 @@ export function isEndpointMissing(error: unknown): boolean {
   return error instanceof ApiError && (error.code === "endpoint_missing" || error.status === 404);
 }
 
+/** True when the call failed because there is no signed-in session
+    (no token provider, or the server answered 401). The UI must show
+    the calm sign-in prompt, never a raw red error. */
+export function isAuthError(error: unknown): boolean {
+  return (
+    error instanceof ApiError && (error.status === 401 || error.code === "auth_session")
+  );
+}
+
 const DEFAULT_BASE = "/api/v1";
 const CHAT_TIMEOUT_MS = 20_000;
 const HEALTH_TIMEOUT_MS = 2_500;
@@ -140,8 +149,13 @@ export function resetApiBase() {
 
 function isRetryable(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;
+  // No 404 here on purpose: a 404 on a known endpoint means the
+  // resolved server is an older build without that endpoint. Retrying
+  // the next candidate base (localhost in the app) only masks the
+  // cause — the user would see "Could not reach EchoMind" instead of
+  // the true "server is the older version". Base discovery does not
+  // depend on this: resolveApiBase catches the health probe itself.
   return (
-    error.status === 404 ||
     error.status === 502 ||
     error.status === 503 ||
     error.code === "network_error" ||
@@ -165,7 +179,13 @@ function isFormData(body: unknown): body is FormData {
 
 type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
-  auth?: "public" | "protected";
+  /** "protected" needs a session and fails closed without one.
+      "optional" sends the session when there is one and calls the
+      endpoint without it when there is not — the chat path uses it so
+      a build without sign-in (no Clerk key yet) can still answer from
+      the live server, and the server's own 401 is then the honest
+      sign-in signal instead of a client-side refusal to even try. */
+  auth?: "public" | "protected" | "optional";
 };
 
 async function request<T>(
@@ -178,6 +198,13 @@ async function request<T>(
   try {
     if (auth === "protected") {
       secureHeaders = await authorizationHeaders();
+    } else if (auth === "optional") {
+      try {
+        secureHeaders = await authorizationHeaders();
+      } catch (error) {
+        // No session: call without the header instead of refusing.
+        if (!(error instanceof AuthSessionError)) throw error;
+      }
     }
   } catch (error) {
     if (error instanceof AuthSessionError) {
@@ -286,7 +313,7 @@ export async function getHealth(): Promise<{ status: string }> {
 
 export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
   return api<ChatResponse>("/chat", {
-    auth: "protected",
+    auth: "optional",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -295,7 +322,7 @@ export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
 
 export async function processChat(payload: ChatRequest): Promise<ChatResponse> {
   return api<ChatResponse>("/process", {
-    auth: "protected",
+    auth: "optional",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -314,18 +341,23 @@ export async function streamChat(
   onDelta: (text: string) => void,
 ): Promise<ChatStreamResult> {
   const base = await resolveApiBase();
-  let secureHeaders: Record<string, string>;
+  // Optional auth, like sendChat: send the session when there is
+  // one, call without it when there is not. The live server answers
+  // /chat without a token; the new server answers 401, which the UI
+  // turns into the honest sign-in message.
+  let secureHeaders: Record<string, string> = {};
   try {
     secureHeaders = await authorizationHeaders();
   } catch (error) {
-    if (error instanceof AuthSessionError) {
-      throw new ApiError(error.message, { status: 401, code: "auth_session" });
-    }
-    throw error;
+    if (!(error instanceof AuthSessionError)) throw error;
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000);
+  // First-byte timeout: if the server accepts the connection but
+  // never answers, the user waits 20s, not 60s, and gets a visible
+  // timeout answer instead of a stuck "thinking" bubble.
+  const firstByteTimer = setTimeout(() => controller.abort(), 20_000);
   try {
     const response = await fetch(`${base}/chat/stream`, {
       method: "POST",
@@ -337,6 +369,7 @@ export async function streamChat(
       },
       body: JSON.stringify(payload),
     });
+    clearTimeout(firstByteTimer);
 
     if (!response.ok) {
       const body = await parseJson(response);
@@ -417,6 +450,7 @@ export async function streamChat(
     }
     throw new ApiError("Could not stream EchoMind", { code: "network_error" });
   } finally {
+    clearTimeout(firstByteTimer);
     clearTimeout(timer);
   }
 }

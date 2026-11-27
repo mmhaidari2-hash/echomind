@@ -25,6 +25,7 @@ import {
   getGoogleConnectorStatus,
   getInstagramStatus,
   getYouTubeStatus,
+  isAuthError,
   isEndpointMissing,
   startBankConnection,
   startGoogleConnection,
@@ -219,11 +220,15 @@ export async function loadHubStatuses(): Promise<{
   states: HubStates;
   readFailed: boolean;
   outdated: boolean;
+  /** At least one status endpoint failed with 401 / no session —
+      the UI shows the calm sign-in prompt, not a red error. */
+  unauthenticated: boolean;
   googleConfigured: boolean;
 }> {
   const next = emptyHubStates();
   let failures = 0;
   let endpointMissing = false;
+  let unauthenticated = false;
   let googleConfigured = false;
 
   // Google — one account, per-scope truth. Base connect grants Gmail +
@@ -248,6 +253,7 @@ export async function loadHubStatuses(): Promise<{
     // Not signed in (or the backend is unreachable): stay "unknown".
     failures += 1;
     if (isEndpointMissing(error)) endpointMissing = true;
+    if (isAuthError(error)) unauthenticated = true;
   }
 
   try {
@@ -257,6 +263,7 @@ export async function loadHubStatuses(): Promise<{
     // keep "unknown"
     failures += 1;
     if (isEndpointMissing(error)) endpointMissing = true;
+    if (isAuthError(error)) unauthenticated = true;
   }
 
   try {
@@ -270,6 +277,7 @@ export async function loadHubStatuses(): Promise<{
     // keep "unknown"
     failures += 1;
     if (isEndpointMissing(error)) endpointMissing = true;
+    if (isAuthError(error)) unauthenticated = true;
   }
 
   try {
@@ -283,12 +291,14 @@ export async function loadHubStatuses(): Promise<{
     // keep "unknown"
     failures += 1;
     if (isEndpointMissing(error)) endpointMissing = true;
+    if (isAuthError(error)) unauthenticated = true;
   }
 
   return {
     states: next,
     readFailed: failures === 4,
     outdated: failures === 4 && endpointMissing,
+    unauthenticated,
     googleConfigured,
   };
 }

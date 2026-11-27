@@ -25,9 +25,12 @@
 
 import { useCallback, useState } from "react";
 
+import { Browser } from "@capacitor/browser";
+
+import { copy } from "../lib/copy";
 import { BrandIcon } from "./BrandIcons";
 import { Button } from "./ui/button";
-import { StatusDot } from "./Glass";
+import { SignInPrompt, StatusDot } from "./Glass";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   HUB_APPS,
@@ -65,21 +68,29 @@ export default function ConnectionsHub({
   /** Life Graph snapshot for the LIVE WORKSPACE counters. */
   snapshot: LifeSnapshot | null;
 }) {
+  const t = copy[locale];
   const [states, setStates] = useState<Record<HubAppId, HubState>>(emptyHubStates);
   const [googleConfigured, setGoogleConfigured] = useState(false);
   const [readFailed, setReadFailed] = useState(false);
   const [outdated, setOutdated] = useState(false);
+  const [unauthenticated, setUnauthenticated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { states: next, readFailed: failed, outdated: old, googleConfigured: configured } =
-      await loadHubStatuses();
+    const {
+      states: next,
+      readFailed: failed,
+      outdated: old,
+      unauthenticated: noSession,
+      googleConfigured: configured,
+    } = await loadHubStatuses();
     setStates(next);
     setGoogleConfigured(configured);
     setReadFailed(failed);
     setOutdated(old);
+    setUnauthenticated(noSession);
   }, []);
 
   /* No manual Refresh: status revalidates itself. */
@@ -102,7 +113,9 @@ export default function ConnectionsHub({
     setConnectError(null);
     try {
       const { authorization_url } = await startHubAppConnection(selectedApp);
-      window.open(authorization_url, "_blank", "noopener");
+      // Capacitor Browser (in-app tab), not window.open: opening the
+      // OAuth page in the WebView itself would navigate the app away.
+      await Browser.open({ url: authorization_url });
       window.setTimeout(() => void load(), 30_000);
     } catch (cause) {
       const detail = cause instanceof Error && cause.message ? cause.message : null;
@@ -118,9 +131,9 @@ export default function ConnectionsHub({
   };
 
   return (
-    <section className="echomind-glass rounded-[1.4rem] p-4" aria-label={locale === "fa" ? "اتصال‌ها" : "Connections"}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="echomind-meta text-gold">
+    <section className="echomind-glass-bevel w-full min-w-0 rounded-[1.4rem] p-4" aria-label={locale === "fa" ? "اتصال‌ها" : "Connections"}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="echomind-meta min-w-0 flex-1 text-gold [overflow-wrap:break-word]">
           {locale === "fa" ? "اتصال‌های فعال" : "Active connections"}
         </p>
         <span className="shrink-0 whitespace-nowrap rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
@@ -130,9 +143,11 @@ export default function ConnectionsHub({
         </span>
       </div>
 
-      {/* Icon node row — horizontally scrollable, never clipped by
-          the sheet edge (the row itself scrolls). Green dot = live. */}
-      <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Icon node grid — 4 columns, all 8 apps visible at once. The
+          old horizontally-scrolling row left the 4th tile half off
+          the right edge, which read as a broken layout. Each tile is
+          a raised beveled medallion now. Green dot = live. */}
+      <div className="mt-3 grid w-full grid-cols-4 gap-2.5">
         {HUB_APPS.map((app) => {
           const state = states[app.id];
           const isSelected = selected === app.id;
@@ -143,14 +158,8 @@ export default function ConnectionsHub({
               onClick={() => setSelected(app.id === selected ? null : app.id)}
               aria-pressed={isSelected}
               aria-label={`${app.label[locale]} — ${stateLabel(state, locale)}`}
-              className={`relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border text-ink transition ${
-                isSelected
-                  ? "border-gold/60 bg-gold/10"
-                  : state === "connected"
-                    ? "border-emerald-500/30 bg-emerald-500/[0.07]"
-                    : state === "needs_setup"
-                      ? "border-gold/30 bg-gold/[0.07]"
-                      : "border-white/[0.09] bg-white/[0.04]"
+              className={`echomind-medallion relative flex h-14 w-full min-w-0 items-center justify-center rounded-2xl ${
+                isSelected ? "ring-2 ring-gold/70" : ""
               }`}
             >
               <BrandIcon id={app.icon} className="h-7 w-7" />
@@ -173,24 +182,30 @@ export default function ConnectionsHub({
       </div>
 
       {outdated ? (
-        <p role="alert" className="mt-2 text-xs leading-relaxed text-muted">
+        <p role="status" className="mt-2 w-full min-w-0 text-xs leading-relaxed text-muted [overflow-wrap:break-word]">
           {locale === "fa"
             ? "اتصال‌ها با به‌روزرسانی بعدی برنامه می‌آیند — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند."
             : "Connections arrive with the next app update — the server still runs the older version."}
         </p>
+      ) : readFailed && unauthenticated ? (
+        <SignInPrompt locale={locale} message={t.signInPrompt} />
       ) : readFailed ? (
-        <p role="alert" className="mt-2 text-xs text-red-300">
-          {locale === "fa" ? "وضعیت اتصال خوانده نشد." : "Connection status could not be read."}
-        </p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="mt-3 min-h-10 rounded-full border border-white/[0.09] px-4 text-xs font-semibold text-ink-soft hover:text-gold"
+        >
+          {t.retryAction}
+        </button>
       ) : null}
 
       {selectedApp && selectedState ? (
-        <div className="mt-2 rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2">
-          <p className="flex flex-wrap items-center gap-2">
-            <span className="echomind-num-mono text-[11px] text-gold">
+        <div className="mt-2 w-full min-w-0 rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2">
+          <p className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="echomind-num-mono shrink-0 text-[11px] text-gold">
               APP {String(HUB_APPS.findIndex((a) => a.id === selectedApp.id) + 1).padStart(2, "0")}
             </span>
-            <span className="text-xs font-semibold text-ink">{selectedApp.label[locale]}</span>
+            <span className="min-w-0 flex-1 text-xs font-semibold text-ink [overflow-wrap:break-word]">{selectedApp.label[locale]}</span>
             <StatusDot
               tone={
                 selectedState === "connected"
@@ -202,16 +217,16 @@ export default function ConnectionsHub({
               label={stateLabel(selectedState, locale)}
             />
           </p>
-          <p className="mt-0.5 text-[11px] text-muted">
+          <p className="mt-0.5 w-full min-w-0 text-[11px] text-muted [overflow-wrap:break-word]">
             {locale === "fa" ? selectedApp.powers.fa : selectedApp.powers.en}
           </p>
           {selectedState === "needs_setup" && selectedApp.setupNote ? (
-            <p className="mt-1 text-[11px] leading-relaxed text-gold">
+            <p className="mt-1 w-full min-w-0 text-[11px] leading-relaxed text-gold [overflow-wrap:break-word]">
               {locale === "fa" ? selectedApp.setupNote.fa : selectedApp.setupNote.en}
             </p>
           ) : null}
           {selectedState === "unknown" ? (
-            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+            <p className="mt-1 w-full min-w-0 text-[11px] leading-relaxed text-muted [overflow-wrap:break-word]">
               {locale === "fa"
                 ? "اول وارد اکومایند شوید، بعد برنامه‌هایتان را از همین‌جا وصل کنید."
                 : "Sign in to EchoMind first, then connect your apps from here."}
@@ -236,29 +251,32 @@ export default function ConnectionsHub({
         </p>
       )}
 
-      {/* LIVE WORKSPACE — live counters, never hardcoded numbers. */}
-      <div className="mt-4 border-t border-white/[0.09] pt-3">
+      {/* LIVE WORKSPACE — live counters, never hardcoded numbers.
+          Each metric is a clean vertical stack (number, label) with
+          explicit line-height, so "Active" can never overlap
+          "Deadlines" again. */}
+      <div className="mt-4 w-full min-w-0 border-t border-white/[0.09] pt-3">
         <p className="echomind-meta text-gold">
           {locale === "fa" ? "فضای کاری زنده" : "Live workspace"}
         </p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl border border-gold/30 bg-gold/[0.05] p-3">
-            <p className="echomind-num-mono text-2xl text-gold">{activeDeadlines}</p>
-            <p className="mt-1 text-xs leading-snug text-ink-soft">
+        <div className="mt-2 grid w-full grid-cols-2 gap-2">
+          <div className="flex min-w-0 flex-col gap-1 rounded-2xl border border-gold/30 bg-gold/[0.05] p-3">
+            <p className="echomind-num-mono text-2xl leading-none text-gold">{activeDeadlines}</p>
+            <p className="w-full min-w-0 text-xs leading-[1.3] text-ink-soft [overflow-wrap:break-word]">
               {locale === "fa" ? "مهلت فعال" : "Active Deadlines"}
             </p>
           </div>
-          <div className="rounded-2xl border border-gold/30 bg-gold/[0.05] p-3">
-            <p className="echomind-num-mono text-2xl text-gold">{pendingFollowups}</p>
-            <p className="mt-1 text-xs leading-snug text-ink-soft">
+          <div className="flex min-w-0 flex-col gap-1 rounded-2xl border border-gold/30 bg-gold/[0.05] p-3">
+            <p className="echomind-num-mono text-2xl leading-none text-gold">{pendingFollowups}</p>
+            <p className="w-full min-w-0 text-xs leading-[1.3] text-ink-soft [overflow-wrap:break-word]">
               {locale === "fa" ? "پیگیری در انتظار" : "Pending Follow-up"}
             </p>
           </div>
-          <div className="col-span-2 flex items-center justify-between rounded-2xl border border-white/[0.09] bg-white/[0.04] px-3 py-2.5">
-            <p className="text-xs font-semibold text-ink-soft">
+          <div className="col-span-2 flex min-w-0 items-center justify-between gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-3 py-2.5">
+            <p className="min-w-0 flex-1 text-xs font-semibold leading-[1.3] text-ink-soft [overflow-wrap:break-word]">
               {locale === "fa" ? "فضای کاری متصل" : "Connected Workspace"}
             </p>
-            <p className="echomind-num-mono text-sm text-gold">
+            <p className="echomind-num-mono shrink-0 text-sm text-gold">
               {connectedCount}/{HUB_APPS.length}
             </p>
           </div>

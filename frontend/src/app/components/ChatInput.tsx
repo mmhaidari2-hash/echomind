@@ -12,6 +12,7 @@ import {
 
 import { copy } from "../lib/copy";
 import { getPhotoService } from "../../services/photos";
+import { LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
 import {
   detectTextDirection,
   localeDir,
@@ -190,9 +191,10 @@ function ListeningWave() {
 function speechNotice(
   t: (typeof copy)[Locale],
   listening: boolean,
+  starting: boolean,
   error: SpeechErrorCode | null,
 ): string | null {
-  if (listening) return t.recording;
+  if (listening || starting) return t.recording;
   if (!error || error === "aborted") return null;
   if (error === "unsupported") return t.speechUnsupported;
   if (error === "not-allowed") return t.micDenied;
@@ -237,6 +239,9 @@ export default function ChatInput({
 
   const {
     listening,
+    starting,
+    supported,
+    probed,
     transcript,
     error: speechError,
     lang: speechLang,
@@ -244,7 +249,13 @@ export default function ChatInput({
     stop: stopListening,
   } = useSpeechRecognition({ locale });
 
-  const notice = speechNotice(t, listening, speechError);
+  const notice = speechNotice(t, listening, starting, speechError);
+  /** The mic is dead and the user should know before tapping: the
+      availability probe finished and there is no recognizer (no
+      native plugin and no Web Speech). A small muted line, not a
+      modal — the mic button stays tappable so the full notice
+      appears on tap. */
+  const voiceUnavailable = probed && !supported;
 
   const canSend =
     !disabled && (value.trim().length > 0 || attachments.length > 0);
@@ -297,17 +308,18 @@ export default function ChatInput({
     listeningRef.current = listening;
   }, [listening]);
 
-  /** Home-screen widget / persistent notification / ?listen=1: start
-      listening without hunting for the mic button. The request
-      arrives as a window event when the app is already open, and as
-      a sessionStorage flag (set by NativeShell before this component
-      mounted) on a cold start from the widget — both funnel into the
-      same start path as the mic button, and the existing error
-      notice covers mic-denied / unsupported honestly. The flag is
-      consumed once and expires after 60s, so a stale request never
-      starts the mic on a later visit. */
+  /** Home-screen widget / persistent notification / ?listen=1 / the
+      golden orb: start listening without hunting for the mic button.
+      The request arrives as a window event when the app is already
+      open, and as a sessionStorage flag (set by NativeShell before
+      this component mounted) on a cold start from the widget — both
+      funnel into the same start path as the mic button, and the
+      existing error notice covers mic-denied / unsupported honestly.
+      The flag is consumed once and expires after 60s, so a stale
+      request never starts the mic on a later visit. The orb also
+      sends a stop request (tapping it again while listening stops). */
   useEffect(() => {
-    const FLAG = "echomind-listen-request";
+    const FLAG = LISTEN_REQUEST;
     const consumeFlag = (): boolean => {
       try {
         const raw = window.sessionStorage.getItem(FLAG);
@@ -340,10 +352,17 @@ export default function ChatInput({
       startListening();
     };
     const onRequest = () => startIfRequested();
+    const onStopRequest = () => {
+      if (listeningRef.current) stopListening();
+    };
     if (consumeFlag() || consumeUrlParam()) startIfRequested();
     window.addEventListener(FLAG, onRequest);
-    return () => window.removeEventListener(FLAG, onRequest);
-  }, [startListening]);
+    window.addEventListener(LISTEN_STOP_REQUEST, onStopRequest);
+    return () => {
+      window.removeEventListener(FLAG, onRequest);
+      window.removeEventListener(LISTEN_STOP_REQUEST, onStopRequest);
+    };
+  }, [startListening, stopListening]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent<boolean>("echomind-listening", { detail: listening }));
@@ -459,11 +478,17 @@ export default function ChatInput({
             className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-ink-soft"
             role="status"
           >
-            {listening ? <ListeningWave /> : null}
+            {listening || starting ? <ListeningWave /> : null}
             <span>
               {notice}
               {listening ? ` · ${speechLang}` : ""}
             </span>
+          </p>
+        ) : null}
+
+        {!notice && voiceUnavailable ? (
+          <p className="mb-2 text-center text-[11px] text-muted" role="status">
+            {t.speechUnsupported}
           </p>
         ) : null}
 
@@ -504,7 +529,7 @@ export default function ChatInput({
           </ul>
         ) : null}
 
-        <div className="echomind-glass-blur flex min-h-[3.5rem] items-center gap-1 rounded-full px-2 py-1.5">
+        <div className="echomind-glass-bevel flex min-h-[3.5rem] items-center gap-1 rounded-full px-2 py-1.5">
           <div className="relative shrink-0" ref={attachMenuRef}>
             <button
               type="button"
@@ -512,7 +537,7 @@ export default function ChatInput({
               aria-expanded={attachOpen}
               disabled={disabled}
               onClick={() => setAttachOpen((open) => !open)}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40 sm:h-11 sm:w-11"
             >
               <IconPaperclip className="h-5 w-5" />
             </button>
@@ -588,7 +613,7 @@ export default function ChatInput({
             value={value}
             disabled={disabled}
             placeholder={t.placeholder}
-            className={`max-h-11 min-h-[2.75rem] flex-1 resize-none overflow-y-auto whitespace-nowrap bg-transparent px-1 py-2.5 text-[16px] leading-6 text-ink placeholder:text-muted focus:outline-none ${
+            className={`max-h-11 min-h-[2.75rem] min-w-0 flex-1 resize-none overflow-y-auto whitespace-nowrap bg-transparent px-1 py-2.5 text-[16px] leading-6 text-ink placeholder:text-muted focus:outline-none ${
               dir === "rtl" ? "font-fa" : ""
             }`}
             onChange={(event) => onChange(event.target.value)}
@@ -604,21 +629,20 @@ export default function ChatInput({
             type="button"
             aria-label={listening ? t.voiceStop : t.voiceStart}
             aria-pressed={listening}
-            disabled={disabled}
             onClick={toggleListening}
-            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40 ${
-              listening ? "text-gold" : "text-muted hover:text-gold"
+            className={`echomind-medallion relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 sm:h-11 sm:w-11 ${
+              voiceUnavailable ? "opacity-60" : ""
             }`}
           >
-            {listening ? (
+            {listening || starting ? (
               <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-full" />
             ) : null}
-            <IconMic className={`relative h-5 w-5 ${listening ? "echomind-pulse" : ""}`} />
+            <IconMic className={`relative h-5 w-5 ${listening || starting ? "echomind-pulse text-gold" : ""}`} />
           </button>
 
           <button
             type="button"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gold transition hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-40"
+            className="echomind-medallion-gold flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:w-11"
             aria-label={t.send}
             disabled={!canSend}
             onClick={submit}

@@ -4,10 +4,11 @@ import { useCallback, useState } from "react";
 
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
-import { StatusDot } from "./Glass";
+import { SignInPrompt, StatusDot } from "./Glass";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   getHubStatus,
+  isAuthError,
   isEndpointMissing,
   saveHubSession,
   type HubConnection,
@@ -33,6 +34,9 @@ export default function HubStatus({ locale }: { locale: Locale }) {
   const [readFailed, setReadFailed] = useState(false);
   /** The backend is an older build without /mentor (merge pending). */
   const [outdated, setOutdated] = useState(false);
+  /** No signed-in session — the panel shows the calm sign-in prompt,
+      never the raw red error. */
+  const [unauthenticated, setUnauthenticated] = useState(false);
   const [endpoint, setEndpoint] = useState("");
   const [cookie, setCookie] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,9 +49,11 @@ export default function HubStatus({ locale }: { locale: Locale }) {
       setEndpoint(row.endpoint);
       setReadFailed(false);
       setOutdated(false);
+      setUnauthenticated(false);
     } catch (error) {
       setReadFailed(true);
       setOutdated(isEndpointMissing(error));
+      setUnauthenticated(isAuthError(error));
     }
   }, []);
 
@@ -97,17 +103,29 @@ export default function HubStatus({ locale }: { locale: Locale }) {
   };
 
   return (
-    <section className="rounded-2xl border border-white/[0.09] bg-white/[0.04] p-4">
+    <section className="echomind-glass-bevel w-full min-w-0 rounded-2xl p-4">
       <h3 className="font-sans text-base font-semibold text-ink">{t.hubTitle}</h3>
-      <p className="mt-1 text-xs leading-relaxed text-muted">{t.hubHint}</p>
-      {readFailed ? (
-        <p className="mt-3 text-xs text-red-400">{t.hubUnavailable}</p>
+      <p className="mt-1 w-full min-w-0 text-xs leading-relaxed text-muted [overflow-wrap:break-word]">{t.hubHint}</p>
+      {readFailed && outdated ? (
+        <p role="status" className="mt-3 text-xs leading-relaxed text-muted">
+          {t.hubOutdated}
+        </p>
+      ) : readFailed && unauthenticated ? (
+        <SignInPrompt locale={locale} message={t.hubSignIn} />
+      ) : readFailed ? (
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="mt-3 min-h-10 rounded-full border border-white/[0.09] px-4 text-xs font-semibold text-ink-soft hover:text-gold"
+        >
+          {t.retryAction}
+        </button>
       ) : connection === null ? (
         <p className="mt-3 text-xs text-muted">…</p>
       ) : (
         <>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <p className="echomind-num-mono truncate text-xs text-muted">
+          <div className="mt-3 flex min-w-0 items-center justify-between gap-2">
+            <p className="echomind-num-mono min-w-0 flex-1 truncate text-xs text-muted">
               {connection.endpoint || "—"}
             </p>
             <StatusDot tone={tone(connection)} label={stateLabel(connection)} />

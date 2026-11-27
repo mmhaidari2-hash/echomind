@@ -5,10 +5,12 @@ import { useCallback, useState } from "react";
 import { copy } from "../lib/copy";
 import type { Locale } from "../lib/direction";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
+import { SignInPrompt } from "./Glass";
 import {
   activateProvider,
   createProvider,
   deleteProvider,
+  isAuthError,
   isEndpointMissing,
   listProviders,
   testProvider,
@@ -31,6 +33,9 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
   const [readFailed, setReadFailed] = useState(false);
   /** The backend is an older build without /providers (merge pending). */
   const [outdated, setOutdated] = useState(false);
+  /** No signed-in session — the panel shows the calm sign-in prompt,
+      never the raw red error. */
+  const [unauthenticated, setUnauthenticated] = useState(false);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, { name: string; model: string; endpoint: string }>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -42,9 +47,11 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
       setSlots(rows);
       setReadFailed(false);
       setOutdated(false);
+      setUnauthenticated(false);
     } catch (error) {
       setReadFailed(true);
       setOutdated(isEndpointMissing(error));
+      setUnauthenticated(isAuthError(error));
     }
   }, []);
 
@@ -153,11 +160,23 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
     drafts[slot.id] ?? { name: slot.name, model: slot.model, endpoint: slot.endpoint };
 
   return (
-    <section className="rounded-2xl border border-white/[0.09] bg-white/[0.04] p-4">
+    <section className="echomind-glass-bevel w-full min-w-0 rounded-2xl p-4">
       <h3 className="font-sans text-base font-semibold text-ink">{t.providersTitle}</h3>
-      <p className="mt-1 text-xs leading-relaxed text-muted">{t.providersHint}</p>
-      {readFailed ? (
-        <p className="mt-3 text-xs text-red-400">{t.providersUnavailable}</p>
+      <p className="mt-1 w-full min-w-0 text-xs leading-relaxed text-muted [overflow-wrap:break-word]">{t.providersHint}</p>
+      {readFailed && outdated ? (
+        <p role="status" className="mt-3 text-xs leading-relaxed text-muted">
+          {t.providersOutdated}
+        </p>
+      ) : readFailed && unauthenticated ? (
+        <SignInPrompt locale={locale} message={t.providersSignIn} />
+      ) : readFailed ? (
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="mt-3 min-h-10 rounded-full border border-white/[0.09] px-4 text-xs font-semibold text-ink-soft hover:text-gold"
+        >
+          {t.retryAction}
+        </button>
       ) : slots === null ? (
         <p className="mt-3 text-xs text-muted">…</p>
       ) : (
@@ -168,9 +187,9 @@ export default function ProvidersPanel({ locale }: { locale: Locale }) {
             const dirty =
               draft.name !== slot.name || draft.model !== slot.model || draft.endpoint !== slot.endpoint;
             return (
-              <li key={slot.id} className="rounded-xl border border-white/[0.09] bg-white/[0.05] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-ink">
+              <li key={slot.id} className="w-full min-w-0 rounded-xl border border-white/[0.09] bg-white/[0.05] p-3">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <p className="min-w-0 flex-1 text-sm font-semibold text-ink [overflow-wrap:break-word]">
                     {isEmpty ? t.providersEmptySlot : slot.name}
                   </p>
                   <span

@@ -36,6 +36,35 @@ export const copy = {
       "Your message stays on this device. Live replies connect in a later phase.",
     thinking: "EchoMind is thinking…",
     sendFailed: "Could not reach EchoMind. Check the API and try again.",
+    /** Always-answer replies — EchoMind ALWAYS answers, even when the
+        server cannot. The reply names the cause in the user's language
+        instead of leaving a blank space or a raw error. */
+    answerSignIn:
+      "I can't answer from your personal data yet — please sign in first, then ask me again.",
+    answerServerOld:
+      "The server is still running the older version, so the live answer service isn't available yet. Your message was received — the built-in guides still work, and I'll answer fully once the server is updated.",
+    answerOffline:
+      "You're offline right now, so I can't reach the server. Your message is saved on this device — try again when you're back online.",
+    answerTimeout:
+      "The server took too long to answer. Please try again in a moment.",
+    answerServerBusy:
+      "The server is busy right now. Please try again in a moment.",
+    answerFailed:
+      "I couldn't reach the server just now. Your message wasn't lost — please try again.",
+    signInPrompt: "Sign in to sync live connections",
+    providersSignIn: "Sign in to configure model providers",
+    hubSignIn: "Sign in to see the command hub",
+    signInSetupNote:
+      "Sign-in is being set up — it arrives with the next app update.",
+    signInAction: "Sign in",
+    retryAction: "Try again",
+    providersOutdated:
+      "Providers arrive with the next app update — the server still runs the older version.",
+    hubOutdated:
+      "The hub arrives with the next app update — the server still runs the older version.",
+    orbListenHint: "Tap the orb to talk",
+    orbListening: "Listening… tap the orb to stop",
+    orbStarting: "Starting to listen…",
     delayWizard: "Open Delay Repay calculator",
     rightsWizard: "Open Consumer Rights notice",
     shieldWizard: "Open Overdraft Shield",
@@ -142,6 +171,32 @@ export const copy = {
       "پیام روی همین دستگاه می‌ماند. پاسخ زنده در فازهای بعدی وصل می‌شود.",
     thinking: "اکومایند در حال فکر کردن است…",
     sendFailed: "ارتباط با اکومایند برقرار نشد. API را بررسی کنید و دوباره تلاش کنید.",
+    answerSignIn:
+      "هنوز نمی‌توانم از داده‌های شخصی‌تان جواب دهم — لطفاً اول وارد شوید و دوباره بپرسید.",
+    answerServerOld:
+      "سرور هنوز نسخهٔ قدیمی را اجرا می‌کند، پس سرویس پاسخ زنده هنوز در دسترس نیست. پیام‌تان رسید — راهنماهای داخلی هنوز کار می‌کنند و پس از به‌روزرسانی سرور کامل جواب می‌دهم.",
+    answerOffline:
+      "الان آفلاین هستید و نمی‌توانم به سرور وصل شوم. پیام‌تان روی همین دستگاه ذخیره شد — وقتی آنلاین شدید دوباره تلاش کنید.",
+    answerTimeout:
+      "سرور دیر جواب داد. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
+    answerServerBusy:
+      "سرور الان شلوغ است. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
+    answerFailed:
+      "الان نتوانستم به سرور وصل شوم. پیام‌تان گم نشده — لطفاً دوباره تلاش کنید.",
+    signInPrompt: "برای همگام‌سازی اتصالات زنده وارد شوید",
+    providersSignIn: "برای تنظیم ارائه‌دهندگان مدل وارد شوید",
+    hubSignIn: "برای دیدن هاب فرمان وارد شوید",
+    signInSetupNote:
+      "ورود در حال راه‌اندازی است — با به‌روزرسانی بعدی برنامه می‌آید.",
+    signInAction: "ورود",
+    retryAction: "دوباره تلاش کن",
+    providersOutdated:
+      "ارائه‌دهندگان با به‌روزرسانی بعدی برنامه می‌آیند — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند.",
+    hubOutdated:
+      "هاب با به‌روزرسانی بعدی برنامه می‌آید — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند.",
+    orbListenHint: "برای صحبت روی دایره بزنید",
+    orbListening: "در حال شنیدن… برای توقف روی دایره بزنید",
+    orbStarting: "در حال شروع شنیدن…",
     delayWizard: "باز کردن محاسبه Delay Repay",
     rightsWizard: "باز کردن نامه حقوق مصرف‌کننده",
     shieldWizard: "باز کردن سپر اضافه برداشت",
