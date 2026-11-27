@@ -4,9 +4,10 @@
  * HomeHub — the home screen IS the hub (mockup 3).
  *
  * The brand title sits ABOVE the golden living orb; the owner's apps
- * orbit it in a circle connected by spokes. No text is stamped across
- * the orb, and no truncated labels hang under the nodes — each node
- * is a crisp official brand SVG inside a glass circle. Tapping an app
+ * orbit it in a circle around the golden Saturn rings. No text is
+ * stamped across the orb, and no truncated labels hang under the
+ * nodes — each node is a crisp official brand SVG inside a glass
+ * circle. Tapping an app
  * answers "so what?" in the glass card below: its full name, live
  * sync status and a 1-tap OAuth Connect action.
  *
@@ -414,10 +415,12 @@ export default function HomeHub({
       </div>
 
       {/* The orbit: the living orb at the centre, apps around it on
-          spokes. Plain div, no entrance animation, no 3D perspective,
-          no transforms, no scroll-linked rotation — every node is
-          painted on first paint and stays painted while scrolling.
-          The tick ring is a static instrument dial.
+          the golden Saturn rings (round 7, mockup). Plain div, no
+          entrance animation, no 3D perspective, no transforms, no
+          scroll-linked rotation — every node is painted on first
+          paint and stays painted while scrolling. No dashed circle,
+          no spokes, no tick ring: only the nodes and the two smooth
+          elliptical rings.
           Round 5: the container is its own compositing layer
           (translateZ(0)) so the compositor rasterizes the container
           and all 8 nodes atomically. On Mahdi's phone the round-4
@@ -434,62 +437,54 @@ export default function HomeHub({
         role="group"
         aria-label={STRINGS.hubLabel[lang]}
       >
+          {/* Back ring (round 7, mockup 18112_24_qs19.jpg): a smooth
+              golden ellipse behind the orb — the Saturn ring passing
+              behind the top of the sphere. SVG geometry, not a CSS
+              transform, and fully static: no rotation, no animation.
+              The tick ring, the dashed circle and the straight spokes
+              are GONE (Mahdi: «خطای دورشو پاک کن، فقط اپا دورش
+              باشه») — only the app nodes orbit the orb now, on these
+              rings. */}
           <svg
             aria-hidden="true"
             viewBox="0 0 100 100"
-            className="absolute inset-0 h-full w-full overflow-visible"
+            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
           >
-            {/* Precision tick ring (Linear-style instrument dial): 24
-                ticks around the orbit, so the hub reads as an
-                instrument, not a decoration. Static: the round-3
-                scroll-linked rotation repainted the ring on every
-                scroll frame, and the same compositing failure that
-                hid orbit nodes could hide the ring. */}
-            <g>
-              {Array.from({ length: 24 }, (_, i) => {
-                const a = (i * 15 * Math.PI) / 180;
-                const r1 = ORBIT_RADIUS + 2.5;
-                const r2 = ORBIT_RADIUS + (i % 6 === 0 ? 4.5 : 3.5);
-                return (
-                  <line
-                    key={i}
-                    x1={50 + r1 * Math.cos(a)}
-                    y1={50 + r1 * Math.sin(a)}
-                    x2={50 + r2 * Math.cos(a)}
-                    y2={50 + r2 * Math.sin(a)}
-                    stroke="rgba(255, 255, 255, 0.25)"
-                    strokeWidth="0.4"
-                  />
-                );
-              })}
-            </g>
-            <circle
+            <defs>
+              <linearGradient
+                id="echomind-ring-gold"
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="1"
+              >
+                <stop offset="0%" stopColor="#f6d789" />
+                <stop offset="45%" stopColor="#e5a93c" />
+                <stop offset="100%" stopColor="#9a6b1f" />
+              </linearGradient>
+            </defs>
+            <ellipse
               cx="50"
               cy="50"
-              r={ORBIT_RADIUS}
+              rx="47"
+              ry="15"
               fill="none"
-              stroke="rgba(229, 169, 60, 0.35)"
-              strokeWidth="0.5"
-              strokeDasharray="1.5 1.5"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="2.4"
+              opacity="0.16"
+              transform="rotate(-18 50 50)"
             />
-            {HUB_APPS.map((app, index) => {
-              const { x, y } = nodePosition(index);
-              return (
-                <line
-                  key={app.id}
-                  x1="50"
-                  y1="50"
-                  x2={x}
-                  y2={y}
-                  stroke={
-                    states[app.id] === "connected"
-                      ? "rgba(16, 185, 129, 0.5)"
-                      : "rgba(229, 169, 60, 0.35)"
-                  }
-                  strokeWidth="0.5"
-                />
-              );
-            })}
+            <ellipse
+              cx="50"
+              cy="50"
+              rx="47"
+              ry="15"
+              fill="none"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="0.9"
+              opacity="0.85"
+              transform="rotate(-18 50 50)"
+            />
           </svg>
 
           {/* Centre: the living orb — a real button (round 3), a
@@ -515,6 +510,36 @@ export default function HomeHub({
           >
             <LivingOrb size={150} state={orbState} />
           </button>
+
+          {/* Front band (round 7, mockup): the near side of the Saturn
+              ring — one shallow golden arc sweeping across the LOWER
+              third of the orb, in front of it. A separate SVG above
+              the orb button (the back ellipse above is below it), so
+              the ring reads as passing behind the top and in front
+              of the bottom. pointer-events none: it never blocks the
+              orb press. The nodes below paint above it. */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 100 100"
+            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          >
+            <path
+              d="M 4 54 A 46 12 -12 0 1 96 46"
+              fill="none"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="3"
+              opacity="0.18"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 4 54 A 46 12 -12 0 1 96 46"
+              fill="none"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="1.4"
+              opacity="0.9"
+              strokeLinecap="round"
+            />
+          </svg>
 
           {/* Orbiting apps — brand icons only, no labels. Raised
               beveled medallions (round 3), not flat glass circles:

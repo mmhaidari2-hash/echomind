@@ -478,26 +478,26 @@ html[dir="rtl"] body {
 .echomind-living-orb {
   position: relative;
   border-radius: 9999px;
-  /* Glass sphere (round 5): the orb is GLASS, not a solid gold ball.
-     The body is translucent — the dark obsidian shows through the
-     middle, darkening toward the rim — with a tight specular
-     top-left, a faint refracted highlight bottom-right, a soft warm
-     gold heart, and light pooling at the bottom (caustic). The bright
-     inset rim is the light bending around the sphere's edge. The old
-     opaque gold stack read as a flat glossy ball on the phone. */
+  /* Glossy golden sphere (round 7, mockup 18112_24_qs19.jpg): the orb
+     is a SOLID golden ball, not translucent glass. The round-5
+     translucent body read as a flat dark disc on Mahdi's phone — the
+     spokes showed through it and the gold heart was too faint. The
+     mockup sphere is opaque: a pale gold-white specular top-left, a
+     saturated gold body, deep bronze shading at the bottom, and a
+     bright rim. Nothing shows through it — the orbit rings pass
+     BEHIND it (see HomeHub), never through it. */
   background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.95), transparent 12%),
-    radial-gradient(circle at 72% 78%, rgb(255 255 255 / 0.2), transparent 18%),
-    radial-gradient(circle at 50% 62%, rgb(242 194 104 / 0.5) 0%, rgb(229 169 60 / 0.28) 32%, transparent 62%),
-    radial-gradient(circle at 50% 88%, rgb(242 194 104 / 0.35), transparent 32%),
-    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.05) 0%, rgb(9 10 15 / 0.1) 55%, rgb(9 10 15 / 0.55) 82%, rgb(9 10 15 / 0.85) 100%);
+    radial-gradient(circle at 31% 24%, rgb(255 255 255 / 0.98) 0%, rgb(255 244 200 / 0.85) 8%, transparent 17%),
+    radial-gradient(circle at 72% 76%, rgb(255 225 160 / 0.45) 0%, transparent 22%),
+    radial-gradient(circle at 42% 34%, rgb(255 226 140 / 1) 0%, rgb(240 184 74 / 1) 38%, rgb(190 128 32 / 1) 68%, rgb(118 70 14 / 1) 100%);
   box-shadow:
-    inset 0 0 0 1.5px rgb(255 236 190 / 0.55),
-    inset 0 -22px 40px rgb(0 0 0 / 0.75),
-    inset 0 16px 28px rgb(255 255 255 / 0.16),
-    0 0 0 1px rgb(229 169 60 / 0.14),
-    0 28px 80px -12px rgb(229 169 60 / 0.5),
-    0 0 110px -18px rgb(229 169 60 / 0.4);
+    inset 0 0 0 1.5px rgb(255 240 200 / 0.7),
+    inset 0 -18px 34px rgb(90 50 5 / 0.55),
+    inset 0 12px 24px rgb(255 255 255 / 0.28),
+    inset -8px 0 22px rgb(120 70 10 / 0.35),
+    0 0 0 1px rgb(229 169 60 / 0.2),
+    0 24px 70px -10px rgb(229 169 60 / 0.55),
+    0 0 90px -14px rgb(229 169 60 / 0.45);
   animation: echomind-orb-breathe 4.5s ease-in-out infinite;
 }
 
@@ -555,28 +555,30 @@ html[dir="rtl"] body {
   animation: echomind-orb-execute 0.9s ease-in-out infinite;
 }
 
-/* Recording (round 5 hold-to-talk): the RED comes from INSIDE the
-   glass — a glowing red core under the same glass shell, not a
-   repaint of the whole surface. The specular highlight, the rim and
-   the glass body stay exactly as in idle, so the ball still reads as
-   glass; only the heart turns red and the glow goes red. Releasing
-   returns to gold immediately (the idle stack). The round-4 version
-   swapped the whole background to opaque red, which read as a flat
-   red ball on the phone. */
+/* Recording (round 7 hold-to-talk): the RED glows from INSIDE the
+   glass chamber — «میزنی توی اون محفظه قرمز بشه خوشگل بشه». The
+   glossy shell is UNCHANGED (same specular, same bright rim), and
+   the red core is SMALL and central: strong red to ~46% radius,
+   fading to dark glass at the rim, so the edges stay dark glass and
+   the red reads as light shining out of the chamber — not a repaint
+   of the whole surface. The round-5 core was 70% radius on a
+   translucent body, which is why it read as a flat red ball on the
+   phone. Red light pools at the bottom and the outer glow goes red.
+   Releasing returns to gold immediately (the idle stack). */
 .echomind-living-orb[data-state="recording"] {
   background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.95), transparent 12%),
-    radial-gradient(circle at 72% 78%, rgb(255 180 170 / 0.25), transparent 18%),
-    radial-gradient(circle at 50% 58%, rgb(255 92 74 / 0.98) 0%, rgb(230 48 44 / 0.9) 30%, rgb(180 30 30 / 0.55) 52%, transparent 70%),
-    radial-gradient(circle at 50% 88%, rgb(255 110 90 / 0.55), transparent 32%),
-    radial-gradient(circle at 50% 50%, rgb(40 6 6 / 0.15) 0%, rgb(9 10 15 / 0.25) 55%, rgb(9 10 15 / 0.6) 82%, rgb(9 10 15 / 0.9) 100%);
+    radial-gradient(circle at 31% 24%, rgb(255 255 255 / 0.98) 0%, rgb(255 230 220 / 0.7) 8%, transparent 17%),
+    radial-gradient(circle at 72% 76%, rgb(255 150 130 / 0.35) 0%, transparent 20%),
+    radial-gradient(circle at 50% 58%, rgb(255 96 76 / 1) 0%, rgb(226 46 40 / 0.95) 26%, rgb(160 26 24 / 0.75) 46%, rgb(70 10 12 / 0.55) 64%, transparent 76%),
+    radial-gradient(circle at 50% 88%, rgb(255 110 90 / 0.5), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgb(58 12 12 / 1) 0%, rgb(26 6 8 / 1) 62%, rgb(12 3 5 / 1) 100%);
   box-shadow:
-    inset 0 0 0 1.5px rgb(255 150 135 / 0.6),
-    inset 0 -22px 40px rgb(0 0 0 / 0.75),
-    inset 0 16px 28px rgb(255 255 255 / 0.16),
-    0 0 0 1px rgb(239 68 68 / 0.25),
-    0 28px 80px -12px rgb(239 68 68 / 0.6),
-    0 0 110px -18px rgb(239 68 68 / 0.5);
+    inset 0 0 0 1.5px rgb(255 170 150 / 0.65),
+    inset 0 -18px 34px rgb(0 0 0 / 0.6),
+    inset 0 12px 24px rgb(255 255 255 / 0.22),
+    0 0 0 1px rgb(239 68 68 / 0.3),
+    0 24px 70px -10px rgb(239 68 68 / 0.65),
+    0 0 110px -14px rgb(239 68 68 / 0.55);
   animation: echomind-orb-breathe 1.4s ease-in-out infinite;
 }
 

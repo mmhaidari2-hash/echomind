@@ -7,6 +7,7 @@ import { isNativeApp } from "../lib/native";
 import {
   createNativeSpeech,
   loadNativeSpeechPlugin,
+  mergeLateFinal,
   type NativeSpeechCallbacks,
   type SpeechErrorCode,
   type SpeechServiceProbe,
@@ -98,11 +99,27 @@ function joinTranscript(base: string, next: string): string {
 type UseSpeechRecognitionOptions = {
   locale: Locale;
   continuous?: boolean;
+  /**
+   * Fires once per listen period that produced text, when the session
+   * ends (user stop, after the final-result harvest below). The
+   * consumer auto-sends it as a chat message: hands-free means
+   * speaking must ACT, not just fill the draft — Mahdi's round-5
+   * report was "it hears my voice but does nothing afterwards".
+   */
+  onSessionEnd?: (text: string) => void;
 };
+
+/** The final onResults text arrives after stop() — wait this long for
+    it before handing the finished utterance to the consumer. The
+    plugin posts the stop to the WebView thread and the recognizer
+    finalizes within a few hundred ms; 700ms covers it without the
+    user feeling a lag. */
+const FINAL_HARVEST_MS = 700;
 
 export function useSpeechRecognition({
   locale,
   continuous = true,
+  onSessionEnd,
 }: UseSpeechRecognitionOptions) {
   const lang = SPEECH_LANG[locale];
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -113,6 +130,16 @@ export function useSpeechRecognition({
   const shouldListenRef = useRef(false);
   const stopRequestedRef = useRef(false);
   const finalsRef = useRef("");
+  /** The last chunk appended to finalsRef for the CURRENT utterance.
+      Partials are prefixes, not deltas — when the final onResults text
+      arrives it extends this chunk, so it is REPLACED, not appended
+      (see mergeLateFinal). Reset on every utterance restart / start. */
+  const lastCommittedChunkRef = useRef("");
+  /** Live mirror of the onSessionEnd callback (a ref so the stable
+      stop() always calls the latest handler). */
+  const onSessionEndRef = useRef(onSessionEnd);
+  /** The final-result harvest timer (see stop()). */
+  const harvestTimerRef = useRef(0);
   const langRef = useRef(lang);
   /**
    * Generation token — the fix for the round-3 race where the second
@@ -172,6 +199,17 @@ export function useSpeechRecognition({
       startedGateRef.current = 0;
     }
   }, []);
+
+  const clearHarvest = useCallback(() => {
+    if (harvestTimerRef.current) {
+      window.clearTimeout(harvestTimerRef.current);
+      harvestTimerRef.current = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    onSessionEndRef.current = onSessionEnd;
+  }, [onSessionEnd]);
 
   useEffect(() => {
     listeningRef.current = listening;
@@ -257,6 +295,7 @@ export function useSpeechRecognition({
     setStarting(false);
     clearStartWatchdog();
     clearStartedGate();
+    clearHarvest();
     void nativeRef.current?.release().catch(() => undefined);
     nativeRef.current = null;
     const recognition = recognitionRef.current;
@@ -275,7 +314,7 @@ export function useSpeechRecognition({
         /* already stopped */
       }
     }
-  }, [clearStartWatchdog, clearStartedGate]);
+  }, [clearStartWatchdog, clearStartedGate, clearHarvest]);
 
   /** Name the cause of a stalled start from the service probe. */
   const stallError = useCallback((): SpeechErrorCode => {
@@ -294,12 +333,19 @@ export function useSpeechRecognition({
     return "stalled";
   }, []);
 
-  /** Commit the pending partial as final, once per session. */
+  /** Commit the pending partial as final, once per session. The merge
+      replaces (not appends) when the pending text extends the chunk
+      already committed for this utterance — partials are prefixes. */
   const commitPendingText = useCallback(() => {
     const text = lastPartialRef.current.trim();
     if (!text || committedRef.current) return;
     committedRef.current = true;
-    finalsRef.current = joinTranscript(finalsRef.current, text);
+    finalsRef.current = mergeLateFinal(
+      finalsRef.current,
+      lastCommittedChunkRef.current,
+      text,
+    );
+    lastCommittedChunkRef.current = text;
     setTranscript(finalsRef.current);
     setInterimTranscript("");
     lastPartialRef.current = "";
@@ -424,7 +470,16 @@ export function useSpeechRecognition({
         if (generationRef.current !== gen) return;
         lastPartialRef.current = text;
         setInterimTranscript(text);
-        setTranscript(joinTranscript(finalsRef.current, text));
+        // The late final (onResults) arrives as a partial AFTER the
+        // interim was already committed by onFinal — merge it so the
+        // display never reads "hello hello world".
+        setTranscript(
+          mergeLateFinal(
+            finalsRef.current,
+            lastCommittedChunkRef.current,
+            text,
+          ),
+        );
       },
       onFinal: (text) => {
         if (generationRef.current !== gen) return;
@@ -434,7 +489,12 @@ export function useSpeechRecognition({
         }
         committedRef.current = true;
         emptyNativeSessionsRef.current = 0;
-        finalsRef.current = joinTranscript(finalsRef.current, text);
+        finalsRef.current = mergeLateFinal(
+          finalsRef.current,
+          lastCommittedChunkRef.current,
+          text,
+        );
+        lastCommittedChunkRef.current = text;
         setTranscript(finalsRef.current);
         setInterimTranscript("");
         lastPartialRef.current = "";
@@ -464,6 +524,7 @@ export function useSpeechRecognition({
         // session is released instead of left live.
         committedRef.current = false;
         lastPartialRef.current = "";
+        lastCommittedChunkRef.current = "";
         void native.start(langRef.current, callbacks).then((result) => {
           if (generationRef.current !== gen) {
             void native.release().catch(() => undefined);
@@ -536,7 +597,9 @@ export function useSpeechRecognition({
     emptyNativeSessionsRef.current = 0;
     finalsRef.current = "";
     lastPartialRef.current = "";
+    lastCommittedChunkRef.current = "";
     committedRef.current = false;
+    clearHarvest();
     setTranscript("");
     setInterimTranscript("");
     setError(null);
@@ -565,7 +628,7 @@ export function useSpeechRecognition({
       return;
     }
     startWeb();
-  }, [startNative, startWeb, clearStartWatchdog, stallError]);
+  }, [startNative, startWeb, clearStartWatchdog, stallError, clearHarvest]);
 
   const stop = useCallback(() => {
     generationRef.current += 1;
@@ -585,7 +648,34 @@ export function useSpeechRecognition({
     } catch {
       /* already stopped */
     }
-  }, [clearStartWatchdog, clearStartedGate, commitPendingText]);
+    // FINAL HARVEST (round 7) — the fix for "it hears my voice but
+    // does nothing afterwards". The plugin delivers the final onResults
+    // matches as a LATE partialResults event, after stop() bumped the
+    // generation — so the session's onPartial/onFinal rightly ignore
+    // it, and commitPendingText() above could only save the last
+    // INTERIM. Read the finished utterance back through the service
+    // (takeLastText is not generation-guarded) and hand it to the
+    // consumer once. If nothing arrived, the interim text committed
+    // above is what the consumer gets; if nothing was ever heard,
+    // nothing fires and the "no speech" notice is the answer.
+    clearHarvest();
+    harvestTimerRef.current = window.setTimeout(() => {
+      harvestTimerRef.current = 0;
+      const late = nativeRef.current?.takeLastText() ?? "";
+      if (late) {
+        finalsRef.current = mergeLateFinal(
+          finalsRef.current,
+          lastCommittedChunkRef.current,
+          late,
+        );
+        lastCommittedChunkRef.current = late;
+        setTranscript(finalsRef.current);
+        lastPartialRef.current = "";
+      }
+      const text = finalsRef.current.trim();
+      if (text) onSessionEndRef.current?.(text);
+    }, FINAL_HARVEST_MS);
+  }, [clearStartWatchdog, clearStartedGate, commitPendingText, clearHarvest]);
 
   const toggle = useCallback(() => {
     if (shouldListenRef.current || listening) stop();

@@ -107,6 +107,38 @@ export type NativeSpeechStartResult =
   | { ok: true }
   | { ok: false; code: SpeechErrorCode };
 
+/**
+ * Merge a late final transcript into the committed finals.
+ *
+ * Partials are PREFIXES, not deltas: the final onResults text is the
+ * COMPLETE utterance, so when it starts with the interim text already
+ * committed, the committed prefix is REPLACED, not appended — otherwise
+ * the user gets "hello hello world". When the late text is unrelated,
+ * it is appended; when it is already there, nothing changes.
+ */
+export function mergeLateFinal(
+  base: string,
+  committedPartial: string,
+  late: string,
+): string {
+  const clean = late.trim();
+  if (!clean) return base;
+  const committed = committedPartial.trim();
+  const trimmedBase = base.trimEnd();
+  if (
+    committed &&
+    trimmedBase.endsWith(committed) &&
+    clean.startsWith(committed)
+  ) {
+    const stripped = trimmedBase
+      .slice(0, trimmedBase.length - committed.length)
+      .trimEnd();
+    return stripped ? `${stripped} ${clean}` : clean;
+  }
+  if (trimmedBase.endsWith(clean)) return base;
+  return trimmedBase ? `${trimmedBase} ${clean}` : clean;
+}
+
 /** One-time probe of the on-device recognition service. */
 export type SpeechServiceProbe = {
   /** SpeechRecognizer.isRecognitionAvailable() on the device. */
@@ -322,7 +354,21 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
     await releaseListeners();
   }
 
-  return { start, stop, release, probe };
+  /**
+   * Read back the last matches[0] any partialResults event delivered
+   * and clear it. The final onResults matches arrive as a
+   * partialResults event AFTER the user stops — after the hook's
+   * generation guard rightly stopped listening to the session's
+   * callbacks — so the finished utterance is harvested through this
+   * instead of being lost. Returns "" when nothing arrived.
+   */
+  function takeLastText(): string {
+    const text = lastText;
+    lastText = "";
+    return text;
+  }
+
+  return { start, stop, release, probe, takeLastText };
 }
 
 /** The real plugin, loaded only on demand (never on the web). */

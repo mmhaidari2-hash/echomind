@@ -243,6 +243,16 @@ export default function ChatInput({
   const cameraRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const speechAnchorRef = useRef("");
+  /** What the live voice sync last wrote into the draft — the
+      auto-send below only fires when the draft is still exactly
+      this, so text the user typed during the harvest window is
+      never stolen. */
+  const lastSyncedRef = useRef("");
+  /** Typed submit while listening: the voice harvest that follows
+      must NOT auto-send a second message — the heard text stays as
+      a draft instead. Timestamped (not a plain flag) so a later
+      voice session is never suppressed by a stale submit. */
+  const suppressVoiceSendUntilRef = useRef(0);
   /** Live mirror of `listening`, so the widget/notification handler
       below can tell whether a session is already running without
       re-subscribing on every state change. */
@@ -265,6 +275,44 @@ export default function ChatInput({
       red recording state and the "release to stop" notice. */
   const [micPressed, setMicPressed] = useState(false);
 
+  /** Round 7 — a finished voice utterance ACTS. The hook fires this
+      once per listen period that produced text, ~700ms after the
+      stop, once the plugin's late final text has been harvested.
+      The utterance becomes a SENT message, and the always-answer
+      path in handleSend replies to it (or names the cause) — the
+      round-5 failure was "it hears my voice but does nothing
+      afterwards" because nothing ever sent the transcript. A send
+      already in flight (disabled) or text the user typed during the
+      harvest window keeps the heard text as a draft instead. */
+  const handleVoiceSessionEnd = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      const anchor = speechAnchorRef.current.trim();
+      const full = [anchor, trimmed].filter(Boolean).join(" ");
+      if (Date.now() < suppressVoiceSendUntilRef.current) {
+        suppressVoiceSendUntilRef.current = 0;
+        onChange(full);
+        return;
+      }
+      if (disabled) {
+        onChange(full);
+        return;
+      }
+      const current = textareaRef.current?.value ?? "";
+      if (current.trim() !== lastSyncedRef.current.trim()) {
+        // The user typed during the harvest window — append the
+        // heard text and let them send it themselves.
+        onChange([current.trim(), trimmed].filter(Boolean).join(" "));
+        return;
+      }
+      onSend({ text: full, attachments: [] });
+      onChange("");
+      speechAnchorRef.current = "";
+    },
+    [disabled, onChange, onSend],
+  );
+
   const {
     listening,
     starting,
@@ -276,7 +324,7 @@ export default function ChatInput({
     lang: speechLang,
     start: startListening,
     stop: stopListening,
-  } = useSpeechRecognition({ locale });
+  } = useSpeechRecognition({ locale, onSessionEnd: handleVoiceSessionEnd });
 
   const notice = speechNotice(t, listening, starting, speechError, micPressed);
   /** The mic is dead and the user should know before tapping: the
@@ -339,6 +387,7 @@ export default function ChatInput({
     if (!listening) return;
     const prefix = speechAnchorRef.current.trim();
     const next = [prefix, transcript].filter(Boolean).join(" ");
+    lastSyncedRef.current = next;
     onChange(next);
   }, [listening, transcript, onChange]);
 
@@ -565,7 +614,13 @@ export default function ChatInput({
 
   const submit = () => {
     if (!canSend) return;
-    if (listening) stopListening();
+    if (listening) {
+      // A typed send while listening: the voice harvest that follows
+      // must not auto-send a second message (see the suppress window
+      // in handleVoiceSessionEnd).
+      suppressVoiceSendUntilRef.current = Date.now() + 1500;
+      stopListening();
+    }
     onSend({
       text: value.trim(),
       attachments: attachments.map((item) => item.file),

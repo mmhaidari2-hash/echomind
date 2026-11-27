@@ -18,6 +18,10 @@
  *    present/missing/timeout, languages) and is cached; stop() never
  *    waits for the plugin's stop() (it never resolves); release()
  *    stops the recognizer before removing the listeners.
+ *  - round 7: takeLastText() reads back the final onResults text that
+ *    arrives as a late partialResults event after stop(); mergeLateFinal()
+ *    replaces (never duplicates) a committed interim when the final
+ *    text extends it.
  *
  * Usage (from the frontend verification copy):
  *   node scripts/test-speech.mjs
@@ -57,7 +61,7 @@ if (compiled.status !== 0) {
   throw new Error("tsc failed to compile speech.ts");
 }
 
-const { createNativeSpeech } = await import(join(outDir, "speech.js"));
+const { createNativeSpeech, mergeLateFinal } = await import(join(outDir, "speech.js"));
 
 function stubPlugin(overrides = {}) {
   const listeners = { partialResults: [], listeningState: [] };
@@ -343,6 +347,59 @@ try {
     await speech.release();
     assert.equal(stub.calls.stop, 1);
     assert.equal(stub.calls.removed, 2);
+  }
+
+  // --- round 7: takeLastText() harvests the late final -------------------------
+  // The plugin delivers the final onResults matches as a partialResults
+  // event AFTER stop() — after the hook's generation guard stopped
+  // listening. The hook reads it back through takeLastText().
+  {
+    const stub = stubPlugin();
+    const speech = createNativeSpeech({
+      loadPlugin: async () => stub.plugin,
+    });
+    const { seen, cbs } = callbacks();
+    await speech.start("fa-IR", cbs);
+    stub.firePartial("سلام");
+    assert.deepEqual(seen.partials, ["سلام"]);
+    await speech.stop();
+    // The final result arrives late, after the stop (onResults).
+    stub.firePartial("سلام، حقوق مصرف‌کننده من چیست؟");
+    assert.equal(
+      speech.takeLastText(),
+      "سلام، حقوق مصرف‌کننده من چیست؟",
+    );
+    // Taking clears it — a second harvest finds nothing.
+    assert.equal(speech.takeLastText(), "");
+    // A fresh start also clears it.
+    await speech.start("fa-IR", cbs);
+    assert.equal(speech.takeLastText(), "");
+  }
+
+  // --- round 7: mergeLateFinal() never duplicates the interim ------------------
+  {
+    // The final extends the committed interim: replace, not append.
+    assert.equal(
+      mergeLateFinal("سلام", "سلام", "سلام، حقوق مصرف‌کننده من چیست؟"),
+      "سلام، حقوق مصرف‌کننده من چیست؟",
+    );
+    // The final equals the committed interim: unchanged.
+    assert.equal(mergeLateFinal("سلام", "سلام", "سلام"), "سلام");
+    // The final is unrelated: appended.
+    assert.equal(
+      mergeLateFinal(
+        "برو تو اینستاگرام",
+        "برو تو اینستاگرام",
+        "ایمیلم را چک کن",
+      ),
+      "برو تو اینستاگرام ایمیلم را چک کن",
+    );
+    // Empty late text: base unchanged.
+    assert.equal(mergeLateFinal("سلام", "سلام", ""), "سلام");
+    // Empty base: the late text stands alone.
+    assert.equal(mergeLateFinal("", "", "سلام"), "سلام");
+    // The late text is already the tail: unchanged.
+    assert.equal(mergeLateFinal("سلام دنیا", "", "دنیا"), "سلام دنیا");
   }
 
   console.log("speech: all cases pass");
