@@ -1,5 +1,6 @@
 import { authorizationHeaders } from "@/app/lib/authHeaders";
 import { AuthSessionError } from "@/app/lib/authToken";
+import { isPhoneOnline } from "./network";
 
 export type ApiLocale = "en" | "fa";
 
@@ -85,13 +86,30 @@ function isAndroidWebView(): boolean {
   return /Android/i.test(navigator.userAgent);
 }
 
-function isNativeShell(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.location.protocol === "capacitor:" || window.location.protocol === "ionic:";
+let nativePlatformPromise: Promise<boolean> | null = null;
+
+/** True when this bundle runs inside the Capacitor native shell.
+    The old check read window.location.protocol ("capacitor:" /
+    "ionic:"), but capacitor.config.json sets androidScheme "https" +
+    hostname "localhost", so the phone build's origin is
+    https://localhost and the protocol check was always false there
+    — the phone build probed the same-origin base (itself) first and
+    fell back to it whenever Railway was briefly unreachable.
+    Capacitor.isNativePlatform() is the real check (it reads the
+    native bridge / custom platform). It is loaded lazily, the way
+    photos.ts loads @capacitor/camera, so this module stays
+    importable in plain Node tests; a failed import means "web". */
+function loadIsNativePlatform(): Promise<boolean> {
+  if (!nativePlatformPromise) {
+    nativePlatformPromise = import("@capacitor/core")
+      .then(({ Capacitor }) => Capacitor.isNativePlatform())
+      .catch(() => false);
+  }
+  return nativePlatformPromise;
 }
 
-function sameOriginBase(): string | undefined {
-  if (isNativeShell()) return undefined;
+function sameOriginBase(): string {
+  // Web only: the native path never calls this (see candidateBases).
   return DEFAULT_BASE;
 }
 
@@ -107,8 +125,29 @@ function lanHostBases(): string[] {
   ];
 }
 
-function candidateBases(): string[] {
+/** Round 6: the phone (Capacitor) build uses the device network
+    only. In production the candidate list is exactly the configured
+    Railway URL — no same-origin base (https://localhost is the phone
+    itself, not a server), no 127.0.0.1, no 10.0.2.2, no LAN host.
+    That is the AGENTS.md rule: production Android builds must not
+    depend on 127.0.0.1/localhost/LAN fallbacks. The dev native build
+    keeps the emulator hosts (10.0.2.2 is the emulator's host
+    loopback) for USB/emulator work. The web build is unchanged. */
+async function candidateBases(): Promise<string[]> {
   const configured = process.env.NEXT_PUBLIC_API_URL;
+  const native = await loadIsNativePlatform();
+  if (native) {
+    if (process.env.NODE_ENV === "production") {
+      return unique([configured]).map(normalizeBase);
+    }
+    const emulatorHosts = [
+      "http://10.0.2.2:8004/api/v1",
+      "http://10.0.2.2:8001/api/v1",
+      "http://10.0.2.2:8000/api/v1",
+      "http://10.0.2.2:8003/api/v1",
+    ];
+    return unique([configured, ...lanHostBases(), ...emulatorHosts]).map(normalizeBase);
+  }
   if (process.env.NODE_ENV === "production") {
     return unique([sameOriginBase(), configured, ...lanHostBases()]).map(normalizeBase);
   }
@@ -145,6 +184,7 @@ const failedBases = new Set<string>();
 export function resetApiBase() {
   resolvedBase = null;
   failedBases.clear();
+  nativePlatformPromise = null;
 }
 
 function isRetryable(error: unknown): boolean {
@@ -200,6 +240,16 @@ async function request<T>(
   init: ApiRequestInit = {},
 ): Promise<T> {
   const { timeoutMs = CHAT_TIMEOUT_MS, auth = "public", headers, ...rest } = init;
+  // Round 6: the phone lost its internet after the base was resolved
+  // (or the resolved base is stale). Say so plainly instead of
+  // letting the fetch fail as a generic network_error, which the UI
+  // used to read as "you're offline" for every failure — including
+  // a server that is merely down while the phone is online.
+  if (!isPhoneOnline()) {
+    throw new ApiError("The phone has no internet connection", {
+      code: "phone_offline",
+    });
+  }
   let secureHeaders: Record<string, string> = {};
   try {
     if (auth === "protected") {
@@ -266,8 +316,31 @@ async function request<T>(
 }
 
 async function resolveApiBase(): Promise<string> {
+  // Round 6: the phone has no internet at all — say so immediately
+  // and attempt nothing. No localhost probe, no Railway probe, and
+  // no silent fallback to a dead base. The caller turns this into
+  // the "turn on Wi-Fi or mobile data" reply. This check must come
+  // BEFORE the cached-base return below: a phone that goes offline
+  // after the base was resolved would otherwise hand the cached base
+  // to a raw fetch (streamChat) that has no second gate, and the
+  // app would attempt a doomed request instead of saying "offline".
+  if (!isPhoneOnline()) {
+    throw new ApiError("The phone has no internet connection", {
+      code: "phone_offline",
+    });
+  }
   if (resolvedBase && !failedBases.has(resolvedBase)) return resolvedBase;
-  for (const base of candidateBases()) {
+  const bases = await candidateBases();
+  if (bases.length === 0) {
+    // Native production build with no configured API URL: there is
+    // nothing to probe. Never fall back to the same-origin base
+    // here — on the phone that is https://localhost, i.e. the phone
+    // itself, and every call would fail as a fake "offline".
+    throw new ApiError("No API is configured for this build", {
+      code: "no_api_configured",
+    });
+  }
+  for (const base of bases) {
     if (failedBases.has(base)) continue;
     try {
       const health = await request<{ status?: string }>(base, "/health", {
@@ -279,12 +352,16 @@ async function resolveApiBase(): Promise<string> {
         return base;
       }
       failedBases.add(base);
-    } catch {
+    } catch (error) {
+      // The phone went offline mid-probe: do not swallow that as
+      // just another dead base and fall through to the fallback
+      // below — the caller must hear "phone offline".
+      if (error instanceof ApiError && error.code === "phone_offline") throw error;
       failedBases.add(base);
     }
   }
   failedBases.clear();
-  resolvedBase = candidateBases()[0] ?? DEFAULT_BASE;
+  resolvedBase = bases[0];
   return resolvedBase;
 }
 
@@ -356,6 +433,15 @@ export async function streamChat(
     secureHeaders = await authorizationHeaders();
   } catch (error) {
     if (!(error instanceof AuthSessionError)) throw error;
+  }
+
+  // Round 6: same gate as request() — the phone may have gone
+  // offline in the instant between resolveApiBase and this fetch.
+  // Never start a streaming fetch with no device network.
+  if (!isPhoneOnline()) {
+    throw new ApiError("The phone has no internet connection", {
+      code: "phone_offline",
+    });
   }
 
   const controller = new AbortController();

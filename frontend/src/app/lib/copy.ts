@@ -54,8 +54,8 @@ export const copy = {
       "I can't answer from your personal data yet — please sign in first, then ask me again.",
     answerServerOld:
       "The server is still running the older version, so the live answer service isn't available yet. Your message was received — the built-in guides still work, and I'll answer fully once the server is updated.",
-    answerOffline:
-      "You're offline right now, so I can't reach the server. Your message is saved on this device — try again when you're back online.",
+    answerPhoneOffline:
+      "Your phone has no internet — turn on Wi-Fi or mobile data. Your message is saved on this device — try again when you're back online.",
     answerTimeout:
       "The server took too long to answer. Please try again in a moment.",
     answerServerBusy:
@@ -198,8 +198,8 @@ export const copy = {
       "هنوز نمی‌توانم از داده‌های شخصی‌تان جواب دهم — لطفاً اول وارد شوید و دوباره بپرسید.",
     answerServerOld:
       "سرور هنوز نسخهٔ قدیمی را اجرا می‌کند، پس سرویس پاسخ زنده هنوز در دسترس نیست. پیام‌تان رسید — راهنماهای داخلی هنوز کار می‌کنند و پس از به‌روزرسانی سرور کامل جواب می‌دهم.",
-    answerOffline:
-      "الان آفلاین هستید و نمی‌توانم به سرور وصل شوم. پیام‌تان روی همین دستگاه ذخیره شد — وقتی آنلاین شدید دوباره تلاش کنید.",
+    answerPhoneOffline:
+      "اینترنت گوشی وصل نیست — وای‌فای یا دیتا را روشن کن. پیام‌تان روی همین دستگاه ذخیره شد — وقتی آنلاین شدید دوباره تلاش کنید.",
     answerTimeout:
       "سرور دیر جواب داد. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
     answerServerBusy:

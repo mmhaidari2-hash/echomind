@@ -76,6 +76,7 @@ import {
   type LifeSnapshot,
   type WatchPayload,
 } from "@/services/api";
+import { isPhoneOnline, onPhoneNetworkChange } from "@/services/network";
 
 type ThreadMessage = {
   id: string;
@@ -125,8 +126,11 @@ async function pingHealth(): Promise<boolean> {
     never silence, never a blank space, never a raw "Request failed
     (404)". A 404 means the live server is the older build without
     the stream endpoint; a 401 means sign-in; a timeout means the
-    server was too slow; a network error means the device is
-    offline. */
+    server was too slow. Round 6: only "phone_offline" means the
+    device itself has no internet — a plain network_error means the
+    phone reports online but the request failed, so the server (not
+    the phone) is the cause and it gets the server message, never
+    "you're offline". */
 function answerForError(error: unknown, locale: Locale): string {
   const t = copy[locale];
   if (error instanceof ApiError) {
@@ -134,17 +138,25 @@ function answerForError(error: unknown, locale: Locale): string {
     if (isEndpointMissing(error)) return t.answerServerOld;
     if (error.status === 503) return t.answerServerBusy;
     if (error.code === "timeout") return t.answerTimeout;
-    if (error.code === "network_error") return t.answerOffline;
+    if (error.code === "phone_offline") return t.answerPhoneOffline;
+    if (error.code === "network_error") return t.answerFailed;
     return t.answerFailed;
   }
   if (error instanceof DOMException && error.name === "AbortError") return t.answerTimeout;
-  if (error instanceof TypeError) return t.answerOffline;
+  if (error instanceof TypeError)
+    return isPhoneOnline() ? t.answerFailed : t.answerPhoneOffline;
   return t.answerFailed;
 }
 
 export default function HomePage() {
   const [locale, setLocale] = useState<Locale>("en");
   const [online, setOnline] = useState(false);
+  // Round 6: the phone's own internet (Wi-Fi / mobile data), tracked
+  // separately from the server health above. The offline banner must
+  // show only when the phone itself is offline — the old code showed
+  // it whenever the server ping failed, so Mahdi saw "you're offline"
+  // while his phone was online and other apps worked.
+  const [phoneOffline, setPhoneOffline] = useState(false);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [sending, setSending] = useState(false);
@@ -306,6 +318,14 @@ export default function HomePage() {
       cancelled = true;
       window.clearInterval(timer);
     };
+  }, []);
+
+  useEffect(() => {
+    // Round 6: track the device's connectivity (navigator.onLine +
+    // online/offline events), not the server. Initialised from the
+    // current value so the banner is correct on first paint.
+    setPhoneOffline(!isPhoneOnline());
+    return onPhoneNetworkChange((onlineNow) => setPhoneOffline(!onlineNow));
   }, []);
 
   useEffect(() => {
@@ -776,7 +796,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {!online ? (
+      {phoneOffline ? (
         <div
           role="status"
           aria-live="polite"
