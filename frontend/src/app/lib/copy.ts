@@ -62,6 +62,19 @@ export const copy = {
       "The server is busy right now. Please try again in a moment.",
     answerFailed:
       "I couldn't reach the server just now. Your message wasn't lost — please try again.",
+    /** Round 8: open-app results — the action always answers, even
+        when the app cannot be opened. {app} is the app's label. */
+    openAppOpened: "Opening {app}…",
+    openAppNotInstalled:
+      "{app} isn't installed on this phone — install it first, then ask me again.",
+    openAppUnmapped:
+      "Your bank doesn't have one app I can open — tell me which bank app you use and I'll open it.",
+    openAppUnknown:
+      "I don't know an app called \"{app}\". I can open Instagram, YouTube, Gmail, Drive, Docs, Sheets or Calendar.",
+    openAppError:
+      "I couldn't open {app} — try opening it yourself and tell me what you see.",
+    openAppUnavailable:
+      "I can only open apps from the phone app, not from the browser.",
     signInPrompt: "Sign in to sync live connections",
     providersSignIn: "Sign in to configure model providers",
     hubSignIn: "Sign in to see the command hub",
@@ -206,6 +219,19 @@ export const copy = {
       "سرور الان شلوغ است. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
     answerFailed:
       "الان نتوانستم به سرور وصل شوم. پیام‌تان گم نشده — لطفاً دوباره تلاش کنید.",
+    /** Round 8: open-app results — the action always answers, even
+        when the app cannot be opened. {app} is the app's label. */
+    openAppOpened: "«{app}» رو باز می‌کنم…",
+    openAppNotInstalled:
+      "«{app}» روی این گوشی نصب نیست — اول نصبش کن، بعد دوباره بگو.",
+    openAppUnmapped:
+      "بانک یه اپ واحد نداره که بازش کنم — بگو اپ بانکت چیه تا بازش کنم.",
+    openAppUnknown:
+      "اپی به اسم «{app}» نمی‌شناسم. اینستاگرام، یوتیوب، جیمیل، درایو، داکس، شیت یا تقویم رو می‌تونم باز کنم.",
+    openAppError:
+      "نتونستم «{app}» رو باز کنم — خودت بازش کن و بگو چی می‌بینی.",
+    openAppUnavailable:
+      "اپ‌ها رو فقط از برنامهٔ گوشی می‌تونم باز کنم، نه از مرورگر.",
     signInPrompt: "برای همگام‌سازی اتصالات زنده وارد شوید",
     providersSignIn: "برای تنظیم ارائه‌دهندگان مدل وارد شوید",
     hubSignIn: "برای دیدن هاب فرمان وارد شوید",

@@ -24,6 +24,10 @@ import { copy, type IntentId } from "./lib/copy";
 import { travelText } from "./lib/travelCopy";
 import { isBookableTravelIntent, parseTravelIntent } from "./lib/travelIntent";
 import {
+  OPEN_APP_TARGETS,
+  parseOpenAppCommand,
+} from "./lib/openAppCommand";
+import {
   detectTextDirection,
   localeDir,
   type Locale,
@@ -77,6 +81,7 @@ import {
   type WatchPayload,
 } from "@/services/api";
 import { isPhoneOnline, onPhoneNetworkChange } from "@/services/network";
+import { getAppLauncher } from "@/services/appLauncher";
 
 type ThreadMessage = {
   id: string;
@@ -574,6 +579,69 @@ export default function HomePage() {
                       ? `برای بررسی ${cleanup.candidates.length} ایمیل پیدا کردم. فقط Promotions / Social / Forums قدیمی‌اند و Starred یا Important نیستند.\n\n${previewLines}\n\nبرای انتقال به Trash، اقدام را تأیید کن.`
                       : `I found ${cleanup.candidates.length} messages for review. They are older Promotions / Social / Forums and exclude Starred or Important mail.\n\n${previewLines}\n\nConfirm the action to move them to Trash.`,
                 }
+              : item,
+          ),
+        );
+      } catch (error) {
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? { id: assistantId, role: "assistant", text: answerForError(error, locale) }
+              : item,
+          ),
+        );
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    const openAppCommand = parseOpenAppCommand(text);
+    if (openAppCommand) {
+      // Round 8 — "open the app" is a LOCAL action, answered here
+      // before chat: the live backend is stale and has no Gemini
+      // key, so a command that needs the server would only fail.
+      // Both paths funnel here: the voice auto-send
+      // (ChatInput handleVoiceSessionEnd) and the typed submit.
+      const userId = crypto.randomUUID();
+      const assistantId = crypto.randomUUID();
+      setMessages((prev) => [
+        ...prev,
+        { id: userId, role: "user", text: body },
+        { id: assistantId, role: "assistant", text: "", pending: true },
+      ]);
+      setSending(true);
+      try {
+        let reply: string;
+        if (openAppCommand.kind === "unknown") {
+          reply = copy[locale].openAppUnknown.replace(
+            "{app}",
+            openAppCommand.name,
+          );
+        } else {
+          const launcher = await getAppLauncher();
+          const result = await launcher.openApp(openAppCommand.appId);
+          const label =
+            OPEN_APP_TARGETS[openAppCommand.appId].label[locale];
+          if (result.ok) {
+            reply = copy[locale].openAppOpened.replace("{app}", label);
+          } else if (result.reason === "not-installed") {
+            reply = copy[locale].openAppNotInstalled.replace(
+              "{app}",
+              label,
+            );
+          } else if (result.reason === "unmapped") {
+            reply = copy[locale].openAppUnmapped;
+          } else if (result.reason === "unavailable") {
+            reply = copy[locale].openAppUnavailable;
+          } else {
+            reply = copy[locale].openAppError.replace("{app}", label);
+          }
+        }
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? { id: assistantId, role: "assistant", text: reply }
               : item,
           ),
         );
