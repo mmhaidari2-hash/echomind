@@ -208,8 +208,10 @@ function speechNotice(
   starting: boolean,
   error: SpeechErrorCode | null,
   held: boolean,
+  transcribing: boolean,
 ): string | null {
   if (listening || starting) return held ? t.recordingHold : t.recording;
+  if (transcribing) return t.transcribing;
   if (!error || error === "aborted") return null;
   if (error === "unsupported") return t.speechUnsupported;
   if (error === "not-allowed") return t.micDenied;
@@ -218,6 +220,13 @@ function speechNotice(
   if (error === "audio-capture") return t.speechAudio;
   if (error === "stalled") return t.speechStalled;
   if (error === "service-missing") return t.speechServiceMissing;
+  if (error === "key-missing") return t.transcribeKeyMissing;
+  if (error === "server-old") return t.transcribeServerOld;
+  if (error === "server-busy") return t.transcribeServerBusy;
+  if (error === "bad-audio") return t.transcribeBadAudio;
+  if (error === "sign-in") return t.answerSignIn;
+  if (error === "offline") return t.answerPhoneOffline;
+  if (error === "timeout") return t.answerTimeout;
   return t.speechUnknown;
 }
 
@@ -316,6 +325,7 @@ export default function ChatInput({
   const {
     listening,
     starting,
+    transcribing,
     supported,
     probed,
     serviceProbe,
@@ -326,7 +336,7 @@ export default function ChatInput({
     stop: stopListening,
   } = useSpeechRecognition({ locale, onSessionEnd: handleVoiceSessionEnd });
 
-  const notice = speechNotice(t, listening, starting, speechError, micPressed);
+  const notice = speechNotice(t, listening, starting, speechError, micPressed, transcribing);
   /** The mic is dead and the user should know before tapping: the
       availability probe finished and there is no recognizer (no
       native plugin and no Web Speech). A small muted line, not a
@@ -635,7 +645,7 @@ export default function ChatInput({
     requestAnimationFrame(resizeField);
   };
 
-  const micRecording = listening || starting || micPressed;
+  const micRecording = listening || starting || micPressed || transcribing;
 
   return (
     <div className="pointer-events-none z-30 shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">

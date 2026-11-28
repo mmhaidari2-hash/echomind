@@ -2028,6 +2028,41 @@ export async function getVoiceReadiness(): Promise<VoiceReadiness> {
   });
 }
 
+export type TranscribeResponse = {
+  transcript: string;
+  locale: ApiLocale;
+};
+
+/** Round 9 — server transcription (Phase 11 backend STT). The app
+    records with MediaRecorder and sends the audio here; Gemini
+    transcribes it. Auth is "optional" like chat: the session is sent
+    when there is one, and the server's own 401 is the honest sign-in
+    signal when there is not (the endpoint requires a user). The
+    endpoint's error `code` (gemini_key_missing, transcribe_bad_audio,
+    gemini_unavailable) is carried by ApiError, so the voice service
+    can name the cause instead of showing a generic failure. */
+export async function transcribeAudio(
+  audio: Blob,
+  locale: ApiLocale,
+): Promise<TranscribeResponse> {
+  const form = new FormData();
+  const ext = audio.type.includes("mp4")
+    ? "mp4"
+    : audio.type.includes("ogg")
+      ? "ogg"
+      : audio.type.includes("wav")
+        ? "wav"
+        : "webm";
+  form.append("audio", audio, `voice.${ext}`);
+  form.append("locale", locale);
+  return api<TranscribeResponse>("/voice/transcribe", {
+    auth: "optional",
+    method: "POST",
+    timeoutMs: 60_000,
+    body: form,
+  });
+}
+
 async function requestBlob(base: string, path: string, body: string): Promise<Blob> {
   const secureHeaders = await authorizationHeaders();
   const controller = new AbortController();

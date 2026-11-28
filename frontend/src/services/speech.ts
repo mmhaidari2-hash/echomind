@@ -59,7 +59,17 @@ export type SpeechErrorCode =
   | "aborted"
   | "stalled"
   | "service-missing"
-  | "unknown";
+  | "unknown"
+  /** Round 9 — server transcription failures (the hook maps the
+      server-transcription outcome to these; speechNotice names
+      each one in the user's language). */
+  | "key-missing"
+  | "server-old"
+  | "server-busy"
+  | "bad-audio"
+  | "sign-in"
+  | "offline"
+  | "timeout";
 
 export type NativeSpeechPermissionState = "prompt" | "denied" | "granted";
 
@@ -152,7 +162,13 @@ export type SpeechServiceProbe = {
 };
 
 export type NativeSpeechDeps = {
-  loadPlugin: () => Promise<NativeSpeechPlugin | null>;
+  /**
+   * Loads the plugin. The promise MUST fulfill with the WRAPPER
+   * `{ plugin }`, never with the plugin proxy itself — see
+   * ensurePlugin: a promise fulfilling with the Capacitor proxy
+   * hangs every awaiter forever.
+   */
+  loadPlugin: () => Promise<{ plugin: NativeSpeechPlugin | null }>;
   /** Probe timeout for the Google-app broadcast. Default 5000 ms. */
   probeTimeoutMs?: number;
 };
@@ -177,16 +193,34 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | "timeout"> {
 }
 
 export function createNativeSpeech(deps: NativeSpeechDeps) {
-  let pluginPromise: Promise<NativeSpeechPlugin | null> | null = null;
+  let pluginPromise: Promise<{ plugin: NativeSpeechPlugin | null }> | null = null;
   let listeners: Array<{ remove: () => Promise<void> }> = [];
   let lastText = "";
   let sessionHadText = false;
   let probePromise: Promise<SpeechServiceProbe> | null = null;
   let probeCache: SpeechServiceProbe | null = null;
 
-  async function ensurePlugin(): Promise<NativeSpeechPlugin | null> {
+  /**
+   * Load the plugin once. THE TRAP (root cause of the mic failing
+   * in rounds 3–8, found in round 9): the load promise fulfills
+   * with the Capacitor plugin PROXY, and a promise must NEVER
+   * fulfill with a proxy — awaiting it hangs forever, because
+   * promise assimilation calls proxy.then, which Capacitor routes
+   * to a non-existent native method
+   * ("SpeechRecognition.then() is not implemented on android").
+   * Every `await ensurePlugin()` hung in that call, the native
+   * start never ran, and only the 8s watchdog ever fired.
+   * The conversion happens at the load boundary
+   * (loadNativeSpeechPlugin fulfills with the plain wrapper
+   * `{ plugin }`), so this promise fulfills with a plain object,
+   * which is safe to await. Callers unwrap with
+   * `const { plugin: native } = await ensurePlugin();`
+   */
+  async function ensurePlugin(): Promise<{
+    plugin: NativeSpeechPlugin | null;
+  }> {
     if (!pluginPromise) {
-      pluginPromise = deps.loadPlugin().catch(() => null);
+      pluginPromise = deps.loadPlugin();
     }
     return pluginPromise;
   }
@@ -208,7 +242,7 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
     if (probeCache) return probeCache;
     if (probePromise) return probePromise;
     probePromise = (async () => {
-      const native = await ensurePlugin();
+      const { plugin: native } = await ensurePlugin();
       if (!native) {
         probeCache = {
           available: false,
@@ -267,7 +301,7 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
     language: string,
     callbacks: NativeSpeechCallbacks,
   ): Promise<NativeSpeechStartResult> {
-    const native = await ensurePlugin();
+    const { plugin: native } = await ensurePlugin();
     if (!native) return { ok: false, code: "unsupported" };
 
     try {
@@ -333,7 +367,7 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
   }
 
   async function stop(): Promise<void> {
-    const native = await ensurePlugin();
+    const { plugin: native } = await ensurePlugin();
     if (!native) return;
     // The plugin's stop() NEVER resolves its PluginCall on the success
     // path — never await it, fire and forget. The "stopped" event (or
@@ -342,7 +376,7 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
   }
 
   async function release(): Promise<void> {
-    const native = await ensurePlugin();
+    const { plugin: native } = await ensurePlugin();
     if (native) {
       // Stop the native recognizer FIRST (fire-and-forget — it never
       // settles), otherwise a zombied session stays hot and the next
@@ -372,11 +406,25 @@ export function createNativeSpeech(deps: NativeSpeechDeps) {
 }
 
 /** The real plugin, loaded only on demand (never on the web). */
-export async function loadNativeSpeechPlugin(): Promise<NativeSpeechPlugin | null> {
-  try {
-    const mod = await import("@capacitor-community/speech-recognition");
-    return mod.SpeechRecognition as unknown as NativeSpeechPlugin;
-  } catch {
-    return null;
-  }
+/**
+ * Load the native plugin module. Fulfills with the plain wrapper
+ * `{ plugin }` — NEVER with the plugin proxy itself: a promise
+ * fulfilling with the Capacitor proxy hangs every awaiter forever
+ * (promise assimilation calls proxy.then, which Capacitor routes
+ * to a non-existent native method — "SpeechRecognition.then() is
+ * not implemented on android"; that hang was the root cause of the
+ * mic failing in rounds 3–8). The conversion happens here, in a
+ * .then() callback on the module import: .then() receives the
+ * module (and the proxy inside it) as plain arguments, with no
+ * assimilation, and this promise fulfills with the wrapper object.
+ */
+export function loadNativeSpeechPlugin(): Promise<{
+  plugin: NativeSpeechPlugin | null;
+}> {
+  return import("@capacitor-community/speech-recognition").then(
+    (mod) => ({
+      plugin: mod.SpeechRecognition as unknown as NativeSpeechPlugin,
+    }),
+    () => ({ plugin: null }),
+  );
 }

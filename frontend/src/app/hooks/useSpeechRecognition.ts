@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Locale } from "../lib/direction";
 import { isNativeApp } from "../lib/native";
+import { transcribeAudio } from "../../services/api";
 import {
   createNativeSpeech,
   loadNativeSpeechPlugin,
@@ -12,6 +13,10 @@ import {
   type SpeechErrorCode,
   type SpeechServiceProbe,
 } from "../../services/speech";
+import {
+  getServerTranscription,
+  type ServerTranscribeReason,
+} from "../../services/serverTranscription";
 
 export type { SpeechErrorCode } from "../../services/speech";
 
@@ -173,6 +178,20 @@ export function useSpeechRecognition({
       immediately, and the gate/watchdog below turn a hung start into
       a visible error instead of silence. */
   const [starting, setStarting] = useState(false);
+  /** Round 9 — true while a recorded server utterance is being
+      transcribed. The mic is not recording then (the orb is back to
+      gold), but the voice attempt is not over: the transcript is
+      still on its way, and a new press must wait for it. */
+  const [transcribing, setTranscribing] = useState(false);
+  /** Round 9 — the current session records with MediaRecorder and
+      transcribes on the server instead of the native recognizer. */
+  const serverModeRef = useRef(false);
+  /** Live mirror of `transcribing` (start() must ignore presses
+      while a transcription is in flight). */
+  const transcribingRef = useRef(false);
+  /** One server fallback per start attempt: the started gate and
+      the watchdog must not each launch their own recording. */
+  const serverFallbackTriedRef = useRef(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [error, setError] = useState<SpeechErrorCode | null>(null);
@@ -221,13 +240,28 @@ export function useSpeechRecognition({
       setProbed(true);
       return;
     }
+    // Round 9 — the server recorder (MediaRecorder + /voice/transcribe)
+    // is a voice path too: if this runtime can record audio, voice is
+    // available even with no on-device recognizer and no Web Speech.
+    // Without this, the composer would wrongly call voice "not
+    // supported" on a phone whose recognizer is missing but whose
+    // microphone records fine.
+    if (
+      typeof window !== "undefined" &&
+      typeof window.MediaRecorder !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function"
+    ) {
+      setSupported(true);
+      setProbed(true);
+      return;
+    }
     if (!isNativeApp()) {
       setProbed(true);
       return;
     }
     // No Web Speech here — probe the native recognizer instead.
     let cancelled = false;
-    void loadNativeSpeechPlugin().then(async (plugin) => {
+    void loadNativeSpeechPlugin().then(async ({ plugin }) => {
       if (cancelled) return;
       try {
         if (!plugin) return;
@@ -293,9 +327,13 @@ export function useSpeechRecognition({
     shouldListenRef.current = false;
     setListening(false);
     setStarting(false);
+    setTranscribing(false);
+    transcribingRef.current = false;
+    serverModeRef.current = false;
     clearStartWatchdog();
     clearStartedGate();
     clearHarvest();
+    getServerTranscription(transcribeAudio).release();
     void nativeRef.current?.release().catch(() => undefined);
     nativeRef.current = null;
     const recognition = recognitionRef.current;
@@ -332,6 +370,83 @@ export function useSpeechRecognition({
     }
     return "stalled";
   }, []);
+
+  /** Round 9 — map a server transcription outcome to the visible
+      error code. A failed transcription is never silence: the
+      notice names the cause (key / old server / busy / sign-in). */
+  const serverTranscribeError = useCallback(
+    (reason: ServerTranscribeReason): SpeechErrorCode => {
+      switch (reason) {
+        case "key-missing":
+          return "key-missing";
+        case "server-old":
+          return "server-old";
+        case "server-busy":
+          return "server-busy";
+        case "bad-audio":
+          return "bad-audio";
+        case "sign-in":
+          return "sign-in";
+        case "offline":
+          return "offline";
+        case "timeout":
+          return "timeout";
+        default:
+          return "unknown";
+      }
+    },
+    [],
+  );
+
+  /**
+   * Round 9 — start a SERVER recording session (MediaRecorder +
+   * POST /voice/transcribe). This is the fallback when the native
+   * recognizer cannot start: it bypasses the SpeechRecognizer
+   * service entirely and only needs the microphone + the server.
+   * One attempt per start (the started gate and the watchdog share
+   * this guard). Returns true when the server session is live.
+   * A permission denial is reported immediately (micDenied) — the
+   * native path would hit the same wall, so there is nothing to
+   * fall back to. Any other failure leaves the caller's error in
+   * place (the caller then shows its own cause).
+   */
+  const tryServerSession = useCallback(
+    async (gen: number): Promise<boolean> => {
+      if (serverFallbackTriedRef.current) return false;
+      serverFallbackTriedRef.current = true;
+      const server = getServerTranscription(transcribeAudio);
+      const result = await server.start();
+      if (generationRef.current !== gen) {
+        server.release();
+        return false;
+      }
+      if (!result.ok) {
+        if (result.reason === "not-allowed") {
+          shouldListenRef.current = false;
+          setListening(false);
+          setStarting(false);
+          setError("not-allowed");
+        } else if (result.reason === "no-mic") {
+          shouldListenRef.current = false;
+          setListening(false);
+          setStarting(false);
+          setError("audio-capture");
+        } else if (result.reason === "busy") {
+          shouldListenRef.current = false;
+          setListening(false);
+          setStarting(false);
+          setError("unknown");
+        }
+        return false;
+      }
+      serverModeRef.current = true;
+      setListening(true);
+      setStarting(false);
+      setError(null);
+      return true;
+    },
+    [],
+  );
 
   /** Commit the pending partial as final, once per session. The merge
       replaces (not appends) when the pending text extends the chunk
@@ -552,29 +667,66 @@ export function useSpeechRecognition({
       // service is stalled (zombie bind) and the session is killed.
       clearStartedGate();
       startedGateRef.current = window.setTimeout(() => {
-        if (generationRef.current !== gen) return;
-        if (!shouldListenRef.current || listeningRef.current) return;
-        shouldListenRef.current = false;
-        setListening(false);
-        setStarting(false);
-        setError(stallError());
-        void native.release().catch(() => undefined);
-        if (nativeRef.current === native) nativeRef.current = null;
+        void (async () => {
+          if (generationRef.current !== gen) return;
+          if (!shouldListenRef.current || listeningRef.current) return;
+          // Round 9: the native start resolved but the recognizer
+          // never began listening (zombie bind) — try the server
+          // recorder instead of failing with the stall error. If
+          // the server attempt already reported a cause (e.g. the
+          // microphone permission), keep that instead of the stall.
+          if (await tryServerSession(gen)) {
+            void native.release().catch(() => undefined);
+            if (nativeRef.current === native) nativeRef.current = null;
+            return;
+          }
+          if (generationRef.current !== gen) return;
+          if (!shouldListenRef.current) return;
+          shouldListenRef.current = false;
+          setListening(false);
+          setStarting(false);
+          setError(stallError());
+          void native.release().catch(() => undefined);
+          if (nativeRef.current === native) nativeRef.current = null;
+        })();
       }, STARTED_GATE_MS);
       return;
     }
     nativeRef.current = null;
     await native.release().catch(() => undefined);
     if (result.code === "unsupported") {
-      // No native recognizer here: fall through to Web Speech, which
-      // reports "unsupported" honestly in a WebView.
+      // No native recognizer here: try the server recorder before
+      // falling through to Web Speech, which reports "unsupported"
+      // honestly in a WebView. (Round 9.) If the server attempt
+      // already reported a cause (e.g. the microphone permission),
+      // keep that — falling through to Web Speech would overwrite
+      // it with a generic "unsupported".
+      if (await tryServerSession(gen)) return;
+      if (generationRef.current !== gen) return;
+      if (!shouldListenRef.current) return;
       startWeb();
       return;
+    }
+    // Round 9 — the native start failed for a reason the server
+    // route does not share (no recognizer service, a hung start, a
+    // network failure): try the server recorder. A permission
+    // denial ("not-allowed") and session outcomes ("no-speech",
+    // "audio-capture") are NOT retried — the server would hit the
+    // same wall or the same empty mic.
+    if (
+      result.code === "unknown" ||
+      result.code === "network" ||
+      result.code === "stalled" ||
+      result.code === "service-missing"
+    ) {
+      if (await tryServerSession(gen)) return;
+      if (generationRef.current !== gen) return;
+      if (!shouldListenRef.current) return;
     }
     shouldListenRef.current = false;
     setListening(false);
     setError(result.code);
-  }, [startWeb, clearStartWatchdog, clearStartedGate, stallError]);
+  }, [startWeb, clearStartWatchdog, clearStartedGate, stallError, tryServerSession]);
 
   /** Native start. The hang watchdog lives in `start()` (one
       watchdog for both paths) — a native start that never resolves
@@ -591,9 +743,15 @@ export function useSpeechRecognition({
   /** One start path for every entry point (mic button, widget, Speak
       action): native on the phone, Web Speech on the web. */
   const start = useCallback(() => {
+    // Round 9: a transcription is still in flight — the previous
+    // voice attempt is not over. Ignore the press instead of
+    // starting a second session over it.
+    if (transcribingRef.current) return;
     generationRef.current += 1;
     stopRequestedRef.current = false;
     shouldListenRef.current = true;
+    serverModeRef.current = false;
+    serverFallbackTriedRef.current = false;
     emptyNativeSessionsRef.current = 0;
     finalsRef.current = "";
     lastPartialRef.current = "";
@@ -613,22 +771,30 @@ export function useSpeechRecognition({
     clearStartWatchdog();
     const gen = generationRef.current;
     startWatchdogRef.current = window.setTimeout(() => {
-      if (generationRef.current !== gen) return;
-      if (shouldListenRef.current && !listeningRef.current) {
+      void (async () => {
+        if (generationRef.current !== gen) return;
+        if (!shouldListenRef.current || listeningRef.current) return;
+        // Round 9: the start never resolved and never called back —
+        // try the server recorder before failing visibly. If the
+        // server attempt already reported a cause (e.g. the
+        // microphone permission), keep that instead of the stall.
+        if (await tryServerSession(gen)) return;
+        if (generationRef.current !== gen) return;
+        if (!shouldListenRef.current) return;
         shouldListenRef.current = false;
         setListening(false);
         setStarting(false);
         setError(stallError());
         void nativeRef.current?.release().catch(() => undefined);
         nativeRef.current = null;
-      }
+      })();
     }, START_WATCHDOG_MS);
     if (isNativeApp()) {
       void startNative();
       return;
     }
     startWeb();
-  }, [startNative, startWeb, clearStartWatchdog, stallError, clearHarvest]);
+  }, [startNative, startWeb, clearStartWatchdog, stallError, clearHarvest, tryServerSession]);
 
   const stop = useCallback(() => {
     generationRef.current += 1;
@@ -638,6 +804,54 @@ export function useSpeechRecognition({
     setStarting(false);
     clearStartWatchdog();
     clearStartedGate();
+    // Round 9 — server session: stop the recorder, transcribe the
+    // audio, and hand the finished utterance to the consumer exactly
+    // like the native harvest below does. The transcript auto-sends
+    // through the same onSessionEnd callback, so the always-answer
+    // path replies to it (or names the cause) like a typed message.
+    // A failed transcription is never silence: the notice names the
+    // cause (key / old server / busy / sign-in). An empty transcript
+    // (silence) is "no speech detected".
+    if (serverModeRef.current) {
+      serverModeRef.current = false;
+      const server = getServerTranscription(transcribeAudio);
+      setTranscribing(true);
+      transcribingRef.current = true;
+      void (async () => {
+        const recorded = await server.stop();
+        if (!recorded.ok) {
+          setTranscribing(false);
+          transcribingRef.current = false;
+          setError(
+            recorded.reason === "no-speech"
+              ? "no-speech"
+              : recorded.reason === "not-allowed"
+                ? "not-allowed"
+                : recorded.reason === "no-mic"
+                  ? "audio-capture"
+                  : "unknown",
+          );
+          return;
+        }
+        const outcome = await server.transcribe(
+          recorded.blob,
+          langRef.current === "fa-IR" ? "fa" : "en",
+        );
+        setTranscribing(false);
+        transcribingRef.current = false;
+        if (!outcome.ok) {
+          setError(serverTranscribeError(outcome.reason));
+          return;
+        }
+        const text = outcome.transcript.trim();
+        if (!text) {
+          setError("no-speech");
+          return;
+        }
+        onSessionEndRef.current?.(text);
+      })();
+      return;
+    }
     // Commit the pending partial now: a zombied session may never
     // fire the "stopped" event that would commit it. The per-session
     // committed flag keeps a late onFinal from duplicating it.
@@ -675,7 +889,7 @@ export function useSpeechRecognition({
       const text = finalsRef.current.trim();
       if (text) onSessionEndRef.current?.(text);
     }, FINAL_HARVEST_MS);
-  }, [clearStartWatchdog, clearStartedGate, commitPendingText, clearHarvest]);
+  }, [clearStartWatchdog, clearStartedGate, commitPendingText, clearHarvest, serverTranscribeError]);
 
   const toggle = useCallback(() => {
     if (shouldListenRef.current || listening) stop();
@@ -690,6 +904,7 @@ export function useSpeechRecognition({
     serviceProbe,
     listening,
     starting,
+    transcribing,
     transcript,
     interimTranscript,
     error,

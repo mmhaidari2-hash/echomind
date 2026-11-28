@@ -22,6 +22,10 @@
  *    arrives as a late partialResults event after stop(); mergeLateFinal()
  *    replaces (never duplicates) a committed interim when the final
  *    text extends it.
+ *  - round 9: the plugin is a Capacitor proxy — start() and probe()
+ *    must settle instead of hanging on it (awaiting a proxy hangs
+ *    forever; that was the root cause of the mic failing in rounds
+ *    3–8 — see ensurePlugin in speech.ts).
  *
  * Usage (from the frontend verification copy):
  *   node scripts/test-speech.mjs
@@ -145,7 +149,7 @@ try {
   {
     const stub = stubPlugin();
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { seen, cbs } = callbacks();
     const result = await speech.start("fa-IR", cbs);
@@ -171,7 +175,7 @@ try {
   {
     const stub = stubPlugin();
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { seen, cbs } = callbacks();
     await speech.start("fa-IR", cbs);
@@ -186,7 +190,7 @@ try {
     stub.state.permission = "denied";
     stub.state.requestResult = "denied";
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     const result = await speech.start("fa-IR", cbs);
@@ -200,7 +204,7 @@ try {
     stub.state.permission = "prompt";
     stub.state.requestResult = "granted";
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     const result = await speech.start("en-GB", cbs);
@@ -213,7 +217,7 @@ try {
     const stub = stubPlugin();
     stub.state.available = false;
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     assert.deepEqual(await speech.start("fa-IR", cbs), {
@@ -222,7 +226,7 @@ try {
     });
     assert.equal(stub.calls.start.length, 0);
 
-    const missing = createNativeSpeech({ loadPlugin: async () => null });
+    const missing = createNativeSpeech({ loadPlugin: async () => ({ plugin: null }) });
     assert.deepEqual(await missing.start("fa-IR", cbs), {
       ok: false,
       code: "unsupported",
@@ -234,7 +238,7 @@ try {
     const stub = stubPlugin();
     stub.state.startError = "Network error";
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     assert.deepEqual(await speech.start("fa-IR", cbs), {
@@ -247,7 +251,7 @@ try {
   {
     const stub = stubPlugin();
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     await speech.start("fa-IR", cbs);
@@ -265,7 +269,7 @@ try {
   {
     const stub = stubPlugin();
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
       probeTimeoutMs: 200,
     });
     const probe = await speech.probe();
@@ -285,7 +289,7 @@ try {
     const stub = stubPlugin();
     delete stub.plugin.getSupportedLanguages;
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
       probeTimeoutMs: 200,
     });
     const probe = await speech.probe();
@@ -298,7 +302,7 @@ try {
     const stub = stubPlugin();
     stub.state.languagesHang = true;
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
       probeTimeoutMs: 50,
     });
     const probe = await speech.probe();
@@ -308,7 +312,7 @@ try {
   // --- probe: plugin missing -> service-missing facts ------------------------------
   {
     const speech = createNativeSpeech({
-      loadPlugin: async () => null,
+      loadPlugin: async () => ({ plugin: null }),
       probeTimeoutMs: 200,
     });
     const probe = await speech.probe();
@@ -325,7 +329,7 @@ try {
     const stub = stubPlugin();
     stub.plugin.stop = () => new Promise(() => {});
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     await speech.start("fa-IR", cbs);
@@ -340,7 +344,7 @@ try {
   {
     const stub = stubPlugin();
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { cbs } = callbacks();
     await speech.start("fa-IR", cbs);
@@ -356,7 +360,7 @@ try {
   {
     const stub = stubPlugin();
     const speech = createNativeSpeech({
-      loadPlugin: async () => stub.plugin,
+      loadPlugin: async () => ({ plugin: stub.plugin }),
     });
     const { seen, cbs } = callbacks();
     await speech.start("fa-IR", cbs);
@@ -400,6 +404,65 @@ try {
     assert.equal(mergeLateFinal("", "", "سلام"), "سلام");
     // The late text is already the tail: unchanged.
     assert.equal(mergeLateFinal("سلام دنیا", "", "دنیا"), "سلام دنیا");
+  }
+
+  // --- round 9: the plugin is a Capacitor proxy — awaiting it must not hang ---
+  // ROOT CAUSE of the mic failing in rounds 3–8: the load promise
+  // fulfilled with the Capacitor plugin proxy, and `await`ing a
+  // proxy hangs forever (promise assimilation calls proxy.then,
+  // which Capacitor routes to a non-existent native method:
+  // "SpeechRecognition.then() is not implemented on android").
+  // Every native start hung in `await ensurePlugin()` and only the
+  // 8s watchdog ever fired. The mimic below behaves like the real
+  // proxy: any property access returns a method function, and
+  // "then" rejects. start() AND probe() must both settle — a hang
+  // fails the race as "timeout".
+  {
+    const capacitorProxyLike = (target) =>
+      new Proxy(target, {
+        get(t, prop) {
+          if (prop === "then") {
+            return () =>
+              Promise.reject(
+                new Error(
+                  '"SpeechRecognition.then()" is not implemented on android',
+                ),
+              );
+          }
+          const value = t[prop];
+          return typeof value === "function" ? value.bind(t) : value;
+        },
+      });
+    const withTimeout = (promise, ms) =>
+      Promise.race([
+        promise.then((v) => ({ settled: true, value: v })),
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ settled: false }), ms),
+        ),
+      ]);
+    const stub = stubPlugin();
+    const speech = createNativeSpeech({
+      loadPlugin: async () => ({ plugin: capacitorProxyLike(stub.plugin) }),
+    });
+    const { cbs } = callbacks();
+    const started = await withTimeout(speech.start("fa-IR", cbs), 3000);
+    assert.equal(
+      started.settled,
+      true,
+      "start() hung on the proxy (await-the-proxy trap)",
+    );
+    assert.deepEqual(started.value, { ok: true });
+    assert.equal(stub.calls.start.length, 1);
+    const probed = await withTimeout(speech.probe(), 3000);
+    assert.equal(
+      probed.settled,
+      true,
+      "probe() hung on the proxy (await-the-proxy trap)",
+    );
+    assert.equal(probed.value.available, true);
+    assert.equal(probed.value.googleService, "ok");
+    await speech.stop();
+    await speech.release();
   }
 
   console.log("speech: all cases pass");

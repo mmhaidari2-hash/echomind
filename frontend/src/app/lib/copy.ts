@@ -39,10 +39,22 @@ export const copy = {
         failure. */
     speechStalled:
       "The phone's speech service didn't start. Try again — if it keeps failing, make sure the Google app is enabled.",
-    /** Round 4: no on-device recognizer AND no server transcription
-        yet (there is no /voice/transcribe endpoint) — say so plainly. */
+    /** Round 9: the endpoint now exists, so this line is only shown
+        when BOTH the on-device recognizer AND the server recorder
+        cannot start (no MediaRecorder either) — say so plainly. */
     speechServiceMissing:
-      "No speech recognizer on this phone, and server transcription isn't set up yet — please type for now.",
+      "The phone's speech service isn't available, and server transcription couldn't start either — please type for now.",
+    /** Round 9 — server transcription states. Every voice attempt
+        ends in a visible result, never silence. */
+    transcribing: "Turning your voice into text…",
+    transcribeKeyMissing:
+      "Voice transcription needs the Gemini key — it isn't set yet. Add GEMINI_API_KEY in Railway and try again.",
+    transcribeServerOld:
+      "The server is still running the older version, so server transcription isn't available yet. Type for now — it arrives with the next server update.",
+    transcribeServerBusy:
+      "The transcription server is busy right now. Please try again in a moment.",
+    transcribeBadAudio:
+      "That recording couldn't be read. Try again — speak a little closer to the phone.",
     emptyThread:
       "Your message stays on this device. Live replies connect in a later phase.",
     thinking: "EchoMind is thinking…",
@@ -199,10 +211,22 @@ export const copy = {
         failure. */
     speechStalled:
       "سرویس گفتار گوشی شروع نشد. دوباره تلاش کنید — اگر باز هم نشد، مطمئن شوید برنامهٔ Google فعال است.",
-    /** Round 4: no on-device recognizer AND no server transcription
-        yet (there is no /voice/transcribe endpoint) — say so plainly. */
+    /** Round 9: the endpoint now exists, so this line is only shown
+        when BOTH the on-device recognizer AND the server recorder
+        cannot start (no MediaRecorder either) — say so plainly. */
     speechServiceMissing:
-      "روی این گوشی تشخیص‌گفتار نیست و رونویسی سرور هم هنوز راه‌اندازی نشده — فعلاً تایپ کنید.",
+      "سرویس گفتار گوشی در دسترس نیست و رونویسی سرور هم شروع نشد — فعلاً تایپ کنید.",
+    /** Round 9 — server transcription states. Every voice attempt
+        ends in a visible result, never silence. */
+    transcribing: "در حال تبدیل صدا به متن…",
+    transcribeKeyMissing:
+      "رونویسی صدا به کلید Gemini نیاز دارد — هنوز گذاشته نشده. در Railway کلید GEMINI_API_KEY را بگذار و دوباره تلاش کن.",
+    transcribeServerOld:
+      "سرور هنوز نسخهٔ قدیمی را اجرا می‌کند، پس رونویسی سرور هنوز در دسترس نیست. فعلاً تایپ کن — با به‌روزرسانی بعدی سرور می‌آید.",
+    transcribeServerBusy:
+      "سرور رونویسی الان شلوغ است. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
+    transcribeBadAudio:
+      "آن ضبط خوانده نشد. دوباره تلاش کن — کمی نزدیک‌تر به گوشی صحبت کن.",
     emptyThread:
       "پیام روی همین دستگاه می‌ماند. پاسخ زنده در فازهای بعدی وصل می‌شود.",
     thinking: "اکومایند در حال فکر کردن است…",
