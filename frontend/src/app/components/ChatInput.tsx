@@ -12,7 +12,7 @@ import {
 
 import { copy } from "../lib/copy";
 import { getPhotoService } from "../../services/photos";
-import { LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
+import { LISTEN_MODE, LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
 import {
   detectTextDirection,
   localeDir,
@@ -466,12 +466,21 @@ export default function ChatInput({
       // Unconditional: a stop request must cancel even a pending start.
       stopListening();
     };
+    // Round 10 — mode-only: the orb's tap-release retargets the
+    // teacher line without starting anything (see HomeHub).
+    const onMode = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: "hold" | "tap" }>).detail
+        ?.mode;
+      if (mode === "hold" || mode === "tap") listenModeRef.current = mode;
+    };
     if (consumeFlag() || consumeUrlParam()) startIfRequested();
     window.addEventListener(FLAG, onRequest);
     window.addEventListener(LISTEN_STOP_REQUEST, onStopRequest);
+    window.addEventListener(LISTEN_MODE, onMode);
     return () => {
       window.removeEventListener(FLAG, onRequest);
       window.removeEventListener(LISTEN_STOP_REQUEST, onStopRequest);
+      window.removeEventListener(LISTEN_MODE, onMode);
     };
   }, [startListening, stopListening]);
 
@@ -585,6 +594,13 @@ export default function ChatInput({
     if (!micPressedRef.current) return;
     micPressedRef.current = false;
     setMicPressed(false);
+    // Round 10 — same latent race as the orb's click restart: the
+    // click after a hold of 600ms+ would reach onMicClick (the
+    // 600ms guard measures from pointerdown) and toggleListening
+    // would restart the session the release had just stopped.
+    // Refresh the handled timestamp so the guard suppresses it;
+    // a keyboard / assistive click (no pointer events) still works.
+    micPressHandledRef.current = Date.now();
     const heldMs = Date.now() - micPressStartRef.current;
     if (heldMs >= HOLD_MS) {
       // It was a hold: releasing stops listening. A stop during a

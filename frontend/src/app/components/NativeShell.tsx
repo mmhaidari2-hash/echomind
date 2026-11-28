@@ -20,6 +20,12 @@ export const LISTEN_REQUEST = "echomind-listen-request";
     golden orb, tapped again while listening). */
 export const LISTEN_STOP_REQUEST = "echomind-listen-stop-request";
 
+/** Window event that only retargets the teacher line's mode
+    (hold/tap) — it never starts or stops a session. Round 10: the
+    orb's tap-release used to re-dispatch LISTEN_REQUEST for this,
+    which restarted the session the stop tap had just ended. */
+export const LISTEN_MODE = "echomind-listen-mode";
+
 /** Ask the app to start voice input, through both channels. */
 function requestListen() {
   try {

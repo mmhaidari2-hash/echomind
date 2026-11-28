@@ -60,7 +60,7 @@ import { Browser } from "@capacitor/browser";
 import { AnimatedCount, GlassCard, Kbd, LivingOrb, SpotlightCard, StatusDot, type OrbState } from "./Glass";
 import { BrandIcon } from "./BrandIcons";
 import { Button } from "./ui/button";
-import { LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
+import { LISTEN_MODE, LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   HUB_APPS,
@@ -253,26 +253,50 @@ export default function HomeHub({
     if (!orbPressedRef.current) return;
     orbPressedRef.current = false;
     setOrbPressed(false);
+    // Round 10 — the click after this release must never restart a
+    // session (see onOrbClick below): refresh the handled timestamp
+    // so the 600ms click guard always suppresses it.
+    orbPressHandledRef.current = Date.now();
     const heldMs = Date.now() - orbPressStartRef.current;
     if (heldMs >= HOLD_MS) {
       // It was a hold: releasing stops listening.
       window.dispatchEvent(new Event(LISTEN_STOP_REQUEST));
       return;
     }
-    // A quick tap: the session keeps listening in tap mode. Correct
-    // the mode where the composer tracks it too: the request handler
-    // sets its mode from every LISTEN_REQUEST and ignores the start
-    // when one is already pending, so this only retargets the
-    // teacher line from "release to stop" to "tap to stop".
+    // A quick tap: the session keeps listening in tap mode.
+    //
+    // Round 10 ROOT CAUSE (orb "does nothing", mic works): this
+    // branch used to re-dispatch LISTEN_REQUEST to flip the
+    // teacher line to "tap". That re-dispatch is a START request,
+    // and it also fires on the pointerup of the TAP THAT STOPS a
+    // session: pointerdown dispatches STOP, then pointerup
+    // re-dispatches START — ChatInput's startIfRequested sees
+    // listening/starting already false and restarts a new session.
+    // The restart cancels the stop's 700ms harvest (start() calls
+    // clearHarvest) and resets the transcript, so the utterance is
+    // lost: no auto-send, no transcribe call, the orb just keeps
+    // recording. The mic never re-dispatches a start on release,
+    // which is why the mic worked and the orb did not. The teacher
+    // line reads HomeHub's own listenMode state, so flipping that
+    // is all this branch needs to do locally — the LISTEN_MODE
+    // event below only retargets the composer's copy of the mode
+    // (it never starts or stops anything).
     setListenMode("tap");
     window.dispatchEvent(
-      new CustomEvent(LISTEN_REQUEST, { detail: { mode: "tap" as const } }),
+      new CustomEvent(LISTEN_MODE, { detail: { mode: "tap" as const } }),
     );
   };
 
   const onOrbClick = () => {
     // Pointer events already handled this press (touch/mouse). Only
     // a keyboard / assistive activation reaches here without one.
+    // Round 10: endOrbPress refreshes orbPressHandledRef on every
+    // release, so a click fired after a hold of 600ms+ is also
+    // suppressed — without that, the click's LISTEN_REQUEST
+    // restarted the session the release had just stopped (the
+    // closure's `listening` had already flipped false), cancelling
+    // the harvest and losing the transcript exactly like the
+    // tap-release re-dispatch did.
     if (Date.now() - orbPressHandledRef.current < 600) return;
     window.dispatchEvent(
       new Event(listening ? LISTEN_STOP_REQUEST : LISTEN_REQUEST),
