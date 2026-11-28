@@ -8,7 +8,10 @@ html {
   background-color: #090a0f;
   color: #f4f5f7;
   height: 100%;
-  scroll-behavior: smooth;
+  /* No smooth scrolling on the document: programmatic smooth scrolls
+     inside this nested scroller leave the Android WebView showing
+     blank (un-rasterised) tiles. Scrolls are instant; the only
+     programmatic scroll is the chat thread's scroll-to-bottom. */
   -webkit-text-size-adjust: 100%;
 }
 
@@ -53,15 +56,31 @@ html[dir="rtl"] body {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  /* No scroll-behavior: smooth here — see the html rule above. A
+     smooth programmatic scroll in this nested scroller is what left
+     the thread blank on the phone after sending a message. */
   touch-action: pan-y;
 }
 
+/* No visible scrollbar on the app scroller: the app is a touch
+   surface, and a pale scrollbar track at the edge reads as a broken
+   pill (the Samsung edge panel already occupies that edge). */
+.echomind-scroll {
+  scrollbar-width: none;
+}
+
+.echomind-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* Bottom safe area: drawers/modals get env(safe-area-inset-bottom)
-   + 24px so the lowest input is never hidden behind the Android/iOS
-   system navigation bar. */
+   + 64px so the lowest input is never hidden behind the Android/iOS
+   system navigation bar. 64px, not 24px: on an Android WebView
+   env(safe-area-inset-bottom) is 0, and Samsung's 3-button bar is
+   ~48px tall — the old 40px total left the Balance Guard inputs
+   half-hidden behind it. */
 .echomind-safe-bottom {
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom) + 24px);
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom) + 64px);
 }
 
 .echomind-pulse {
@@ -71,6 +90,24 @@ html[dir="rtl"] body {
 .echomind-mic-ring {
   box-shadow: 0 0 0 2px rgb(229 169 60 / 0.85);
   animation: echomind-mic-ring 1.4s ease-out infinite;
+}
+
+/* Red recording ring (round 4 hold-to-talk): the mic's expanding
+   ring turns red while recording, matching the red medallion. */
+.echomind-mic-ring-recording {
+  box-shadow: 0 0 0 2px rgb(220 38 38 / 0.9);
+  animation: echomind-mic-ring 1.2s ease-out infinite;
+}
+
+/* Composer placeholder (round 4): on a 360px phone the full
+   "Message EchoMind…" placeholder truncated even though the field
+   fit headless — device font rendering runs wider than the desktop
+   fallback. Shrink only the placeholder (not typed text) below
+   380px so the whole string fits. */
+@media (max-width: 380px) {
+  #echomind-composer::placeholder {
+    font-size: 14px;
+  }
 }
 
 .echomind-wave {
@@ -183,12 +220,14 @@ html[dir="rtl"] body {
 
   .echomind-pulse,
   .echomind-mic-ring,
+  .echomind-mic-ring-recording,
   .echomind-wave span,
   .echomind-typing span {
     animation: none;
   }
 
-  .echomind-mic-ring {
+  .echomind-mic-ring,
+  .echomind-mic-ring-recording {
     opacity: 0.7;
   }
 
@@ -246,6 +285,128 @@ html[dir="rtl"] body {
   backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-highlight), var(--glass-shadow);
+}
+
+/* Beveled glassmorphism — the tactile card surface (round 3): a
+   frosted obsidian-amber gradient, real bevels (specular top/left
+   highlight, dark bottom/right edge, inner top rim glow) and a deep
+   soft shadow, so cards read as raised physical objects, not flat
+   boxes with 1px wireframes. Applied to GlassCard and the main
+   surfaces; small chips keep the flat glass. */
+.echomind-glass-bevel {
+  background: linear-gradient(165deg, rgb(36 33 28 / 0.72), rgb(14 13 12 / 0.86));
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid rgb(255 224 150 / 0.28);
+  border-left: 1px solid rgb(255 224 150 / 0.16);
+  border-right: 1px solid rgb(255 255 255 / 0.07);
+  border-bottom: 1px solid rgb(0 0 0 / 0.7);
+  box-shadow:
+    inset 0 1px 1px rgb(255 238 190 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 18px 40px -18px rgb(0 0 0 / 0.65),
+    0 2px 10px -2px rgb(0 0 0 / 0.5);
+}
+
+/* Strong bevel — featured cards: the same bevel with a deeper
+   shadow, so the selected app card and project cards sit one layer
+   above the rest. Defined after .echomind-glass-bevel so it wins. */
+.echomind-glass-bevel-strong {
+  box-shadow:
+    inset 0 1px 1px rgb(255 238 190 / 0.26),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4),
+    0 26px 56px -20px rgb(0 0 0 / 0.75),
+    0 4px 16px -4px rgb(0 0 0 / 0.55),
+    0 0 30px -12px rgb(229 169 60 / 0.35);
+}
+
+/* Beveled 3D medallion — app/action icons as raised glass-metal
+   discs: radial surface gradient, specular inner rim, warm amber
+   ambient glow. Physically embossed, never a flat line drawing.
+   NOTE: no transform on :active — the orbit nodes are positioned
+   with calc() margins (round 4, no transforms at all, after the
+   mobile GPU mis-culled the translated nodes), and a transform here
+   would make a node jump. Brightness only. */
+.echomind-medallion {
+  background:
+    radial-gradient(circle at 32% 24%, rgb(255 255 255 / 0.22), transparent 42%),
+    radial-gradient(circle at 50% 55%, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.02) 55%, transparent 75%),
+    linear-gradient(165deg, rgb(52 48 42 / 0.9), rgb(16 15 13 / 0.92));
+  border-top: 1px solid rgb(255 224 150 / 0.32);
+  border-left: 1px solid rgb(255 224 150 / 0.18);
+  border-right: 1px solid rgb(0 0 0 / 0.55);
+  border-bottom: 1px solid rgb(0 0 0 / 0.65);
+  box-shadow:
+    inset 0 1px 1px rgb(255 238 190 / 0.28),
+    inset 0 -2px 4px rgb(0 0 0 / 0.5),
+    0 10px 22px -8px rgb(0 0 0 / 0.7),
+    0 0 18px -6px rgb(229 169 60 / 0.35);
+  color: #f4f5f7;
+}
+
+.echomind-medallion:active {
+  filter: brightness(1.18);
+}
+
+/* Gold medallion — the primary round action (send, selected node):
+   the same bevel treatment in molten gold. */
+.echomind-medallion-gold {
+  background:
+    radial-gradient(circle at 32% 22%, rgb(255 255 255 / 0.5), transparent 40%),
+    radial-gradient(circle at 50% 58%, rgb(242 194 104 / 0.95), rgb(229 169 60 / 0.9) 48%, rgb(160 110 20 / 0.95) 78%, rgb(58 38 8 / 1) 100%);
+  border-top: 1px solid rgb(255 240 200 / 0.6);
+  border-left: 1px solid rgb(255 224 150 / 0.35);
+  border-right: 1px solid rgb(0 0 0 / 0.5);
+  border-bottom: 1px solid rgb(0 0 0 / 0.6);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -3px 8px rgb(0 0 0 / 0.35),
+    0 12px 26px -8px rgb(229 169 60 / 0.65),
+    0 0 24px -6px rgb(229 169 60 / 0.5);
+  color: #090a0f;
+}
+
+.echomind-medallion-gold:active {
+  filter: brightness(1.1);
+}
+
+/* Red recording medallion (round 5 hold-to-talk): the composer mic
+   turns RED while held or while a tap session is listening — the same
+   red-from-inside treatment as the orb: a glowing red core under the
+   glass, not a repaint of the whole surface. The specular highlight
+   and the dark glass base stay, so it still reads as a glass
+   medallion with red light inside it. */
+.echomind-medallion-recording {
+  background:
+    radial-gradient(circle at 32% 22%, rgb(255 255 255 / 0.5), transparent 40%),
+    radial-gradient(circle at 50% 58%, rgb(255 92 74 / 0.95) 0%, rgb(220 38 38 / 0.85) 34%, rgb(153 27 27 / 0.5) 58%, transparent 74%),
+    linear-gradient(165deg, rgb(52 20 18 / 0.9), rgb(16 8 8 / 0.92));
+  border-top: 1px solid rgb(255 220 210 / 0.6);
+  border-left: 1px solid rgb(255 200 190 / 0.35);
+  border-right: 1px solid rgb(0 0 0 / 0.5);
+  border-bottom: 1px solid rgb(0 0 0 / 0.6);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -3px 8px rgb(0 0 0 / 0.35),
+    0 12px 26px -8px rgb(220 38 38 / 0.65),
+    0 0 24px -6px rgb(220 38 38 / 0.5);
+  color: #fff;
+}
+
+.echomind-medallion-recording:active {
+  filter: brightness(1.1);
+}
+
+/* Selected orbit node (round 4): a static gold ring, NO transform.
+   The old scale-110 was a compositing layer a mobile GPU mis-culled
+   while scrolling, so nodes vanished on the phone. */
+.echomind-node-selected {
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -3px 8px rgb(0 0 0 / 0.35),
+    0 0 0 2px rgb(229 169 60 / 0.95),
+    0 12px 26px -8px rgb(229 169 60 / 0.65),
+    0 0 24px -6px rgb(229 169 60 / 0.5);
 }
 
 /* Gold gradient text for headings and accents. */
@@ -312,27 +473,31 @@ html[dir="rtl"] body {
 /* The brand title sits ABOVE the orb, never stamped across it.       */
 /* States (data-state): idle = slow breathing; listening = gold       */
 /* ripple rings; thinking = rotating golden core; executing = crisp   */
-/* pulse.                                                             */
+/* pulse; recording = RED (round 4 hold-to-talk).                      */
 /* ------------------------------------------------------------------ */
 .echomind-living-orb {
   position: relative;
   border-radius: 9999px;
-  /* Deep molten-gold sphere like the home mockup and the app icon:
-     a tight specular top-left, a saturated amber core, and a dark
-     bronze rim — the old stack washed out pale on a real phone
-     because the bright layers were too wide and too opaque. */
+  /* Glossy golden sphere (round 7, mockup 18112_24_qs19.jpg): the orb
+     is a SOLID golden ball, not translucent glass. The round-5
+     translucent body read as a flat dark disc on Mahdi's phone — the
+     spokes showed through it and the gold heart was too faint. The
+     mockup sphere is opaque: a pale gold-white specular top-left, a
+     saturated gold body, deep bronze shading at the bottom, and a
+     bright rim. Nothing shows through it — the orbit rings pass
+     BEHIND it (see HomeHub), never through it. */
   background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 0.9), transparent 14%),
-    radial-gradient(circle at 38% 30%, rgb(255 244 214 / 0.45), transparent 26%),
-    radial-gradient(circle at 68% 28%, rgb(242 194 104 / 0.45), transparent 36%),
-    radial-gradient(circle at 50% 56%, rgb(229 169 60 / 1) 0%, rgb(201 143 34 / 1) 42%, rgb(138 90 16 / 1) 68%, rgb(58 38 8 / 1) 86%, rgb(9 10 15 / 1) 100%);
+    radial-gradient(circle at 31% 24%, rgb(255 255 255 / 0.98) 0%, rgb(255 244 200 / 0.85) 8%, transparent 17%),
+    radial-gradient(circle at 72% 76%, rgb(255 225 160 / 0.45) 0%, transparent 22%),
+    radial-gradient(circle at 42% 34%, rgb(255 226 140 / 1) 0%, rgb(240 184 74 / 1) 38%, rgb(190 128 32 / 1) 68%, rgb(118 70 14 / 1) 100%);
   box-shadow:
-    inset 0 -26px 48px rgb(0 0 0 / 0.8),
-    inset 0 14px 30px rgb(255 255 255 / 0.28),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12),
-    0 0 0 1px rgb(229 169 60 / 0.16),
-    0 28px 80px -12px rgb(229 169 60 / 0.55),
-    0 0 110px -18px rgb(229 169 60 / 0.45);
+    inset 0 0 0 1.5px rgb(255 240 200 / 0.7),
+    inset 0 -18px 34px rgb(90 50 5 / 0.55),
+    inset 0 12px 24px rgb(255 255 255 / 0.28),
+    inset -8px 0 22px rgb(120 70 10 / 0.35),
+    0 0 0 1px rgb(229 169 60 / 0.2),
+    0 24px 70px -10px rgb(229 169 60 / 0.55),
+    0 0 90px -14px rgb(229 169 60 / 0.45);
   animation: echomind-orb-breathe 4.5s ease-in-out infinite;
 }
 
@@ -388,6 +553,38 @@ html[dir="rtl"] body {
 
 .echomind-living-orb[data-state="executing"] {
   animation: echomind-orb-execute 0.9s ease-in-out infinite;
+}
+
+/* Recording (round 7 hold-to-talk): the RED glows from INSIDE the
+   glass chamber — «میزنی توی اون محفظه قرمز بشه خوشگل بشه». The
+   glossy shell is UNCHANGED (same specular, same bright rim), and
+   the red core is SMALL and central: strong red to ~46% radius,
+   fading to dark glass at the rim, so the edges stay dark glass and
+   the red reads as light shining out of the chamber — not a repaint
+   of the whole surface. The round-5 core was 70% radius on a
+   translucent body, which is why it read as a flat red ball on the
+   phone. Red light pools at the bottom and the outer glow goes red.
+   Releasing returns to gold immediately (the idle stack). */
+.echomind-living-orb[data-state="recording"] {
+  background:
+    radial-gradient(circle at 31% 24%, rgb(255 255 255 / 0.98) 0%, rgb(255 230 220 / 0.7) 8%, transparent 17%),
+    radial-gradient(circle at 72% 76%, rgb(255 150 130 / 0.35) 0%, transparent 20%),
+    radial-gradient(circle at 50% 58%, rgb(255 96 76 / 1) 0%, rgb(226 46 40 / 0.95) 26%, rgb(160 26 24 / 0.75) 46%, rgb(70 10 12 / 0.55) 64%, transparent 76%),
+    radial-gradient(circle at 50% 88%, rgb(255 110 90 / 0.5), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgb(58 12 12 / 1) 0%, rgb(26 6 8 / 1) 62%, rgb(12 3 5 / 1) 100%);
+  box-shadow:
+    inset 0 0 0 1.5px rgb(255 170 150 / 0.65),
+    inset 0 -18px 34px rgb(0 0 0 / 0.6),
+    inset 0 12px 24px rgb(255 255 255 / 0.22),
+    0 0 0 1px rgb(239 68 68 / 0.3),
+    0 24px 70px -10px rgb(239 68 68 / 0.65),
+    0 0 110px -14px rgb(239 68 68 / 0.55);
+  animation: echomind-orb-breathe 1.4s ease-in-out infinite;
+}
+
+.echomind-living-orb[data-state="recording"]::after {
+  border-color: rgb(239 68 68 / 0.7);
+  animation: echomind-orb-ripple 1.2s ease-out infinite;
 }
 
 @keyframes echomind-orb-breathe {
@@ -495,9 +692,16 @@ html[dir="rtl"] body {
   margin-bottom: 0.75rem;
 }
 
+/* Reveal — VISIBLE BY DEFAULT. The old base (opacity 0 until an
+   IntersectionObserver fired) is what left whole sections black on
+   the phone: a fast scroll, or an observer that never fired inside
+   the nested scroller, showed a black void with a half-clipped pill
+   instead of content. Nothing in this app may gate visibility on
+   scroll position; motion may only move content that is already
+   painted. The .is-visible hook stays for compatibility. */
 .echomind-reveal {
-  opacity: 0;
-  transform: translateY(18px);
+  opacity: 1;
+  transform: translateY(0);
   transition:
     opacity 0.6s ease,
     transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
@@ -512,15 +716,19 @@ html[dir="rtl"] body {
 /* Cascade reveal — spring-physics stagger, 40ms per item, triggered
    once on mount / tab switch (see Cascade in components/Glass.tsx).
    The CSS class is the no-JS fallback; framer-motion drives the
-   animated path. */
+   animated path. The fallback never hides content (see .echomind-
+   reveal above): it starts visible and only rises a few pixels. */
 .echomind-cascade-item {
-  opacity: 0;
-  transform: translateY(14px);
-  animation: echomind-cascade-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
+  transform: translateY(0);
+  animation: echomind-cascade-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--cascade-index, 0) * 40ms);
 }
 
 @keyframes echomind-cascade-in {
+  from {
+    transform: translateY(8px);
+  }
   to {
     opacity: 1;
     transform: translateY(0);
@@ -572,7 +780,8 @@ html[dir="rtl"] body {
   .echomind-living-orb,
   .echomind-living-orb[data-state="listening"],
   .echomind-living-orb[data-state="thinking"],
-  .echomind-living-orb[data-state="executing"] {
+  .echomind-living-orb[data-state="executing"],
+  .echomind-living-orb[data-state="recording"] {
     animation: none;
   }
 

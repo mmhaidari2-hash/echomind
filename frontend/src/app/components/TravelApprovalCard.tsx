@@ -50,7 +50,7 @@ export default function TravelApprovalCard({
   };
 
   return (
-    <article className="w-full max-w-lg self-start rounded-[1.6rem] border border-gold/40 bg-white/[0.03] p-4 shadow-lift">
+    <article className="relative w-full max-w-lg self-start rounded-[1.6rem] border border-gold/40 bg-white/[0.03] p-4 shadow-lift">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/80">
           {t.approval}

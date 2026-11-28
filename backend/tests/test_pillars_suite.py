@@ -205,7 +205,26 @@ def test_memory_engine_prompt_injection_and_secrets() -> None:
     assert "Gemini Flash" in prompt
 
 
-def test_memory_multi_turn_keeps_delay_repay_pillar() -> None:
+def test_memory_multi_turn_keeps_delay_repay_pillar(monkeypatch) -> None:
+    # The always-answer rule answers an open-ended message with the
+    # missing-key guidance while Gemini is unconfigured, so this
+    # multi-turn pillar test stubs Gemini as configured (canned reply)
+    # to exercise the model path it is actually about.
+    from app.services import guidance
+    from app.services import pillars
+
+    monkeypatch.setattr(guidance.gemini, "is_configured", lambda: True)
+    monkeypatch.setattr(
+        pillars,
+        "generate_with_memory",
+        lambda prompt: {
+            "status": "ok",
+            "text": "Yes — you can claim Delay Repay for a 45-minute delay.",
+            "injected": True,
+            "model": "gemini-test",
+            "prompt_chars": 10,
+        },
+    )
     first = client.post(
         "/api/v1/chat",
         json={

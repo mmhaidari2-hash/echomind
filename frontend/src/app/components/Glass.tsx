@@ -16,6 +16,10 @@
 
 import { useEffect, useRef, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useSpring } from "framer-motion";
+import { SignInButton } from "@clerk/react";
+
+import { copy } from "../lib/copy";
+import type { Locale } from "../lib/direction";
 
 export function GlassCard({
   children,
@@ -35,7 +39,9 @@ export function GlassCard({
   beam?: boolean;
 }) {
   const classes = [
-    strong ? "echomind-glass-strong" : "echomind-glass",
+    // Beveled glassmorphism (round 3): the tactile card surface.
+    // `strong` is the deeper-shadow variant of the same bevel.
+    strong ? "echomind-glass-bevel echomind-glass-bevel-strong" : "echomind-glass-bevel",
     dense ? "rounded-2xl" : "rounded-[1.4rem]",
     tilt ? "echomind-tilt" : "",
     beam ? "echomind-beam" : "",
@@ -44,6 +50,36 @@ export function GlassCard({
     .filter(Boolean)
     .join(" ");
   return <div className={classes}>{children}</div>;
+}
+
+/** Calm signed-out prompt — the graceful auth state (round 3). When
+    the user is signed out, panels show this instead of a raw red
+    "could not be read" error. The action button only renders when
+    sign-in is actually configured (Clerk key in the build); without
+    it the prompt says plainly that sign-in arrives with the next app
+    update, instead of offering a dead button. */
+export function SignInPrompt({ locale, message }: { locale: Locale; message: string }) {
+  const t = copy[locale];
+  const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  return (
+    <div className="mt-3 w-full min-w-0 rounded-2xl border border-gold/25 bg-gold/[0.06] px-3 py-2.5">
+      <p className="w-full text-xs leading-relaxed text-ink-soft [overflow-wrap:break-word]">{message}</p>
+      {clerkConfigured ? (
+        <SignInButton mode="modal">
+          <button
+            type="button"
+            className="mt-2 min-h-10 rounded-full bg-gold px-4 text-xs font-bold text-obsidian"
+          >
+            {t.signInAction}
+          </button>
+        </SignInButton>
+      ) : (
+        <p className="mt-1.5 w-full text-[11px] leading-relaxed text-muted [overflow-wrap:break-word]">
+          {t.signInSetupNote}
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** magicui NumberTicker pattern, on a framer-motion spring — a count
@@ -242,7 +278,7 @@ export function CommandRow({
   );
 }
 
-export type OrbState = "idle" | "listening" | "thinking" | "executing";
+export type OrbState = "idle" | "listening" | "thinking" | "executing" | "recording";
 
 /** The living orb — a 3D volumetric sphere from layered radial
     shaders (no 3D library): specular highlight, molten gold core,
@@ -250,7 +286,10 @@ export type OrbState = "idle" | "listening" | "thinking" | "executing";
     it — the brand title sits above it. States animate on
     transform/opacity only, so the phone holds 60fps:
     idle = slow breathing, listening = gold ripple rings,
-    thinking = rotating golden core, executing = crisp pulse. */
+    thinking = rotating golden core, executing = crisp pulse,
+    recording = RED (round 4 hold-to-talk): the orb is red while the
+    user holds it or while a tap session is listening, so recording
+    is unmistakable and releasing back to gold is the stop signal. */
 export function LivingOrb({
   size = 180,
   state = "idle",
@@ -304,7 +343,11 @@ export function Cascade({
         <motion.div
           key={index}
           variants={{
-            hidden: { opacity: 0, y: 14 },
+            // Never invisible: the hidden state starts at opacity 1
+            // and only rises a few pixels. The old opacity-0 start
+            // left whole sections black on the phone when the mount
+            // animation had not run yet.
+            hidden: { opacity: 1, y: 8 },
             show: {
               opacity: 1,
               y: 0,
@@ -359,11 +402,14 @@ export function Reveal({
   );
 }
 
-/** Reveal on scroll: real framer-motion entrance (fade + rise, with a
-    stagger delay). Linear-quick: 0.5s, 14px — precise, never floaty.
-    Falls back to no animation when the user prefers reduced motion.
-    Replaces the old CSS-only Reveal for the surfaces that need to
-    feel alive — the waterfall cards and the hub. */
+/** Reveal on scroll — now a plain wrapper. The old version started
+    at opacity 0 until an IntersectionObserver fired, which left
+    whole sections black on the phone (a fast scroll, or an observer
+    that never fired inside the nested scroller, showed a black void
+    with a half-clipped pill). Nothing in this app may gate
+    visibility on scroll position: content is always painted, motion
+    only moves it. The component stays so existing callers keep
+    working. */
 export function MotionReveal({
   children,
   className = "",
@@ -373,23 +419,8 @@ export function MotionReveal({
   className?: string;
   delay?: number;
 }) {
-  const reduceMotion = useReducedMotion();
-  if (reduceMotion) return <div className={className}>{children}</div>;
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{
-        duration: 0.5,
-        delay: delay / 1000,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-    >
-      {children}
-    </motion.div>
-  );
+  void delay;
+  return <div className={className}>{children}</div>;
 }
 
 /** Waterfall (masonry) feed — the cascading scroll. */

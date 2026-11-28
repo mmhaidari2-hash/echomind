@@ -43,9 +43,9 @@ export default function Dashboard({
   const recs = bundle?.recommendations ?? [];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex w-full min-w-0 flex-col gap-4">
       {alerts.length > 0 ? (
-        <section aria-label={t.alertsTitle}>
+        <section aria-label={t.alertsTitle} className="w-full min-w-0">
           <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-muted">{t.alertsTitle}</p>
           <div className="flex snap-x gap-3 overflow-x-auto pb-1">
             {alerts.map((alert) => (
@@ -58,7 +58,7 @@ export default function Dashboard({
                 }}
               >
                 <p className="text-[11px] uppercase tracking-[0.16em] opacity-80">{alert.title}</p>
-                <p className="mt-2 text-sm leading-5">{alert.message}</p>
+                <p className="mt-2 w-full min-w-0 text-sm leading-5 [overflow-wrap:break-word]">{alert.message}</p>
                 {alert.days_remaining != null ? (
                   <p className="mt-2 text-xs opacity-80">
                     {alert.days_remaining} {t.daysLeft}
@@ -69,16 +69,16 @@ export default function Dashboard({
           </div>
         </section>
       ) : (
-        <p className="rounded-3xl border border-white/[0.09] bg-white/[0.03] px-4 py-3 text-sm text-muted">
+        <p className="w-full min-w-0 rounded-3xl border border-white/[0.09] bg-white/[0.03] px-4 py-3 text-sm text-muted [overflow-wrap:break-word]">
           {t.alertsEmpty}
         </p>
       )}
 
       {recs[0] ? (
-        <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] p-4">
+        <section className="w-full min-w-0 rounded-3xl border border-white/[0.09] bg-white/[0.04] p-4">
           <p className="text-[11px] uppercase tracking-[0.2em] text-muted">{t.recsTitle}</p>
-          <p className="mt-1 text-sm font-semibold text-ink">{recs[0].title}</p>
-          <p className="mt-1 text-xs leading-5 text-muted">{recs[0].reason}</p>
+          <p className="mt-1 w-full min-w-0 text-sm font-semibold text-ink [overflow-wrap:break-word]">{recs[0].title}</p>
+          <p className="mt-1 w-full min-w-0 text-xs leading-5 text-muted [overflow-wrap:break-word]">{recs[0].reason}</p>
           <button
             type="button"
             className="mt-3 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold"
@@ -89,27 +89,27 @@ export default function Dashboard({
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-white/[0.09] bg-white/[0.04] p-4">
+      <section className="w-full min-w-0 rounded-3xl border border-white/[0.09] bg-white/[0.04] p-4">
         <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300/80">{t.balanceTitle}</p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs text-muted">
+        <div className="mt-3 grid w-full grid-cols-2 gap-3">
+          <label className="grid min-w-0 gap-1.5 text-xs text-muted">
             {t.balance}
             <input
               type="number"
               min={0}
               step={0.01}
-              className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.06] px-3 py-2.5 text-[16px] text-ink"
+              className="w-full min-w-0 rounded-2xl border border-white/[0.09] bg-white/[0.06] px-3 py-2.5 text-[16px] text-ink"
               value={balance}
               onChange={(event) => onBalanceChange(event.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-xs text-muted">
+          <label className="grid min-w-0 gap-1.5 text-xs text-muted">
             {t.threshold}
             <input
               type="number"
               min={0}
               step={0.01}
-              className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.06] px-3 py-2.5 text-[16px] text-ink"
+              className="w-full min-w-0 rounded-2xl border border-white/[0.09] bg-white/[0.06] px-3 py-2.5 text-[16px] text-ink"
               value={threshold}
               onChange={(event) => onThresholdChange(event.target.value)}
             />

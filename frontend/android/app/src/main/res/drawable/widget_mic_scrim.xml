@@ -1,0 +1,6 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <!-- Dark disc behind the mic glyph so it stays readable on the
+         bright golden orb. -->
+    <solid android:color="#CC090A0F" />
+</shape>

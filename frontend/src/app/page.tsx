@@ -24,6 +24,10 @@ import { copy, type IntentId } from "./lib/copy";
 import { travelText } from "./lib/travelCopy";
 import { isBookableTravelIntent, parseTravelIntent } from "./lib/travelIntent";
 import {
+  OPEN_APP_TARGETS,
+  parseOpenAppCommand,
+} from "./lib/openAppCommand";
+import {
   detectTextDirection,
   localeDir,
   type Locale,
@@ -52,6 +56,8 @@ import {
   getGmailCleanupPreview,
   getMemoryProfile,
   getLifeSnapshot,
+  isAuthError,
+  isEndpointMissing,
   parseDocumentFile,
   proposeAction,
   confirmAction,
@@ -74,6 +80,8 @@ import {
   type LifeSnapshot,
   type WatchPayload,
 } from "@/services/api";
+import { isPhoneOnline, onPhoneNetworkChange } from "@/services/network";
+import { getAppLauncher } from "@/services/appLauncher";
 
 type ThreadMessage = {
   id: string;
@@ -118,9 +126,42 @@ async function pingHealth(): Promise<boolean> {
   }
 }
 
+/** Always-answer (round 3): map any chat failure to a visible
+    assistant reply in the user's language that names the cause —
+    never silence, never a blank space, never a raw "Request failed
+    (404)". A 404 means the live server is the older build without
+    the stream endpoint; a 401 means sign-in; a timeout means the
+    server was too slow. Round 6: only "phone_offline" means the
+    device itself has no internet — a plain network_error means the
+    phone reports online but the request failed, so the server (not
+    the phone) is the cause and it gets the server message, never
+    "you're offline". */
+function answerForError(error: unknown, locale: Locale): string {
+  const t = copy[locale];
+  if (error instanceof ApiError) {
+    if (isAuthError(error)) return t.answerSignIn;
+    if (isEndpointMissing(error)) return t.answerServerOld;
+    if (error.status === 503) return t.answerServerBusy;
+    if (error.code === "timeout") return t.answerTimeout;
+    if (error.code === "phone_offline") return t.answerPhoneOffline;
+    if (error.code === "network_error") return t.answerFailed;
+    return t.answerFailed;
+  }
+  if (error instanceof DOMException && error.name === "AbortError") return t.answerTimeout;
+  if (error instanceof TypeError)
+    return isPhoneOnline() ? t.answerFailed : t.answerPhoneOffline;
+  return t.answerFailed;
+}
+
 export default function HomePage() {
   const [locale, setLocale] = useState<Locale>("en");
   const [online, setOnline] = useState(false);
+  // Round 6: the phone's own internet (Wi-Fi / mobile data), tracked
+  // separately from the server health above. The offline banner must
+  // show only when the phone itself is offline — the old code showed
+  // it whenever the server ping failed, so Mahdi saw "you're offline"
+  // while his phone was online and other apps worked.
+  const [phoneOffline, setPhoneOffline] = useState(false);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [sending, setSending] = useState(false);
@@ -146,28 +187,45 @@ export default function HomePage() {
   const memory = useAssistantMemory();
   useAppViewport();
 
+  /** Round 5: a wizard renders inside main, below the fold — without
+      scrolling, opening one (e.g. tapping the "continue" suggestion
+      chip in the fixed footer) looks like nothing happened. Bring the
+      wizard into view once React has committed it (two frames). */
+  const scrollToSurface = () => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("echomind-surface")?.scrollIntoView();
+      });
+    });
+  };
+
   const openDelayWizard = () => {
     setActiveIntent("travel");
     setSurface("delay");
+    scrollToSurface();
   };
 
   const openRightsWizard = () => {
     setActiveIntent("rights");
     setSurface("rights");
+    scrollToSurface();
   };
 
   const openShieldWizard = () => {
     setActiveIntent("shield");
     setSurface("shield");
+    scrollToSurface();
   };
 
   const openScan = () => {
     setSurface("scan");
+    scrollToSurface();
   };
 
   const openTravel = () => {
     setActiveIntent("travel");
     setSurface("travel");
+    scrollToSurface();
   };
 
   const clearContext = () => {
@@ -180,6 +238,16 @@ export default function HomePage() {
   };
 
   const mainRef = useRef<HTMLElement>(null);
+  /** Length of the thread the last time the scroll effect ran. The
+      home feed must NOT scroll on mount — neither for an empty thread
+      nor for a restored one: the owner opens the app to the hero +
+      hub, not to the end of the feed. Only a newly added message
+      (the owner sending, or the assistant answering) scrolls. */
+  const prevMessagesLength = useRef(0);
+  /** Last message the scroll effect saw (round 5): the reply replaces
+      the pending bubble with the same id, so the effect compares
+      against this to notice the replacement. */
+  const prevLastRef = useRef<{ id: string; text: string; pending?: boolean } | null>(null);
   const persistReady = useRef(false);
   const t = copy[locale];
   const shellDir = localeDir(locale);
@@ -192,7 +260,11 @@ export default function HomePage() {
     setBalance(storedBalance.amount);
     setThreshold(storedBalance.threshold);
     const storedThread = loadThread();
-    if (storedThread.length) setMessages(storedThread);
+    if (storedThread.length) {
+      setMessages(storedThread);
+      // A restored thread is not a new message — do not scroll for it.
+      prevMessagesLength.current = storedThread.length;
+    }
     const storedConvo = loadConversationId();
     if (storedConvo) setConversationId(storedConvo);
 
@@ -215,6 +287,8 @@ export default function HomePage() {
                 pillar: turn.pillar ?? undefined,
               })),
             );
+            // Remote restore is not a new message either.
+            prevMessagesLength.current = remote.turns.length;
           }
         }
       } catch {
@@ -252,10 +326,68 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    // Round 6: track the device's connectivity (navigator.onLine +
+    // online/offline events), not the server. Initialised from the
+    // current value so the banner is correct on first paint.
+    setPhoneOffline(!isPhoneOnline());
+    return onPhoneNetworkChange((onlineNow) => setPhoneOffline(!onlineNow));
+  }, []);
+
+  useEffect(() => {
+    // Follow NEW messages only. On mount (empty or restored thread)
+    // the page stays at the top: the old version scrolled to the
+    // bottom on every mount, so opening the app showed the end of the
+    // feed and the hero + hub were pushed above the viewport.
+    // Round 5: the reply replaces the pending bubble with the SAME id
+    // and the SAME length, so the old length-only effect never fired
+    // for it — a reply arriving seconds later sat below the fold and
+    // the owner saw "no answer". Scroll when the pending bubble
+    // resolves into its answer too — but only for that replacement
+    // (same id, was pending): a restored thread carries fresh ids
+    // and mount has no previous last message, so neither scrolls.
+    const last = messages[messages.length - 1];
+    const prevLast = prevLastRef.current;
+    prevLastRef.current = last
+      ? { id: last.id, text: last.text, pending: last.pending }
+      : null;
+    const grew = messages.length > prevMessagesLength.current;
+    prevMessagesLength.current = messages.length;
+    const replyLanded =
+      !grew &&
+      prevLast !== null &&
+      last !== undefined &&
+      last.id === prevLast.id &&
+      prevLast.pending === true &&
+      last.text !== prevLast.text;
+    if (!grew && !replyLanded) return;
     const main = mainRef.current;
     if (!main) return;
-    main.scrollTo({ top: main.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+    // Instant, not smooth, and re-asserted after the frame settles.
+    // The previous version scrolled smooth to scrollHeight: on the
+    // phone that left the view on blank black space after sending —
+    // the smooth programmatic scroll inside this nested scroller
+    // leaves the Android WebView showing un-rasterised tiles at the
+    // bottom, and its target went stale while the reply arrived (the
+    // view stopped 36px short of the bottom in measurement). So
+    // re-assert after a frame and after 350ms, when the final height
+    // is known — and the effect itself now re-runs when the pending
+    // bubble resolves (round 5, above), so a late reply re-scrolls
+    // too. Direct scrollTop assignment, no behavior flag: the CSS
+    // smooth behaviour is removed too (see globals.css).
+    const scrollToBottom = () => {
+      main.scrollTop = main.scrollHeight;
+    };
+    scrollToBottom();
+    let timer = 0;
+    const raf = window.requestAnimationFrame(() => {
+      scrollToBottom();
+      timer = window.setTimeout(scrollToBottom, 350);
+    });
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [messages]);
 
   useEffect(() => {
     if (!persistReady.current) {
@@ -451,10 +583,74 @@ export default function HomePage() {
           ),
         );
       } catch (error) {
-        const detail = error instanceof ApiError ? error.message : t.sendFailed;
         setMessages((prev) =>
           prev.map((item) =>
-            item.id === assistantId ? { id: assistantId, role: "error", text: detail } : item,
+            item.id === assistantId
+              ? { id: assistantId, role: "assistant", text: answerForError(error, locale) }
+              : item,
+          ),
+        );
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    const openAppCommand = parseOpenAppCommand(text);
+    if (openAppCommand) {
+      // Round 8 — "open the app" is a LOCAL action, answered here
+      // before chat: the live backend is stale and has no Gemini
+      // key, so a command that needs the server would only fail.
+      // Both paths funnel here: the voice auto-send
+      // (ChatInput handleVoiceSessionEnd) and the typed submit.
+      const userId = crypto.randomUUID();
+      const assistantId = crypto.randomUUID();
+      setMessages((prev) => [
+        ...prev,
+        { id: userId, role: "user", text: body },
+        { id: assistantId, role: "assistant", text: "", pending: true },
+      ]);
+      setSending(true);
+      try {
+        let reply: string;
+        if (openAppCommand.kind === "unknown") {
+          reply = copy[locale].openAppUnknown.replace(
+            "{app}",
+            openAppCommand.name,
+          );
+        } else {
+          const launcher = await getAppLauncher();
+          const result = await launcher.openApp(openAppCommand.appId);
+          const label =
+            OPEN_APP_TARGETS[openAppCommand.appId].label[locale];
+          if (result.ok) {
+            reply = copy[locale].openAppOpened.replace("{app}", label);
+          } else if (result.reason === "not-installed") {
+            reply = copy[locale].openAppNotInstalled.replace(
+              "{app}",
+              label,
+            );
+          } else if (result.reason === "unmapped") {
+            reply = copy[locale].openAppUnmapped;
+          } else if (result.reason === "unavailable") {
+            reply = copy[locale].openAppUnavailable;
+          } else {
+            reply = copy[locale].openAppError.replace("{app}", label);
+          }
+        }
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? { id: assistantId, role: "assistant", text: reply }
+              : item,
+          ),
+        );
+      } catch (error) {
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId
+              ? { id: assistantId, role: "assistant", text: answerForError(error, locale) }
+              : item,
           ),
         );
       } finally {
@@ -491,10 +687,11 @@ export default function HomePage() {
           ),
         );
       } catch (error) {
-        const detail = error instanceof ApiError ? error.message : t.sendFailed;
         setMessages((prev) =>
           prev.map((item) =>
-            item.id === pendingId ? { id: pendingId, role: "error", text: detail } : item,
+            item.id === pendingId
+              ? { id: pendingId, role: "assistant", text: answerForError(error, locale) }
+              : item,
           ),
         );
       } finally {
@@ -551,9 +748,10 @@ export default function HomePage() {
           ),
         );
       } catch (streamError) {
-        if (!(streamError instanceof ApiError) || streamError.status !== 503) {
-          throw streamError;
-        }
+        // Any stream failure falls back to POST /chat, which the
+        // live server answers. The old code only fell back on 503,
+        // so a 404 (the older server has no /chat/stream) left the
+        // user with a raw error and no answer.
         const reply = await sendChat(chatPayload);
         setConversationId(reply.conversation_id);
         setMessages((prev) =>
@@ -572,12 +770,13 @@ export default function HomePage() {
         );
       }
     } catch (error) {
-      const detail =
-        error instanceof ApiError ? error.message : t.sendFailed;
+      // Always answer: even when both paths fail, the user gets a
+      // visible assistant reply naming the cause — never silence,
+      // never a blank space after their message.
       setMessages((prev) =>
         prev.map((item) =>
           item.id === pendingId
-            ? { id: pendingId, role: "error", text: detail }
+            ? { id: pendingId, role: "assistant", text: answerForError(error, locale) }
             : item,
         ),
       );
@@ -610,46 +809,62 @@ export default function HomePage() {
     >
       <AuroraBackground />
       <header className="echomind-glass-header z-20 shrink-0 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-2">
-          <GlassPill
-            className="relative"
-            aria-label={t.contextOpen}
-            aria-expanded={contextOpen}
-            onClick={() => setContextOpen(true)}
-          >
-            {t.contextTab}
-            {workflow !== "idle" || documentLabel || memoryLabel ? (
-              <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-gold-light" />
-            ) : null}
-          </GlassPill>
-          <div className="flex min-w-0 items-center gap-2">
-            <AuthStatus />
-            <span
-              role="status"
-              aria-live="polite"
-              aria-label={online ? t.online : t.local}
-              className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                online ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" : "bg-gold"
-              }`}
-            />
+        {/* Mockup top bar, two rows on a 360px phone: the wordmark +
+            AI ASSISTANT badge and the status pills on row one, the
+            Context pill and sign-in on row two. One row cannot fit
+            all six controls at 360px without clipping. */}
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-lg font-bold tracking-tight text-ink">
+                {t.appName}
+              </p>
+              <span className="echomind-chip-glass shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-gold">
+                AI Assistant
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                role="status"
+                aria-live="polite"
+                aria-label={online ? t.online : t.local}
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                  online ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" : "bg-gold"
+                }`}
+              />
+              <GlassPill
+                className="gap-1"
+                aria-label={t.langToggle}
+                onClick={() => setLocale((prev) => (prev === "en" ? "fa" : "en"))}
+              >
+                <span className={locale === "en" ? "text-gold" : "text-muted"}>
+                  EN
+                </span>
+                <span className="text-muted">/</span>
+                <span className={locale === "fa" ? "text-gold" : "text-muted"}>
+                  فا
+                </span>
+              </GlassPill>
+            </div>
+          </div>
+          <div className="flex w-full items-center justify-between gap-2">
             <GlassPill
-              className="gap-1"
-              aria-label={t.langToggle}
-              onClick={() => setLocale((prev) => (prev === "en" ? "fa" : "en"))}
+              className="relative"
+              aria-label={t.contextOpen}
+              aria-expanded={contextOpen}
+              onClick={() => setContextOpen(true)}
             >
-              <span className={locale === "en" ? "text-gold" : "text-muted"}>
-                EN
-              </span>
-              <span className="text-muted">/</span>
-              <span className={locale === "fa" ? "text-gold" : "text-muted"}>
-                فا
-              </span>
+              {t.contextTab}
+              {workflow !== "idle" || documentLabel || memoryLabel ? (
+                <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-gold-light" />
+              ) : null}
             </GlassPill>
+            <AuthStatus />
           </div>
         </div>
       </header>
 
-      {!online ? (
+      {phoneOffline ? (
         <div
           role="status"
           aria-live="polite"
@@ -659,23 +874,30 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <main ref={mainRef} className="echomind-scroll px-4 pb-6 pt-6 sm:px-6">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-          <section className="relative space-y-1 text-center" aria-label={t.greeting}>
-            <h1 className="echomind-hero-title echomind-fade-up relative text-4xl font-bold tracking-tight sm:text-5xl">
-              {t.appName}
-            </h1>
-            <p className="echomind-fade-up relative mx-auto max-w-xl text-sm leading-6 text-muted">
+      <main ref={mainRef} className="echomind-scroll px-4 pb-[calc(env(safe-area-inset-bottom,24px)+88px)] pt-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+          {/* First screen (mockup): the wordmark lives in the header
+              now, so the hero is the subtitle + the golden orb,
+              centred in the viewport with a clear gap below the top
+              bar — never pushed down or half-clipped behind the
+              composer. A deterministic 100dvh block (viewport −
+              header − composer), content centred, so there is no
+              dead black void above the orb and no black intermediate
+              state while scrolling. */}
+          <section
+            className="relative flex min-h-[calc(var(--app-height,100dvh)-13rem)] flex-col items-center justify-center gap-4 pt-2"
+            aria-label={t.greeting}
+          >
+            <p className="echomind-fade-up relative mx-auto max-w-xl text-center text-sm leading-6 text-muted">
               {t.subtitle}
             </p>
+            <HomeHub lang={locale} thinking={sending} executing={authorityBusy || pendingAction !== null} />
           </section>
 
-          {/* The home screen IS the hub: EchoMind at the centre, the
-              owner's apps orbiting it, and below it what EchoMind is
-              doing for him — the delegated work. The engines stay
-              visible further down (ActionRail waterfall). */}
+          {/* Cards cascade below the orb like the Apple site: the
+              suggested next step, then what EchoMind is doing for
+              the owner, then the engines. */}
           <CommandBrief locale={locale} onOpenPillar={(pillar) => openParsedPillar(pillar)} />
-          <HomeHub lang={locale} thinking={sending} executing={authorityBusy || pendingAction !== null} />
           <DelegatedWork lang={locale} onDelegateDraft={handleDelegateDraft} />
 
           <ActionRail
@@ -700,6 +922,12 @@ export default function HomePage() {
               openRightsWizard();
             }}
           />
+
+          {/* Zero-height anchor at the top of the wizard surfaces
+              (round 5): scrollToSurface() brings an opened wizard
+              into view — without it, a wizard opened from the fixed
+              footer sits below the fold and the tap looks dead. */}
+          {surface !== "home" ? <div id="echomind-surface" aria-hidden className="scroll-mt-3" /> : null}
 
           {surface === "delay" ? (
             <DelayRepayWizard
@@ -873,7 +1101,7 @@ export default function HomePage() {
                   <article
                     key={message.id}
                     dir={dir}
-                    className={`echomind-glass max-w-[85%] rounded-3xl px-4 py-3 text-base leading-7 ${
+                    className={`relative echomind-glass max-w-[85%] rounded-3xl px-4 py-3 text-base leading-7 ${
                       isUser ? "self-end text-ink" : "self-start text-red-300"
                     }`}
                   >

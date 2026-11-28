@@ -59,12 +59,12 @@ export default function ActiveContextBar({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
             {t.activeContext}
           </p>
-          <p className="mt-1 truncate text-base font-medium text-ink">
+          <p className="mt-1 w-full text-base font-medium leading-snug text-ink [overflow-wrap:break-word]">
             {workflowLabel}
             {documentLabel ? ` · ${documentLabel}` : ""}
           </p>
           {memoryLabel ? (
-            <p className="mt-0.5 truncate text-sm text-muted">{memoryLabel}</p>
+            <p className="mt-0.5 w-full text-sm leading-snug text-muted [overflow-wrap:break-word]">{memoryLabel}</p>
           ) : null}
         </div>
         {active ? (

@@ -20,15 +20,17 @@
 
 import { useCallback, useState } from "react";
 
-import { Cascade, GlassCard, Reveal, SectionHeading, SpotlightCard } from "./Glass";
+import { Cascade, GlassCard, SectionHeading, SignInPrompt, SpotlightCard } from "./Glass";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   confirmProjectTask,
+  isAuthError,
   listProjects,
   listProjectTasks,
   type DelegatedTask,
   type Project,
 } from "@/services/api";
+import { taskNotifier } from "@/services/taskNotifications";
 
 type Lang = "en" | "fa";
 
@@ -67,6 +69,10 @@ const STRINGS = {
   loadFailed: {
     en: "Could not load your projects. Sign in and try again.",
     fa: "پروژه‌ها بارگذاری نشدند. وارد شوید و دوباره تلاش کنید.",
+  },
+  signInProjects: {
+    en: "Sign in to see your projects",
+    fa: "برای دیدن پروژه‌ها وارد شوید",
   },
   confirmFailed: {
     en: "Could not run that task. Try again from the chat.",
@@ -117,6 +123,9 @@ export default function DelegatedWork({
   const [projects, setProjects] = useState<ProjectWithTasks[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** No signed-in session — the section shows the calm sign-in
+      prompt, never the raw red error. */
+  const [unauthenticated, setUnauthenticated] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
@@ -125,6 +134,7 @@ export default function DelegatedWork({
     setError(null);
     try {
       const list = await listProjects();
+      setUnauthenticated(false);
       const withTasks = await Promise.all(
         list.map(async (project) => {
           try {
@@ -135,8 +145,19 @@ export default function DelegatedWork({
         }),
       );
       setProjects(withTasks);
-    } catch {
+      // Notification contract: announce any task that reached a terminal
+      // state since the last load (done / failed / needs_owner). First
+      // sight of an already-finished task is recorded silently, so
+      // opening the app never floods old finished tasks.
+      void taskNotifier
+        .check(
+          withTasks.flatMap((entry) => entry.tasks),
+          lang,
+        )
+        .catch(() => undefined);
+    } catch (error) {
       setError(STRINGS.loadFailed[lang]);
+      setUnauthenticated(isAuthError(error));
     } finally {
       setLoading(false);
     }
@@ -150,38 +171,46 @@ export default function DelegatedWork({
     setConfirmError(null);
     try {
       await confirmProjectTask(taskId);
-      await load();
     } catch {
       setConfirmError(STRINGS.confirmFailed[lang]);
     } finally {
       setConfirmingId(null);
+      // Refresh even when the confirm call itself failed: the server may
+      // have finished the task, and the list must show the true state
+      // (result + reason) instead of the stale one.
+      await load();
     }
   };
 
   return (
-    <section aria-label={STRINGS.title[lang]} className="mt-8 w-full">
-      <Reveal>
-        <SectionHeading
-          eyebrow={STRINGS.eyebrow[lang]}
-          title={STRINGS.title[lang]}
-          subtitle={STRINGS.subtitle[lang]}
-        />
-      </Reveal>
+    <section aria-label={STRINGS.title[lang]} className="mt-8 w-full min-w-0">
+      {/* No Reveal here (round 3): the heading and the empty state
+          used to start at opacity 0 until an IntersectionObserver
+          fired — that is the black intermediate scroll state with
+          the half-clipped "Delegate" pill. Content is always
+          painted now. */}
+      <SectionHeading
+        eyebrow={STRINGS.eyebrow[lang]}
+        title={STRINGS.title[lang]}
+        subtitle={STRINGS.subtitle[lang]}
+      />
 
       {error ? (
-        <p role="alert" className="mt-4 text-sm text-red-300">
-          {error}
-        </p>
+        unauthenticated ? (
+          <SignInPrompt locale={lang} message={STRINGS.signInProjects[lang]} />
+        ) : (
+          <p role="alert" className="mt-4 text-sm text-red-300">
+            {error}
+          </p>
+        )
       ) : null}
 
       {loading ? (
         <p className="mt-4 text-sm text-muted">…</p>
       ) : projects.length === 0 ? (
-        <Reveal delay={80}>
-          {/* Aceternity spotlight follows the pointer across the card. */}
-          <SpotlightCard className="mt-4 rounded-[1.4rem]">
-            <GlassCard className="p-4">
-              <p className="text-sm leading-relaxed text-ink-soft">{STRINGS.noProjects[lang]}</p>
+        <SpotlightCard className="mt-4 rounded-[1.4rem]">
+          <GlassCard className="p-4">
+            <p className="w-full min-w-0 text-sm leading-relaxed text-ink-soft [overflow-wrap:break-word]">{STRINGS.noProjects[lang]}</p>
             <button
               type="button"
               onClick={() =>
@@ -195,9 +224,8 @@ export default function DelegatedWork({
             >
               {STRINGS.delegateTo[lang]}
             </button>
-            </GlassCard>
-          </SpotlightCard>
-        </Reveal>
+          </GlassCard>
+        </SpotlightCard>
       ) : (
         <Cascade className="echomind-waterfall-offset mt-4 grid gap-4" staggerMs={40}>
           {projects.map(({ project, tasks }) => (
@@ -205,11 +233,11 @@ export default function DelegatedWork({
               {/* Aceternity spotlight follows the pointer across the card. */}
               <SpotlightCard className="rounded-[1.4rem]">
                 <GlassCard className="p-4" strong>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="font-sans text-base font-semibold tracking-tight text-ink">{project.name}</h3>
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="w-full min-w-0 font-sans text-base font-semibold tracking-tight text-ink [overflow-wrap:break-word]">{project.name}</h3>
                     {/* Technical readout (Linear-style): repo identity in mono. */}
-                    <p className="mt-0.5 font-mono text-[11px] font-medium tracking-wide text-muted">
+                    <p className="mt-0.5 w-full min-w-0 font-mono text-[11px] font-medium tracking-wide text-muted [overflow-wrap:anywhere]">
                       {[project.kind, project.repo, project.branch].filter(Boolean).join(" · ")}
                     </p>
                   </div>
@@ -240,8 +268,8 @@ export default function DelegatedWork({
                           key={task.id}
                           className="echomind-glass rounded-2xl p-3"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-ink">
+                          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-ink [overflow-wrap:break-word]">
                               {task.instruction}
                             </p>
                             <span

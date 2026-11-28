@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- EchoMind mic widget: a single 2x2 cell on the home screen.
+     No periodic updates (updatePeriodMillis 0) — the widget is
+     static and only fires the deep link when tapped. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_mic"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_mic_label" />

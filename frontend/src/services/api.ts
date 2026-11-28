@@ -1,5 +1,6 @@
 import { authorizationHeaders } from "@/app/lib/authHeaders";
 import { AuthSessionError } from "@/app/lib/authToken";
+import { isPhoneOnline } from "./network";
 
 export type ApiLocale = "en" | "fa";
 
@@ -57,6 +58,15 @@ export function isEndpointMissing(error: unknown): boolean {
   return error instanceof ApiError && (error.code === "endpoint_missing" || error.status === 404);
 }
 
+/** True when the call failed because there is no signed-in session
+    (no token provider, or the server answered 401). The UI must show
+    the calm sign-in prompt, never a raw red error. */
+export function isAuthError(error: unknown): boolean {
+  return (
+    error instanceof ApiError && (error.status === 401 || error.code === "auth_session")
+  );
+}
+
 const DEFAULT_BASE = "/api/v1";
 const CHAT_TIMEOUT_MS = 20_000;
 const HEALTH_TIMEOUT_MS = 2_500;
@@ -76,13 +86,30 @@ function isAndroidWebView(): boolean {
   return /Android/i.test(navigator.userAgent);
 }
 
-function isNativeShell(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.location.protocol === "capacitor:" || window.location.protocol === "ionic:";
+let nativePlatformPromise: Promise<boolean> | null = null;
+
+/** True when this bundle runs inside the Capacitor native shell.
+    The old check read window.location.protocol ("capacitor:" /
+    "ionic:"), but capacitor.config.json sets androidScheme "https" +
+    hostname "localhost", so the phone build's origin is
+    https://localhost and the protocol check was always false there
+    — the phone build probed the same-origin base (itself) first and
+    fell back to it whenever Railway was briefly unreachable.
+    Capacitor.isNativePlatform() is the real check (it reads the
+    native bridge / custom platform). It is loaded lazily, the way
+    photos.ts loads @capacitor/camera, so this module stays
+    importable in plain Node tests; a failed import means "web". */
+function loadIsNativePlatform(): Promise<boolean> {
+  if (!nativePlatformPromise) {
+    nativePlatformPromise = import("@capacitor/core")
+      .then(({ Capacitor }) => Capacitor.isNativePlatform())
+      .catch(() => false);
+  }
+  return nativePlatformPromise;
 }
 
-function sameOriginBase(): string | undefined {
-  if (isNativeShell()) return undefined;
+function sameOriginBase(): string {
+  // Web only: the native path never calls this (see candidateBases).
   return DEFAULT_BASE;
 }
 
@@ -98,8 +125,29 @@ function lanHostBases(): string[] {
   ];
 }
 
-function candidateBases(): string[] {
+/** Round 6: the phone (Capacitor) build uses the device network
+    only. In production the candidate list is exactly the configured
+    Railway URL — no same-origin base (https://localhost is the phone
+    itself, not a server), no 127.0.0.1, no 10.0.2.2, no LAN host.
+    That is the AGENTS.md rule: production Android builds must not
+    depend on 127.0.0.1/localhost/LAN fallbacks. The dev native build
+    keeps the emulator hosts (10.0.2.2 is the emulator's host
+    loopback) for USB/emulator work. The web build is unchanged. */
+async function candidateBases(): Promise<string[]> {
   const configured = process.env.NEXT_PUBLIC_API_URL;
+  const native = await loadIsNativePlatform();
+  if (native) {
+    if (process.env.NODE_ENV === "production") {
+      return unique([configured]).map(normalizeBase);
+    }
+    const emulatorHosts = [
+      "http://10.0.2.2:8004/api/v1",
+      "http://10.0.2.2:8001/api/v1",
+      "http://10.0.2.2:8000/api/v1",
+      "http://10.0.2.2:8003/api/v1",
+    ];
+    return unique([configured, ...lanHostBases(), ...emulatorHosts]).map(normalizeBase);
+  }
   if (process.env.NODE_ENV === "production") {
     return unique([sameOriginBase(), configured, ...lanHostBases()]).map(normalizeBase);
   }
@@ -136,14 +184,26 @@ const failedBases = new Set<string>();
 export function resetApiBase() {
   resolvedBase = null;
   failedBases.clear();
+  nativePlatformPromise = null;
 }
 
 function isRetryable(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;
+  // No 404 here on purpose: a 404 on a known endpoint means the
+  // resolved server is an older build without that endpoint. Retrying
+  // the next candidate base (localhost in the app) only masks the
+  // cause — the user would see "Could not reach EchoMind" instead of
+  // the true "server is the older version". Base discovery does not
+  // depend on this: resolveApiBase catches the health probe itself.
+  // No 502/503 either (round 5): a 502/503 means the server ANSWERED
+  // — it is up, just busy or unconfigured. Retrying the next base
+  // only masks that too: the mock-live probe showed stream 404 →
+  // sendChat 503 → retry to the same-origin base → HTML 404 → JSON
+  // parse error → "network_error", so the user saw "could not connect
+  // to the server" for a server that was reachable and answering 503.
+  // Only a failure to reach the base at all (network_error/timeout)
+  // is worth retrying elsewhere.
   return (
-    error.status === 404 ||
-    error.status === 502 ||
-    error.status === 503 ||
     error.code === "network_error" ||
     error.code === "timeout"
   );
@@ -165,7 +225,13 @@ function isFormData(body: unknown): body is FormData {
 
 type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
-  auth?: "public" | "protected";
+  /** "protected" needs a session and fails closed without one.
+      "optional" sends the session when there is one and calls the
+      endpoint without it when there is not — the chat path uses it so
+      a build without sign-in (no Clerk key yet) can still answer from
+      the live server, and the server's own 401 is then the honest
+      sign-in signal instead of a client-side refusal to even try. */
+  auth?: "public" | "protected" | "optional";
 };
 
 async function request<T>(
@@ -174,10 +240,27 @@ async function request<T>(
   init: ApiRequestInit = {},
 ): Promise<T> {
   const { timeoutMs = CHAT_TIMEOUT_MS, auth = "public", headers, ...rest } = init;
+  // Round 6: the phone lost its internet after the base was resolved
+  // (or the resolved base is stale). Say so plainly instead of
+  // letting the fetch fail as a generic network_error, which the UI
+  // used to read as "you're offline" for every failure — including
+  // a server that is merely down while the phone is online.
+  if (!isPhoneOnline()) {
+    throw new ApiError("The phone has no internet connection", {
+      code: "phone_offline",
+    });
+  }
   let secureHeaders: Record<string, string> = {};
   try {
     if (auth === "protected") {
       secureHeaders = await authorizationHeaders();
+    } else if (auth === "optional") {
+      try {
+        secureHeaders = await authorizationHeaders();
+      } catch (error) {
+        // No session: call without the header instead of refusing.
+        if (!(error instanceof AuthSessionError)) throw error;
+      }
     }
   } catch (error) {
     if (error instanceof AuthSessionError) {
@@ -233,8 +316,31 @@ async function request<T>(
 }
 
 async function resolveApiBase(): Promise<string> {
+  // Round 6: the phone has no internet at all — say so immediately
+  // and attempt nothing. No localhost probe, no Railway probe, and
+  // no silent fallback to a dead base. The caller turns this into
+  // the "turn on Wi-Fi or mobile data" reply. This check must come
+  // BEFORE the cached-base return below: a phone that goes offline
+  // after the base was resolved would otherwise hand the cached base
+  // to a raw fetch (streamChat) that has no second gate, and the
+  // app would attempt a doomed request instead of saying "offline".
+  if (!isPhoneOnline()) {
+    throw new ApiError("The phone has no internet connection", {
+      code: "phone_offline",
+    });
+  }
   if (resolvedBase && !failedBases.has(resolvedBase)) return resolvedBase;
-  for (const base of candidateBases()) {
+  const bases = await candidateBases();
+  if (bases.length === 0) {
+    // Native production build with no configured API URL: there is
+    // nothing to probe. Never fall back to the same-origin base
+    // here — on the phone that is https://localhost, i.e. the phone
+    // itself, and every call would fail as a fake "offline".
+    throw new ApiError("No API is configured for this build", {
+      code: "no_api_configured",
+    });
+  }
+  for (const base of bases) {
     if (failedBases.has(base)) continue;
     try {
       const health = await request<{ status?: string }>(base, "/health", {
@@ -246,12 +352,16 @@ async function resolveApiBase(): Promise<string> {
         return base;
       }
       failedBases.add(base);
-    } catch {
+    } catch (error) {
+      // The phone went offline mid-probe: do not swallow that as
+      // just another dead base and fall through to the fallback
+      // below — the caller must hear "phone offline".
+      if (error instanceof ApiError && error.code === "phone_offline") throw error;
       failedBases.add(base);
     }
   }
   failedBases.clear();
-  resolvedBase = candidateBases()[0] ?? DEFAULT_BASE;
+  resolvedBase = bases[0];
   return resolvedBase;
 }
 
@@ -286,7 +396,7 @@ export async function getHealth(): Promise<{ status: string }> {
 
 export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
   return api<ChatResponse>("/chat", {
-    auth: "protected",
+    auth: "optional",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -295,7 +405,7 @@ export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
 
 export async function processChat(payload: ChatRequest): Promise<ChatResponse> {
   return api<ChatResponse>("/process", {
-    auth: "protected",
+    auth: "optional",
     method: "POST",
     timeoutMs: CHAT_TIMEOUT_MS,
     body: JSON.stringify(payload),
@@ -314,18 +424,32 @@ export async function streamChat(
   onDelta: (text: string) => void,
 ): Promise<ChatStreamResult> {
   const base = await resolveApiBase();
-  let secureHeaders: Record<string, string>;
+  // Optional auth, like sendChat: send the session when there is
+  // one, call without it when there is not. The live server answers
+  // /chat without a token; the new server answers 401, which the UI
+  // turns into the honest sign-in message.
+  let secureHeaders: Record<string, string> = {};
   try {
     secureHeaders = await authorizationHeaders();
   } catch (error) {
-    if (error instanceof AuthSessionError) {
-      throw new ApiError(error.message, { status: 401, code: "auth_session" });
-    }
-    throw error;
+    if (!(error instanceof AuthSessionError)) throw error;
+  }
+
+  // Round 6: same gate as request() — the phone may have gone
+  // offline in the instant between resolveApiBase and this fetch.
+  // Never start a streaming fetch with no device network.
+  if (!isPhoneOnline()) {
+    throw new ApiError("The phone has no internet connection", {
+      code: "phone_offline",
+    });
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000);
+  // First-byte timeout: if the server accepts the connection but
+  // never answers, the user waits 20s, not 60s, and gets a visible
+  // timeout answer instead of a stuck "thinking" bubble.
+  const firstByteTimer = setTimeout(() => controller.abort(), 20_000);
   try {
     const response = await fetch(`${base}/chat/stream`, {
       method: "POST",
@@ -337,6 +461,7 @@ export async function streamChat(
       },
       body: JSON.stringify(payload),
     });
+    clearTimeout(firstByteTimer);
 
     if (!response.ok) {
       const body = await parseJson(response);
@@ -417,6 +542,7 @@ export async function streamChat(
     }
     throw new ApiError("Could not stream EchoMind", { code: "network_error" });
   } finally {
+    clearTimeout(firstByteTimer);
     clearTimeout(timer);
   }
 }
@@ -1899,6 +2025,41 @@ export async function getVoiceReadiness(): Promise<VoiceReadiness> {
     auth: "protected",
     method: "GET",
     timeoutMs: CHAT_TIMEOUT_MS,
+  });
+}
+
+export type TranscribeResponse = {
+  transcript: string;
+  locale: ApiLocale;
+};
+
+/** Round 9 — server transcription (Phase 11 backend STT). The app
+    records with MediaRecorder and sends the audio here; Gemini
+    transcribes it. Auth is "optional" like chat: the session is sent
+    when there is one, and the server's own 401 is the honest sign-in
+    signal when there is not (the endpoint requires a user). The
+    endpoint's error `code` (gemini_key_missing, transcribe_bad_audio,
+    gemini_unavailable) is carried by ApiError, so the voice service
+    can name the cause instead of showing a generic failure. */
+export async function transcribeAudio(
+  audio: Blob,
+  locale: ApiLocale,
+): Promise<TranscribeResponse> {
+  const form = new FormData();
+  const ext = audio.type.includes("mp4")
+    ? "mp4"
+    : audio.type.includes("ogg")
+      ? "ogg"
+      : audio.type.includes("wav")
+        ? "wav"
+        : "webm";
+  form.append("audio", audio, `voice.${ext}`);
+  form.append("locale", locale);
+  return api<TranscribeResponse>("/voice/transcribe", {
+    auth: "optional",
+    method: "POST",
+    timeoutMs: 60_000,
+    body: form,
   });
 }
 

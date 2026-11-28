@@ -4,9 +4,10 @@
  * HomeHub — the home screen IS the hub (mockup 3).
  *
  * The brand title sits ABOVE the golden living orb; the owner's apps
- * orbit it in a circle connected by spokes. No text is stamped across
- * the orb, and no truncated labels hang under the nodes — each node
- * is a crisp official brand SVG inside a glass circle. Tapping an app
+ * orbit it in a circle around the golden Saturn rings. No text is
+ * stamped across the orb, and no truncated labels hang under the
+ * nodes — each node is a crisp official brand SVG inside a glass
+ * circle. Tapping an app
  * answers "so what?" in the glass card below: its full name, live
  * sync status and a 1-tap OAuth Connect action.
  *
@@ -25,17 +26,41 @@
  * when idle, ripples while the mic listens, spins its golden core
  * while EchoMind thinks, and pulses crisply while an action runs.
  *
+ * The hub renders statically — no scroll-linked reveal
+ * (IntersectionObserver / whileInView), no 3D pointer parallax, and
+ * no scroll-linked ring rotation. All three used to gate or move the
+ * hub's visibility on scrolling, and a mobile GPU mis-culled the
+ * transformed layers while scrolling: Mahdi's round-3 screenshots
+ * showed 4, then 4, then only 2 of the 8 orbit nodes painted, the
+ * set changing with scroll position (pixel analysis: painted nodes
+ * +33..+136 brightness vs background, absent nodes -19..+17 — the
+ * absent ones were never painted at all, not dark or clipped). The
+ * orbit is now plain positioned buttons in a plain div with NO
+ * transforms at all (nodes are offset by calc() margins, the
+ * selected node reads as selected through a static gold ring, the
+ * tick ring is static): every node is painted on first paint and
+ * stays painted while scrolling. The only motion left on the hub is
+ * state-driven (orb states, the "so what?" crossfade on selection).
+ *
+ * The orb IS a microphone (round 3) and a HOLD-TO-TALK control
+ * (round 4): press-and-hold it and it turns RED while recording;
+ * releasing stops it and it goes back to gold. A quick tap also
+ * starts listening, and the orb itself is the red STOP control.
+ *
  * Dark Obsidian design (obsidian, dark glass, Amber-Gold),
- * framer-motion entrance, shadcn Button for the connect action.
+ * shadcn Button for the connect action.
  * Bilingual EN/FA; the orbit is symmetric so RTL needs no mirror.
  */
 
-import { useCallback, useEffect, useState, type PointerEvent } from "react";
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import { AnimatedCount, GlassCard, Kbd, LivingOrb, MotionReveal, Reveal, SpotlightCard, StatusDot, type OrbState } from "./Glass";
+import { Browser } from "@capacitor/browser";
+
+import { AnimatedCount, GlassCard, Kbd, LivingOrb, SpotlightCard, StatusDot, type OrbState } from "./Glass";
 import { BrandIcon } from "./BrandIcons";
 import { Button } from "./ui/button";
+import { LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   HUB_APPS,
@@ -50,6 +75,10 @@ import {
 } from "./hubApps";
 
 type Lang = "en" | "fa";
+
+/** A press held at least this long is a hold (release stops); a
+    shorter press is a tap (listening continues until tapped again). */
+const HOLD_MS = 300;
 
 const STRINGS = {
   hubLabel: { en: "EchoMind hub", fa: "هاب اکومایند" },
@@ -69,6 +98,15 @@ const STRINGS = {
   signInFirst: {
     en: "Sign in to EchoMind first, then connect your apps from here.",
     fa: "اول وارد اکومایند شوید، بعد برنامه‌هایتان را از همین‌جا وصل کنید.",
+  },
+  orbTap: { en: "Hold the orb to talk", fa: "برای صحبت، دایره را نگه دارید" },
+  orbStop: {
+    en: "Listening… tap the orb to stop",
+    fa: "در حال شنیدن… برای توقف روی دایره بزنید",
+  },
+  orbHoldStop: {
+    en: "Recording — release to stop",
+    fa: "در حال ضبط — برای توقف رها کنید",
   },
 } as const;
 
@@ -133,28 +171,22 @@ export default function HomeHub({
   const [connectingId, setConnectingId] = useState<HubAppId | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  /** Whether the current session was started by a hold or a tap —
+      the teacher line under the orb reads it. */
+  const [listenMode, setListenMode] = useState<"hold" | "tap">("tap");
+  /** True while the orb is physically held down — drives the red
+      recording state immediately, before listening even starts. */
+  const [orbPressed, setOrbPressed] = useState(false);
+  const orbPressStartRef = useRef(0);
+  const orbPressedRef = useRef(false);
+  const orbPressHandledRef = useRef(0);
+  const listeningRef = useRef(false);
 
-  /* react-three-fiber pattern as CSS 3D — pointer parallax on the
-     orbit: the whole scene leans a few degrees toward the pointer
-     (mouse only), on springs. Reduced motion disables it. */
+  /* Reduced motion skips the "so what?" crossfade (plain swap). The
+     orbit itself has no pointer parallax: it is mouse-only, does
+     nothing on the phone, and its 3D perspective context is what a
+     mobile GPU can mis-cull while scrolling. */
   const reduceMotion = useReducedMotion();
-  const orbitRx = useMotionValue(0);
-  const orbitRy = useMotionValue(0);
-  const orbitSrx = useSpring(orbitRx, { stiffness: 140, damping: 20 });
-  const orbitSry = useSpring(orbitRy, { stiffness: 140, damping: 20 });
-  const handleOrbitMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (reduceMotion || e.pointerType !== "mouse") return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-    const rtl = document.documentElement.dir === "rtl";
-    orbitRx.set(-py * 4);
-    orbitRy.set((rtl ? -1 : 1) * px * 4);
-  };
-  const resetOrbit = () => {
-    orbitRx.set(0);
-    orbitRy.set(0);
-  };
 
   const load = useCallback(async () => {
     const { states: next, googleConfigured: configured } = await loadHubStatuses();
@@ -168,22 +200,93 @@ export default function HomeHub({
   useLiveRefresh(load, { intervalMs: 30_000 });
 
   /* The mic lives in the chat dock; it announces its state so the
-     orb can ripple while listening. */
+     orb can ripple while listening. The event detail carries the
+     listen mode (hold/tap) so the teacher line under the orb can say
+     "release to stop" for a hold and "tap to stop" for a tap. */
   useEffect(() => {
     const onListening = (event: Event) => {
-      setListening(Boolean((event as CustomEvent<boolean>).detail));
+      const detail = (event as CustomEvent<{ listening?: boolean; mode?: "hold" | "tap" } | boolean>)
+        .detail;
+      if (typeof detail === "boolean") {
+        setListening(detail);
+        return;
+      }
+      setListening(Boolean(detail?.listening));
+      if (detail?.mode === "hold" || detail?.mode === "tap") {
+        setListenMode(detail.mode);
+      }
     };
     window.addEventListener("echomind-listening", onListening);
     return () => window.removeEventListener("echomind-listening", onListening);
   }, []);
 
-  const orbState: OrbState = listening
-    ? "listening"
-    : executing
-      ? "executing"
-      : thinking
-        ? "thinking"
-        : "idle";
+  useEffect(() => {
+    listeningRef.current = listening;
+  }, [listening]);
+
+  /** Hold-to-talk on the orb (round 4), exactly as Mahdi specified:
+      press-and-hold starts listening and the orb turns RED while
+      held; releasing stops it and it goes back to gold immediately.
+      A quick tap also starts listening (tap mode) and the orb itself
+      is the red STOP control. Stopping must ALWAYS work — releasing
+      cancels even a start that is still pending (the hook's
+      generation token makes that true; the stop request is honoured
+      unconditionally there). */
+  const onOrbPointerDown = (event: React.PointerEvent) => {
+    event.preventDefault();
+    orbPressHandledRef.current = Date.now();
+    orbPressStartRef.current = Date.now();
+    orbPressedRef.current = true;
+    setOrbPressed(true);
+    if (listeningRef.current) {
+      // Tapping the orb while listening stops it.
+      window.dispatchEvent(new Event(LISTEN_STOP_REQUEST));
+      return;
+    }
+    setListenMode("hold");
+    window.dispatchEvent(
+      new CustomEvent(LISTEN_REQUEST, { detail: { mode: "hold" as const } }),
+    );
+  };
+
+  const endOrbPress = () => {
+    if (!orbPressedRef.current) return;
+    orbPressedRef.current = false;
+    setOrbPressed(false);
+    const heldMs = Date.now() - orbPressStartRef.current;
+    if (heldMs >= HOLD_MS) {
+      // It was a hold: releasing stops listening.
+      window.dispatchEvent(new Event(LISTEN_STOP_REQUEST));
+      return;
+    }
+    // A quick tap: the session keeps listening in tap mode. Correct
+    // the mode where the composer tracks it too: the request handler
+    // sets its mode from every LISTEN_REQUEST and ignores the start
+    // when one is already pending, so this only retargets the
+    // teacher line from "release to stop" to "tap to stop".
+    setListenMode("tap");
+    window.dispatchEvent(
+      new CustomEvent(LISTEN_REQUEST, { detail: { mode: "tap" as const } }),
+    );
+  };
+
+  const onOrbClick = () => {
+    // Pointer events already handled this press (touch/mouse). Only
+    // a keyboard / assistive activation reaches here without one.
+    if (Date.now() - orbPressHandledRef.current < 600) return;
+    window.dispatchEvent(
+      new Event(listening ? LISTEN_STOP_REQUEST : LISTEN_REQUEST),
+    );
+  };
+
+  const orbState: OrbState =
+    orbPressed || listening
+      ? "recording"
+      : executing
+        ? "executing"
+        : thinking
+          ? "thinking"
+          : "idle";
 
   const connectedCount = HUB_APPS.filter((app) => states[app.id] === "connected").length;
   const selected = HUB_APPS.find((app) => app.id === selectedId) ?? HUB_APPS[0];
@@ -195,7 +298,9 @@ export default function HomeHub({
     setConnectError(null);
     try {
       const { authorization_url } = await startHubAppConnection(app);
-      window.open(authorization_url, "_blank", "noopener");
+      // Capacitor Browser (in-app tab), not window.open: opening the
+      // OAuth page in the WebView itself would navigate the app away.
+      await Browser.open({ url: authorization_url });
       // Statuses refresh when the user returns; also re-check after a
       // short delay in case the OAuth tab completed quickly.
       window.setTimeout(() => void load(), 30_000);
@@ -250,7 +355,7 @@ export default function HomeHub({
       <p className="echomind-meta mt-3 text-gold">
         {STRINGS.whatItPowers[lang]}
       </p>
-      <p className="mt-1 text-sm leading-relaxed text-ink-soft">{selected.powers[lang]}</p>
+      <p className="mt-1 w-full min-w-0 text-sm leading-relaxed text-ink-soft [overflow-wrap:break-word]">{selected.powers[lang]}</p>
       {selectedState === "needs_setup" && selected.setupNote ? (
         <p className="mt-2 text-sm leading-relaxed text-gold">
           {selected.setupNote[lang]}
@@ -288,101 +393,174 @@ export default function HomeHub({
   );
 
   return (
-    <section aria-label={STRINGS.hubLabel[lang]} className="w-full">
-      {/* Live count pill — the only header the hub needs. */}
-      <Reveal>
-        <div className="flex justify-center">
-          <span className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-gold">
-            {loading ? (
-              "…"
-            ) : (
-              <>
-                <AnimatedCount value={connectedCount} />{" "}
-                {lang === "fa"
-                  ? "برنامه متصل"
-                  : connectedCount === 1
-                    ? "app connected"
-                    : "apps connected"}
-              </>
-            )}
-          </span>
-        </div>
-      </Reveal>
+    <section aria-label={STRINGS.hubLabel[lang]} className="w-full overflow-visible">
+      {/* Live count pill — the only header the hub needs. Rendered
+          statically: a scroll-linked reveal could leave it invisible
+          after a fast scroll. */}
+      <div className="flex justify-center">
+        <span className="echomind-glass rounded-full px-3 py-1.5 text-xs font-semibold text-gold">
+          {loading ? (
+            "…"
+          ) : (
+            <>
+              <AnimatedCount value={connectedCount} />{" "}
+              {lang === "fa"
+                ? "برنامه متصل"
+                : connectedCount === 1
+                  ? "app connected"
+                  : "apps connected"}
+            </>
+          )}
+        </span>
+      </div>
 
       {/* The orbit: the living orb at the centre, apps around it on
-          spokes. Pointer parallax leans the scene toward the pointer
-          (r3f pattern, CSS 3D); the tick ring turns slowly like a dial. */}
-      <MotionReveal delay={80}>
-        <motion.div
-          className="relative mx-auto mt-2 aspect-square w-full max-w-[340px]"
-          role="group"
-          aria-label={STRINGS.hubLabel[lang]}
-          style={{ rotateX: orbitSrx, rotateY: orbitSry, transformPerspective: 900 }}
-          onPointerMove={handleOrbitMove}
-          onPointerLeave={resetOrbit}
-        >
+          the golden Saturn rings (round 7, mockup). Plain div, no
+          entrance animation, no 3D perspective, no transforms, no
+          scroll-linked rotation — every node is painted on first
+          paint and stays painted while scrolling. No dashed circle,
+          no spokes, no tick ring: only the nodes and the two smooth
+          elliptical rings.
+          Round 5: the container is its own compositing layer
+          (translateZ(0)) so the compositor rasterizes the container
+          and all 8 nodes atomically. On Mahdi's phone the round-4
+          build still dropped exactly Drive/Docs/Sheets/Bank (the
+          right + bottom nodes) while the ring and spokes painted —
+          and the node buttons were already maximally plain (no
+          transform, no transition, no animation, no filter), with
+          correct geometry headlessly at 360/412px. The failure could
+          NOT be reproduced in staging, so this is a targeted
+          hardening for the Android WebView raster path, not a proven
+          fix: the phone test is still the gate. */}
+      <div
+        className="relative mx-auto mt-2 aspect-square w-full max-w-[340px] overflow-visible [transform:translateZ(0)]"
+        role="group"
+        aria-label={STRINGS.hubLabel[lang]}
+      >
+          {/* Back ring (round 7, mockup 18112_24_qs19.jpg): a smooth
+              golden ellipse behind the orb — the Saturn ring passing
+              behind the top of the sphere. SVG geometry, not a CSS
+              transform, and fully static: no rotation, no animation.
+              The tick ring, the dashed circle and the straight spokes
+              are GONE (Mahdi: «خطای دورشو پاک کن، فقط اپا دورش
+              باشه») — only the app nodes orbit the orb now, on these
+              rings. */}
           <svg
             aria-hidden="true"
             viewBox="0 0 100 100"
-            className="absolute inset-0 h-full w-full"
+            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
           >
-            {/* Precision tick ring (Linear-style instrument dial): 24
-                ticks around the orbit, so the hub reads as an
-                instrument, not a decoration. It turns slowly. */}
-            <g className="echomind-orb-ring-spin">
-              {Array.from({ length: 24 }, (_, i) => {
-                const a = (i * 15 * Math.PI) / 180;
-                const r1 = ORBIT_RADIUS + 2.5;
-                const r2 = ORBIT_RADIUS + (i % 6 === 0 ? 4.5 : 3.5);
-                return (
-                  <line
-                    key={i}
-                    x1={50 + r1 * Math.cos(a)}
-                    y1={50 + r1 * Math.sin(a)}
-                    x2={50 + r2 * Math.cos(a)}
-                    y2={50 + r2 * Math.sin(a)}
-                    stroke="rgba(255, 255, 255, 0.25)"
-                    strokeWidth="0.4"
-                  />
-                );
-              })}
-            </g>
-            <circle
+            <defs>
+              <linearGradient
+                id="echomind-ring-gold"
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="1"
+              >
+                <stop offset="0%" stopColor="#f6d789" />
+                <stop offset="45%" stopColor="#e5a93c" />
+                <stop offset="100%" stopColor="#9a6b1f" />
+              </linearGradient>
+            </defs>
+            <ellipse
               cx="50"
               cy="50"
-              r={ORBIT_RADIUS}
+              rx="47"
+              ry="15"
               fill="none"
-              stroke="rgba(229, 169, 60, 0.35)"
-              strokeWidth="0.5"
-              strokeDasharray="1.5 1.5"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="2.4"
+              opacity="0.16"
+              transform="rotate(-18 50 50)"
             />
-            {HUB_APPS.map((app, index) => {
-              const { x, y } = nodePosition(index);
-              return (
-                <line
-                  key={app.id}
-                  x1="50"
-                  y1="50"
-                  x2={x}
-                  y2={y}
-                  stroke={
-                    states[app.id] === "connected"
-                      ? "rgba(16, 185, 129, 0.5)"
-                      : "rgba(229, 169, 60, 0.35)"
-                  }
-                  strokeWidth="0.5"
-                />
-              );
-            })}
+            <ellipse
+              cx="50"
+              cy="50"
+              rx="47"
+              ry="15"
+              fill="none"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="0.9"
+              opacity="0.85"
+              transform="rotate(-18 50 50)"
+            />
           </svg>
 
-          {/* Centre: the living orb. No text stamped across it — the
-              brand title sits above it in the hero. */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          {/* Centre: the living orb — a real button (round 3), a
+              hold-to-talk control (round 4). Press-and-hold: RED
+              while recording, gold again on release. Quick tap:
+              starts listening; tap again to stop. No text stamped
+              across it — the brand title sits above it in the hero.
+              Centred with margins, not transforms: a -translate
+              centring is a transform layer the mobile GPU can
+              mis-cull, same failure as the orbit nodes. */}
+          <button
+            type="button"
+            onPointerDown={onOrbPointerDown}
+            onPointerUp={endOrbPress}
+            onPointerCancel={endOrbPress}
+            onPointerLeave={endOrbPress}
+            onClick={onOrbClick}
+            onContextMenu={(event) => event.preventDefault()}
+            aria-label={listening ? STRINGS.orbStop[lang] : STRINGS.orbTap[lang]}
+            aria-pressed={listening}
+            className="absolute left-1/2 top-1/2 cursor-pointer touch-none select-none rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-gold/70 focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian active:brightness-110"
+            style={{ marginLeft: -75, marginTop: -75 }}
+          >
             <LivingOrb size={150} state={orbState} />
-          </div>
+          </button>
 
-          {/* Orbiting apps — brand icons only, no labels. */}
+          {/* Front band (round 7, mockup): the near side of the Saturn
+              ring — one shallow golden arc sweeping across the LOWER
+              third of the orb, in front of it. A separate SVG above
+              the orb button (the back ellipse above is below it), so
+              the ring reads as passing behind the top and in front
+              of the bottom. pointer-events none: it never blocks the
+              orb press. The nodes below paint above it. */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 100 100"
+            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          >
+            <path
+              d="M 4 54 A 46 12 -12 0 1 96 46"
+              fill="none"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="3"
+              opacity="0.18"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 4 54 A 46 12 -12 0 1 96 46"
+              fill="none"
+              stroke="url(#echomind-ring-gold)"
+              strokeWidth="1.4"
+              opacity="0.9"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          {/* Orbiting apps — brand icons only, no labels. Raised
+              beveled medallions (round 3), not flat glass circles:
+              radial surface gradient, specular rim, amber glow. Plain
+              positioned buttons with NO transform and no transition:
+              nodes used to be centred with -translate-x/y and the
+              selected one scaled to 110% — each a compositing layer
+              a mobile GPU mis-culls while scrolling, so nodes
+              vanished on the phone (4, then 4, then 2 of 8 in
+              Mahdi's round-3 screenshots). Centring is now a calc()
+              margin (56px node → 28px half) and the selected node
+              reads as selected through a static gold ring
+              (.echomind-node-selected). Nothing animates.
+              Round 5: the round-4 build STILL dropped Drive/Docs/
+              Sheets/Bank on Mahdi's phone (18:19 screenshots) even
+              though these buttons carry no transform, no transition,
+              no animation and no filter, and headless probes show
+              all 8 painted at 360/412px at every scroll position.
+              No further class can be removed from the buttons — the
+              remaining hardening is the translateZ(0) layer on the
+              orbit container above. Phone confirmation is the gate. */}
           {HUB_APPS.map((app, index) => {
             const { x, y } = nodePosition(index);
             const state = states[app.id];
@@ -397,12 +575,12 @@ export default function HomeHub({
                 }}
                 aria-pressed={isSelected}
                 aria-label={`${app.label[lang]} — ${stateLabel(state, lang)}`}
-                className={`absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-ink transition ${
+                className={`absolute flex h-14 w-14 items-center justify-center rounded-full ${
                   isSelected
-                    ? "echomind-glass-strong scale-110"
-                    : "echomind-glass hover:scale-105"
+                    ? "echomind-medallion-gold echomind-node-selected"
+                    : "echomind-medallion"
                 }`}
-                style={{ left: `${x}%`, top: `${y}%` }}
+                style={{ left: `calc(${x}% - 28px)`, top: `calc(${y}% - 28px)` }}
               >
                 <BrandIcon id={app.icon} className="h-6 w-6" />
                 {state === "connected" ? (
@@ -423,17 +601,33 @@ export default function HomeHub({
               </button>
             );
           })}
-        </motion.div>
-      </MotionReveal>
+      </div>
+
+      {/* The orb is a microphone: a one-line teacher when idle, the
+          listening state while recording — "release to stop" for a
+          hold, "tap to stop" for a tap. */}
+      <p
+        role="status"
+        className={`mt-1 text-center text-[11px] font-semibold ${
+          listening ? "text-gold" : "text-muted"
+        }`}
+      >
+        {listening
+          ? listenMode === "hold"
+            ? STRINGS.orbHoldStop[lang]
+            : STRINGS.orbStop[lang]
+          : STRINGS.orbTap[lang]}
+      </p>
 
       {/* "So what?" — the selected app, and its connect action.
           Dense command-row layout (Raycast): object id + status dot
           on top, one-line powers, one action. Aceternity spotlight
           follows the pointer; a magicui border beam travels around
           the border; switching apps crossfades the content
-          (framer-motion AnimatePresence, skipped on reduced motion). */}
-      <MotionReveal delay={140}>
-        <SpotlightCard className="mt-4 rounded-2xl">
+          (framer-motion AnimatePresence, skipped on reduced motion).
+          No scroll-linked reveal: the card is always painted. */}
+      <div>
+        <SpotlightCard className="mt-3 rounded-2xl">
           <GlassCard className="p-4" strong dense beam>
             {reduceMotion ? (
               <SoWhatContent />
@@ -452,11 +646,12 @@ export default function HomeHub({
             )}
           </GlassCard>
         </SpotlightCard>
-      </MotionReveal>
+      </div>
 
-      {/* Honest "coming soon": no connector exists, so no orbit node. */}
-      <Reveal delay={180}>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+      {/* Honest "coming soon": no connector exists, so no orbit node.
+          Rendered statically, like the rest of the hub. */}
+      <div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="echomind-meta text-muted">
             {STRINGS.comingSoon[lang]}
           </span>
@@ -471,7 +666,7 @@ export default function HomeHub({
             </span>
           ))}
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }

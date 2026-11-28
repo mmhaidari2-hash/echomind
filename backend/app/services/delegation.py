@@ -610,7 +610,20 @@ def confirm_task(user_id: str, task_id: str, *, _urlopen=None) -> DelegatedTask:
     else:
         task.status = "done"
     done_steps = [step for step in task.plan if step.status == "done"]
-    task.result = "; ".join(step.evidence or step.summary for step in done_steps) or "Nothing could be done yet."
+    done_text = "; ".join(step.evidence or step.summary for step in done_steps)
+    # The notification contract: a failed task must show its reason, not
+    # just "Nothing could be done yet." The blocking step's evidence IS the
+    # reason (e.g. "MENTOR's endpoint is missing"). It goes into
+    # task.result so the in-app task list and the finish/fail notification
+    # can both show result + reason.
+    blocking = next(
+        (step for step in task.plan if step.status in {"failed", "needs_owner", "refused"}),
+        None,
+    )
+    if blocking is not None and blocking.evidence:
+        task.result = f"{blocking.evidence} — {done_text}" if done_text else blocking.evidence
+    else:
+        task.result = done_text or "Nothing could be done yet."
     task.updated_at = _now()
     _save(user_id, task)
     return task

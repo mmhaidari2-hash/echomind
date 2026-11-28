@@ -12,6 +12,7 @@ import {
 
 import { copy } from "../lib/copy";
 import { getPhotoService } from "../../services/photos";
+import { LISTEN_REQUEST, LISTEN_STOP_REQUEST } from "./NativeShell";
 import {
   detectTextDirection,
   localeDir,
@@ -29,6 +30,10 @@ export type ChatAttachment = {
   /** Object URL for image thumbnails, revoked on remove/submit. */
   previewUrl?: string;
 };
+
+/** A press held at least this long is a hold (release stops); a
+    shorter press is a tap (listening continues until tapped again). */
+const HOLD_MS = 300;
 
 type ChatInputProps = {
   locale: Locale;
@@ -80,8 +85,18 @@ function IconPaperclip({ className }: { className?: string }) {
       className={className}
       aria-hidden
     >
+      <rect
+        x="3.5"
+        y="5"
+        width="17"
+        height="14"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <circle cx="9" cy="10" r="1.6" stroke="currentColor" strokeWidth="1.7" />
       <path
-        d="M8.5 12.5 15 6a3.2 3.2 0 1 1 4.5 4.5l-8.2 8.2a4.6 4.6 0 0 1-6.5-6.5l7.4-7.4"
+        d="m5 17 4-4 3.5 3.5L16 13l3 3"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"
@@ -190,15 +205,28 @@ function ListeningWave() {
 function speechNotice(
   t: (typeof copy)[Locale],
   listening: boolean,
+  starting: boolean,
   error: SpeechErrorCode | null,
+  held: boolean,
+  transcribing: boolean,
 ): string | null {
-  if (listening) return t.recording;
+  if (listening || starting) return held ? t.recordingHold : t.recording;
+  if (transcribing) return t.transcribing;
   if (!error || error === "aborted") return null;
   if (error === "unsupported") return t.speechUnsupported;
   if (error === "not-allowed") return t.micDenied;
   if (error === "no-speech") return t.speechNoSpeech;
   if (error === "network") return t.speechNetwork;
   if (error === "audio-capture") return t.speechAudio;
+  if (error === "stalled") return t.speechStalled;
+  if (error === "service-missing") return t.speechServiceMissing;
+  if (error === "key-missing") return t.transcribeKeyMissing;
+  if (error === "server-old") return t.transcribeServerOld;
+  if (error === "server-busy") return t.transcribeServerBusy;
+  if (error === "bad-audio") return t.transcribeBadAudio;
+  if (error === "sign-in") return t.answerSignIn;
+  if (error === "offline") return t.answerPhoneOffline;
+  if (error === "timeout") return t.answerTimeout;
   return t.speechUnknown;
 }
 
@@ -224,23 +252,106 @@ export default function ChatInput({
   const cameraRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const speechAnchorRef = useRef("");
+  /** What the live voice sync last wrote into the draft — the
+      auto-send below only fires when the draft is still exactly
+      this, so text the user typed during the harvest window is
+      never stolen. */
+  const lastSyncedRef = useRef("");
+  /** Typed submit while listening: the voice harvest that follows
+      must NOT auto-send a second message — the heard text stays as
+      a draft instead. Timestamped (not a plain flag) so a later
+      voice session is never suppressed by a stale submit. */
+  const suppressVoiceSendUntilRef = useRef(0);
+  /** Live mirror of `listening`, so the widget/notification handler
+      below can tell whether a session is already running without
+      re-subscribing on every state change. */
+  const listeningRef = useRef(false);
+  const startingRef = useRef(false);
+  /** Whether the current listen session was started by a hold or a
+      tap — the orb's teacher line reads it from the event below. */
+  const listenModeRef = useRef<"hold" | "tap">("tap");
+  /** Hold-to-talk press bookkeeping (mic button). */
+  const micPressStartRef = useRef(0);
+  const micPressedRef = useRef(false);
+  const micPressHandledRef = useRef(0);
 
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
   /** Shown when a photo could not be added — e.g. permission denied.
       Never claims access that was not granted. */
   const [photoNotice, setPhotoNotice] = useState<string | null>(null);
+  /** True while the mic button is physically held down — drives the
+      red recording state and the "release to stop" notice. */
+  const [micPressed, setMicPressed] = useState(false);
+
+  /** Round 7 — a finished voice utterance ACTS. The hook fires this
+      once per listen period that produced text, ~700ms after the
+      stop, once the plugin's late final text has been harvested.
+      The utterance becomes a SENT message, and the always-answer
+      path in handleSend replies to it (or names the cause) — the
+      round-5 failure was "it hears my voice but does nothing
+      afterwards" because nothing ever sent the transcript. A send
+      already in flight (disabled) or text the user typed during the
+      harvest window keeps the heard text as a draft instead. */
+  const handleVoiceSessionEnd = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      const anchor = speechAnchorRef.current.trim();
+      const full = [anchor, trimmed].filter(Boolean).join(" ");
+      if (Date.now() < suppressVoiceSendUntilRef.current) {
+        suppressVoiceSendUntilRef.current = 0;
+        onChange(full);
+        return;
+      }
+      if (disabled) {
+        onChange(full);
+        return;
+      }
+      const current = textareaRef.current?.value ?? "";
+      if (current.trim() !== lastSyncedRef.current.trim()) {
+        // The user typed during the harvest window — append the
+        // heard text and let them send it themselves.
+        onChange([current.trim(), trimmed].filter(Boolean).join(" "));
+        return;
+      }
+      onSend({ text: full, attachments: [] });
+      onChange("");
+      speechAnchorRef.current = "";
+    },
+    [disabled, onChange, onSend],
+  );
 
   const {
     listening,
+    starting,
+    transcribing,
+    supported,
+    probed,
+    serviceProbe,
     transcript,
     error: speechError,
     lang: speechLang,
     start: startListening,
     stop: stopListening,
-  } = useSpeechRecognition({ locale });
+  } = useSpeechRecognition({ locale, onSessionEnd: handleVoiceSessionEnd });
 
-  const notice = speechNotice(t, listening, speechError);
+  const notice = speechNotice(t, listening, starting, speechError, micPressed, transcribing);
+  /** The mic is dead and the user should know before tapping: the
+      availability probe finished and there is no recognizer (no
+      native plugin and no Web Speech). A small muted line, not a
+      modal — the mic button stays tappable so the full notice
+      appears on tap. When the service probe says the on-device
+      recognizer itself is missing, name that instead of the generic
+      "not supported" line. */
+  const voiceUnavailable = probed && !supported;
+  const voiceUnavailableHint =
+    serviceProbe &&
+    (!serviceProbe.available ||
+      serviceProbe.googleService === "missing" ||
+      serviceProbe.googleService === "timeout")
+      ? t.speechServiceMissing
+      : t.speechUnsupported;
 
   const canSend =
     !disabled && (value.trim().length > 0 || attachments.length > 0);
@@ -286,11 +397,90 @@ export default function ChatInput({
     if (!listening) return;
     const prefix = speechAnchorRef.current.trim();
     const next = [prefix, transcript].filter(Boolean).join(" ");
+    lastSyncedRef.current = next;
     onChange(next);
   }, [listening, transcript, onChange]);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent<boolean>("echomind-listening", { detail: listening }));
+    listeningRef.current = listening;
+  }, [listening]);
+
+  useEffect(() => {
+    startingRef.current = starting;
+  }, [starting]);
+
+  /** Home-screen widget / persistent notification / ?listen=1 / the
+      golden orb: start listening without hunting for the mic button.
+      The request arrives as a window event when the app is already
+      open, and as a sessionStorage flag (set by NativeShell before
+      this component mounted) on a cold start from the widget — both
+      funnel into the same start path as the mic button, and the
+      existing error notice covers mic-denied / unsupported honestly.
+      The flag is consumed once and expires after 60s, so a stale
+      request never starts the mic on a later visit. The orb also
+      sends a stop request (tapping it again while listening stops).
+      A stop request is honoured unconditionally — it must cancel
+      even a start that is still pending, which the tap-toggle could
+      not do in round 3. */
+  useEffect(() => {
+    const FLAG = LISTEN_REQUEST;
+    const consumeFlag = (): boolean => {
+      try {
+        const raw = window.sessionStorage.getItem(FLAG);
+        if (!raw) return false;
+        window.sessionStorage.removeItem(FLAG);
+        return Date.now() - Number(raw) < 60_000;
+      } catch {
+        return false;
+      }
+    };
+    const consumeUrlParam = (): boolean => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("listen") !== "1") return false;
+        params.delete("listen");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const startIfRequested = () => {
+      if (listeningRef.current || startingRef.current) return;
+      speechAnchorRef.current = textareaRef.current?.value ?? "";
+      startListening();
+    };
+    const onRequest = (event: Event) => {
+      const mode =
+        (event as CustomEvent<{ mode?: "hold" | "tap" }>).detail?.mode ??
+        "tap";
+      listenModeRef.current = mode;
+      startIfRequested();
+    };
+    const onStopRequest = () => {
+      // Unconditional: a stop request must cancel even a pending start.
+      stopListening();
+    };
+    if (consumeFlag() || consumeUrlParam()) startIfRequested();
+    window.addEventListener(FLAG, onRequest);
+    window.addEventListener(LISTEN_STOP_REQUEST, onStopRequest);
+    return () => {
+      window.removeEventListener(FLAG, onRequest);
+      window.removeEventListener(LISTEN_STOP_REQUEST, onStopRequest);
+    };
+  }, [startListening, stopListening]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("echomind-listening", {
+        detail: { listening, mode: listenModeRef.current },
+      }),
+    );
   }, [listening]);
 
   const addFilesList = (list: File[]) => {
@@ -368,18 +558,79 @@ export default function ChatInput({
     }
   };
 
-  const toggleListening = () => {
-    if (listening) {
+  /** Hold-to-talk, exactly as Mahdi specified: press-and-hold starts
+      listening and the mic turns RED while held; releasing stops it
+      and it goes back to gold immediately. A quick tap also starts
+      listening (tap mode) and the mic itself is the red STOP control.
+      Stopping must ALWAYS work — releasing cancels even a start that
+      is still pending (the hook's generation token makes that true). */
+  const onMicPointerDown = (event: React.PointerEvent) => {
+    if (disabled) return;
+    event.preventDefault();
+    micPressHandledRef.current = Date.now();
+    micPressStartRef.current = Date.now();
+    micPressedRef.current = true;
+    setMicPressed(true);
+    if (listeningRef.current || startingRef.current) {
+      // Tapping the mic while listening (or starting) stops it.
       stopListening();
       return;
     }
+    listenModeRef.current = "hold";
+    speechAnchorRef.current = value;
+    startListening();
+  };
+
+  const endMicPress = () => {
+    if (!micPressedRef.current) return;
+    micPressedRef.current = false;
+    setMicPressed(false);
+    const heldMs = Date.now() - micPressStartRef.current;
+    if (heldMs >= HOLD_MS) {
+      // It was a hold: releasing stops listening. A stop during a
+      // pending start cancels it.
+      stopListening();
+      return;
+    }
+    // A quick tap: the session keeps listening in tap mode — correct
+    // the mode the orb's teacher line reads.
+    if (listeningRef.current || startingRef.current) {
+      listenModeRef.current = "tap";
+      window.dispatchEvent(
+        new CustomEvent("echomind-listening", {
+          detail: { listening: true, mode: "tap" },
+        }),
+      );
+    }
+  };
+
+  const onMicClick = () => {
+    // Pointer events already handled this press (touch/mouse). Only
+    // a keyboard / assistive activation reaches here without one.
+    if (Date.now() - micPressHandledRef.current < 600) return;
+    toggleListening();
+  };
+
+  const toggleListening = () => {
+    // A tap while starting must stop, not restart — round 3 restarted.
+    if (listening || starting) {
+      stopListening();
+      return;
+    }
+    listenModeRef.current = "tap";
     speechAnchorRef.current = value;
     startListening();
   };
 
   const submit = () => {
     if (!canSend) return;
-    if (listening) stopListening();
+    if (listening) {
+      // A typed send while listening: the voice harvest that follows
+      // must not auto-send a second message (see the suppress window
+      // in handleVoiceSessionEnd).
+      suppressVoiceSendUntilRef.current = Date.now() + 1500;
+      stopListening();
+    }
     onSend({
       text: value.trim(),
       attachments: attachments.map((item) => item.file),
@@ -394,6 +645,8 @@ export default function ChatInput({
     requestAnimationFrame(resizeField);
   };
 
+  const micRecording = listening || starting || micPressed || transcribing;
+
   return (
     <div className="pointer-events-none z-30 shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
       <div className="pointer-events-auto mx-auto w-full max-w-3xl">
@@ -403,11 +656,17 @@ export default function ChatInput({
             className="echomind-glass mb-2 flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-center text-xs text-ink-soft"
             role="status"
           >
-            {listening ? <ListeningWave /> : null}
+            {listening || starting ? <ListeningWave /> : null}
             <span>
               {notice}
               {listening ? ` · ${speechLang}` : ""}
             </span>
+          </p>
+        ) : null}
+
+        {!notice && voiceUnavailable ? (
+          <p className="mb-2 text-center text-[11px] text-muted" role="status">
+            {voiceUnavailableHint}
           </p>
         ) : null}
 
@@ -448,7 +707,7 @@ export default function ChatInput({
           </ul>
         ) : null}
 
-        <div className="echomind-glass-blur flex min-h-[3.5rem] items-center gap-1 rounded-full px-2 py-1.5">
+        <div className="echomind-glass-bevel flex min-h-[3.5rem] items-center gap-0.5 rounded-full px-1.5 py-1.5 sm:gap-1 sm:px-2">
           <div className="relative shrink-0" ref={attachMenuRef}>
             <button
               type="button"
@@ -456,7 +715,7 @@ export default function ChatInput({
               aria-expanded={attachOpen}
               disabled={disabled}
               onClick={() => setAttachOpen((open) => !open)}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40 sm:h-11 sm:w-11"
             >
               <IconPaperclip className="h-5 w-5" />
             </button>
@@ -532,7 +791,7 @@ export default function ChatInput({
             value={value}
             disabled={disabled}
             placeholder={t.placeholder}
-            className={`max-h-11 min-h-[2.75rem] flex-1 resize-none overflow-y-auto whitespace-nowrap bg-transparent px-1 py-2.5 text-[16px] leading-6 text-ink placeholder:text-muted focus:outline-none ${
+            className={`max-h-11 min-h-[2.75rem] min-w-0 flex-1 resize-none overflow-y-auto whitespace-nowrap bg-transparent px-0.5 py-2.5 text-[15px] leading-6 text-ink placeholder:text-muted focus:outline-none sm:px-1 sm:text-[16px] ${
               dir === "rtl" ? "font-fa" : ""
             }`}
             onChange={(event) => onChange(event.target.value)}
@@ -548,21 +807,35 @@ export default function ChatInput({
             type="button"
             aria-label={listening ? t.voiceStop : t.voiceStart}
             aria-pressed={listening}
-            disabled={disabled}
-            onClick={toggleListening}
-            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:opacity-40 ${
-              listening ? "text-gold" : "text-muted hover:text-gold"
-            }`}
+            onPointerDown={onMicPointerDown}
+            onPointerUp={endMicPress}
+            onPointerCancel={endMicPress}
+            onPointerLeave={endMicPress}
+            onClick={onMicClick}
+            onContextMenu={(event) => event.preventDefault()}
+            className={`relative flex h-10 w-10 shrink-0 touch-none select-none items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 sm:h-11 sm:w-11 ${
+              micRecording
+                ? "echomind-medallion-recording"
+                : "echomind-medallion"
+            } ${voiceUnavailable ? "opacity-60" : ""}`}
           >
-            {listening ? (
-              <span className="echomind-mic-ring pointer-events-none absolute -inset-1 rounded-full" />
+            {listening || starting ? (
+              <span
+                className={`pointer-events-none absolute -inset-1 rounded-full ${
+                  micRecording
+                    ? "echomind-mic-ring-recording"
+                    : "echomind-mic-ring"
+                }`}
+              />
             ) : null}
-            <IconMic className={`relative h-5 w-5 ${listening ? "echomind-pulse" : ""}`} />
+            <IconMic
+              className={`relative h-5 w-5 ${listening || starting ? "echomind-pulse" : ""}`}
+            />
           </button>
 
           <button
             type="button"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gold transition hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-40"
+            className="echomind-medallion-gold flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:w-11"
             aria-label={t.send}
             disabled={!canSend}
             onClick={submit}

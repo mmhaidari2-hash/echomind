@@ -26,16 +26,82 @@ export const copy = {
       "EchoMind can't open your photos — photo access is turned off. Allow it in Settings → Apps → EchoMind → Permissions, then try again.",
     photoError: "Couldn't read that photo. Try another one.",
     recording: "Listening… tap to stop",
+    recordingHold: "Recording — release to stop",
     speechUnsupported: "Voice input is not supported in this browser.",
-    micDenied: "Microphone permission was denied.",
+    micDenied:
+      "Microphone permission is off. Allow it in Settings → Apps → EchoMind → Permissions, then try again.",
     speechNoSpeech: "No speech detected. Tap the mic and try again.",
     speechNetwork: "Voice recognition needs a network connection.",
     speechAudio: "No microphone was found.",
     speechUnknown: "Voice input failed. Try again.",
+    /** Round 4: the recognizer started but never began listening
+        (zombie bind on the device) — name the stall, not a generic
+        failure. */
+    speechStalled:
+      "The phone's speech service didn't start. Try again — if it keeps failing, make sure the Google app is enabled.",
+    /** Round 9: the endpoint now exists, so this line is only shown
+        when BOTH the on-device recognizer AND the server recorder
+        cannot start (no MediaRecorder either) — say so plainly. */
+    speechServiceMissing:
+      "The phone's speech service isn't available, and server transcription couldn't start either — please type for now.",
+    /** Round 9 — server transcription states. Every voice attempt
+        ends in a visible result, never silence. */
+    transcribing: "Turning your voice into text…",
+    transcribeKeyMissing:
+      "Voice transcription needs the Gemini key — it isn't set yet. Add GEMINI_API_KEY in Railway and try again.",
+    transcribeServerOld:
+      "The server is still running the older version, so server transcription isn't available yet. Type for now — it arrives with the next server update.",
+    transcribeServerBusy:
+      "The transcription server is busy right now. Please try again in a moment.",
+    transcribeBadAudio:
+      "That recording couldn't be read. Try again — speak a little closer to the phone.",
     emptyThread:
       "Your message stays on this device. Live replies connect in a later phase.",
     thinking: "EchoMind is thinking…",
     sendFailed: "Could not reach EchoMind. Check the API and try again.",
+    /** Always-answer replies — EchoMind ALWAYS answers, even when the
+        server cannot. The reply names the cause in the user's language
+        instead of leaving a blank space or a raw error. */
+    answerSignIn:
+      "I can't answer from your personal data yet — please sign in first, then ask me again.",
+    answerServerOld:
+      "The server is still running the older version, so the live answer service isn't available yet. Your message was received — the built-in guides still work, and I'll answer fully once the server is updated.",
+    answerPhoneOffline:
+      "Your phone has no internet — turn on Wi-Fi or mobile data. Your message is saved on this device — try again when you're back online.",
+    answerTimeout:
+      "The server took too long to answer. Please try again in a moment.",
+    answerServerBusy:
+      "The server is busy right now. Please try again in a moment.",
+    answerFailed:
+      "I couldn't reach the server just now. Your message wasn't lost — please try again.",
+    /** Round 8: open-app results — the action always answers, even
+        when the app cannot be opened. {app} is the app's label. */
+    openAppOpened: "Opening {app}…",
+    openAppNotInstalled:
+      "{app} isn't installed on this phone — install it first, then ask me again.",
+    openAppUnmapped:
+      "Your bank doesn't have one app I can open — tell me which bank app you use and I'll open it.",
+    openAppUnknown:
+      "I don't know an app called \"{app}\". I can open Instagram, YouTube, Gmail, Drive, Docs, Sheets or Calendar.",
+    openAppError:
+      "I couldn't open {app} — try opening it yourself and tell me what you see.",
+    openAppUnavailable:
+      "I can only open apps from the phone app, not from the browser.",
+    signInPrompt: "Sign in to sync live connections",
+    providersSignIn: "Sign in to configure model providers",
+    hubSignIn: "Sign in to see the command hub",
+    signInSetupNote:
+      "Sign-in is being set up — it arrives with the next app update.",
+    signInAction: "Sign in",
+    retryAction: "Try again",
+    providersOutdated:
+      "Providers arrive with the next app update — the server still runs the older version.",
+    hubOutdated:
+      "The hub arrives with the next app update — the server still runs the older version.",
+    orbListenHint: "Hold the orb to talk",
+    orbListening: "Listening… tap the orb to stop",
+    orbHoldStop: "Recording — release to stop",
+    orbStarting: "Starting to listen…",
     delayWizard: "Open Delay Repay calculator",
     rightsWizard: "Open Consumer Rights notice",
     shieldWizard: "Open Overdraft Shield",
@@ -132,16 +198,79 @@ export const copy = {
       "اکومایند نمی‌تواند به عکس‌های شما دسترسی داشته باشد — دسترسی به عکس خاموش است. در تنظیمات ← برنامه‌ها ← EchoMind ← دسترسی‌ها آن را روشن کنید و دوباره تلاش کنید.",
     photoError: "خواندن آن عکس ممکن نشد. عکس دیگری را امتحان کنید.",
     recording: "در حال شنیدن… برای توقف بزنید",
+    recordingHold: "در حال ضبط — برای توقف رها کنید",
     speechUnsupported: "ورودی صوتی در این مرورگر پشتیبانی نمی‌شود.",
-    micDenied: "دسترسی به میکروفون رد شد.",
+    micDenied:
+      "دسترسی به میکروفون خاموش است. در تنظیمات ← برنامه‌ها ← EchoMind ← دسترسی‌ها آن را روشن کنید و دوباره تلاش کنید.",
     speechNoSpeech: "صدایی شنیده نشد. دوباره روی میکروفون بزنید.",
     speechNetwork: "تشخیص گفتار به اتصال شبکه نیاز دارد.",
     speechAudio: "میکروفونی پیدا نشد.",
     speechUnknown: "ورودی صوتی ناموفق بود. دوباره تلاش کنید.",
+    /** Round 4: the recognizer started but never began listening
+        (zombie bind on the device) — name the stall, not a generic
+        failure. */
+    speechStalled:
+      "سرویس گفتار گوشی شروع نشد. دوباره تلاش کنید — اگر باز هم نشد، مطمئن شوید برنامهٔ Google فعال است.",
+    /** Round 9: the endpoint now exists, so this line is only shown
+        when BOTH the on-device recognizer AND the server recorder
+        cannot start (no MediaRecorder either) — say so plainly. */
+    speechServiceMissing:
+      "سرویس گفتار گوشی در دسترس نیست و رونویسی سرور هم شروع نشد — فعلاً تایپ کنید.",
+    /** Round 9 — server transcription states. Every voice attempt
+        ends in a visible result, never silence. */
+    transcribing: "در حال تبدیل صدا به متن…",
+    transcribeKeyMissing:
+      "رونویسی صدا به کلید Gemini نیاز دارد — هنوز گذاشته نشده. در Railway کلید GEMINI_API_KEY را بگذار و دوباره تلاش کن.",
+    transcribeServerOld:
+      "سرور هنوز نسخهٔ قدیمی را اجرا می‌کند، پس رونویسی سرور هنوز در دسترس نیست. فعلاً تایپ کن — با به‌روزرسانی بعدی سرور می‌آید.",
+    transcribeServerBusy:
+      "سرور رونویسی الان شلوغ است. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
+    transcribeBadAudio:
+      "آن ضبط خوانده نشد. دوباره تلاش کن — کمی نزدیک‌تر به گوشی صحبت کن.",
     emptyThread:
       "پیام روی همین دستگاه می‌ماند. پاسخ زنده در فازهای بعدی وصل می‌شود.",
     thinking: "اکومایند در حال فکر کردن است…",
     sendFailed: "ارتباط با اکومایند برقرار نشد. API را بررسی کنید و دوباره تلاش کنید.",
+    answerSignIn:
+      "هنوز نمی‌توانم از داده‌های شخصی‌تان جواب دهم — لطفاً اول وارد شوید و دوباره بپرسید.",
+    answerServerOld:
+      "سرور هنوز نسخهٔ قدیمی را اجرا می‌کند، پس سرویس پاسخ زنده هنوز در دسترس نیست. پیام‌تان رسید — راهنماهای داخلی هنوز کار می‌کنند و پس از به‌روزرسانی سرور کامل جواب می‌دهم.",
+    answerPhoneOffline:
+      "اینترنت گوشی وصل نیست — وای‌فای یا دیتا را روشن کن. پیام‌تان روی همین دستگاه ذخیره شد — وقتی آنلاین شدید دوباره تلاش کنید.",
+    answerTimeout:
+      "سرور دیر جواب داد. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
+    answerServerBusy:
+      "سرور الان شلوغ است. لطفاً لحظه‌ای دیگر دوباره تلاش کنید.",
+    answerFailed:
+      "الان نتوانستم به سرور وصل شوم. پیام‌تان گم نشده — لطفاً دوباره تلاش کنید.",
+    /** Round 8: open-app results — the action always answers, even
+        when the app cannot be opened. {app} is the app's label. */
+    openAppOpened: "«{app}» رو باز می‌کنم…",
+    openAppNotInstalled:
+      "«{app}» روی این گوشی نصب نیست — اول نصبش کن، بعد دوباره بگو.",
+    openAppUnmapped:
+      "بانک یه اپ واحد نداره که بازش کنم — بگو اپ بانکت چیه تا بازش کنم.",
+    openAppUnknown:
+      "اپی به اسم «{app}» نمی‌شناسم. اینستاگرام، یوتیوب، جیمیل، درایو، داکس، شیت یا تقویم رو می‌تونم باز کنم.",
+    openAppError:
+      "نتونستم «{app}» رو باز کنم — خودت بازش کن و بگو چی می‌بینی.",
+    openAppUnavailable:
+      "اپ‌ها رو فقط از برنامهٔ گوشی می‌تونم باز کنم، نه از مرورگر.",
+    signInPrompt: "برای همگام‌سازی اتصالات زنده وارد شوید",
+    providersSignIn: "برای تنظیم ارائه‌دهندگان مدل وارد شوید",
+    hubSignIn: "برای دیدن هاب فرمان وارد شوید",
+    signInSetupNote:
+      "ورود در حال راه‌اندازی است — با به‌روزرسانی بعدی برنامه می‌آید.",
+    signInAction: "ورود",
+    retryAction: "دوباره تلاش کن",
+    providersOutdated:
+      "ارائه‌دهندگان با به‌روزرسانی بعدی برنامه می‌آیند — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند.",
+    hubOutdated:
+      "هاب با به‌روزرسانی بعدی برنامه می‌آید — سرور هنوز نسخهٔ قدیمی را اجرا می‌کند.",
+    orbListenHint: "برای صحبت، دایره را نگه دارید",
+    orbListening: "در حال شنیدن… برای توقف روی دایره بزنید",
+    orbHoldStop: "در حال ضبط — برای توقف رها کنید",
+    orbStarting: "در حال شروع شنیدن…",
     delayWizard: "باز کردن محاسبه Delay Repay",
     rightsWizard: "باز کردن نامه حقوق مصرف‌کننده",
     shieldWizard: "باز کردن سپر اضافه برداشت",

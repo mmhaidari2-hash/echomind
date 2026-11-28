@@ -4,4 +4,5 @@
     <string name="title_activity_main">EchoMind Assistant</string>
     <string name="package_name">com.echomind.assistant</string>
     <string name="custom_url_scheme">com.echomind.assistant</string>
+    <string name="widget_mic_label">EchoMind Mic</string>
 </resources>
